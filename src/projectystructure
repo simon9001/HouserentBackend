@@ -1,0 +1,48 @@
+src/
+├── admin/                  # Admin dashboard functionality
+│   ├── adminService.ts
+│   ├── adminController.ts
+│   └── adminRoutes.ts
+├── users/                  # User management
+│   ├── userService.ts
+│   ├── userController.ts
+│   └── userRoutes.ts
+├── agents/                 # Agent-specific functionality
+│   ├── agentService.ts
+│   ├── agentController.ts
+│   └── agentRoutes.ts
+├── properties/             # Property management
+│   ├── propertyService.ts
+│   ├── propertyController.ts
+│   └── propertyRoutes.ts
+├── verification/           # Agent verification
+│   ├── verificationService.ts
+│   ├── verificationController.ts
+│   └── verificationRoutes.ts
+├── visits/                 # Property visits
+│   ├── visitService.ts
+│   ├── visitController.ts
+│   └── visitRoutes.ts
+├── reviews/                # Reviews
+│   ├── reviewService.ts
+│   ├── reviewController.ts
+│   └── reviewRoutes.ts
+├── payments/               # Payment handling
+│   ├── paymentService.ts
+│   ├── paymentController.ts
+│   └── paymentRoutes.ts
+├── audit/                  # Audit logs
+│   ├── auditService.ts
+│   ├── auditController.ts
+│   └── auditRoutes.ts
+├── middleware/             # Authentication & authorization
+│   ├── authMiddleware.ts
+│   └── roleMiddleware.ts
+├── utils/                  # Utility functions
+│   ├── firebase.ts
+│   ├── validators.ts
+│   └── helpers.ts
+├── Database/               # Database configuration
+│   ├── config.ts
+│   └── envConfig.ts
+└── app.ts                  # Main application file
