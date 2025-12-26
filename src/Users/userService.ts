@@ -263,123 +263,133 @@ export class UsersService {
     }
 
     // Update user
-    async updateUser(userId: string, data: UpdateUserInput): Promise<User | null> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
-        }
-
-        // Build dynamic update query
-        let updateFields: string[] = [];
-        const inputs: { [key: string]: any } = { userId };
-
-        if (data.fullName) {
-            const validation = UserValidators.validateFullName(data.fullName);
-            if (!validation.isValid) {
-                throw new Error(validation.error);
-            }
-            updateFields.push('FullName = @fullName');
-            inputs.fullName = data.fullName;
-        }
-
-        if (data.phoneNumber) {
-            const validation = UserValidators.validatePhoneNumber(data.phoneNumber);
-            if (!validation.isValid) {
-                throw new Error(validation.error);
-            }
-            
-            let formattedPhone = data.phoneNumber.replace(/\D/g, '');
-            if (formattedPhone.startsWith('0')) {
-                formattedPhone = '254' + formattedPhone.substring(1);
-            }
-            
-            updateFields.push('PhoneNumber = @phoneNumber');
-            inputs.phoneNumber = formattedPhone;
-        }
-
-        if (data.email) {
-            const validation = UserValidators.validateEmail(data.email);
-            if (!validation.isValid) {
-                throw new Error(validation.error);
-            }
-            updateFields.push('Email = @email');
-            inputs.email = data.email.toLowerCase();
-        }
-
-        if (data.role) {
-            const validation = UserValidators.validateRole(data.role);
-            if (!validation.isValid) {
-                throw new Error(validation.error);
-            }
-            updateFields.push('Role = @role');
-            inputs.role = data.role;
-        }
-
-        if (data.agentStatus) {
-            const validation = UserValidators.validateAgentStatus(data.agentStatus);
-            if (!validation.isValid) {
-                throw new Error(validation.error);
-            }
-            updateFields.push('AgentStatus = @agentStatus');
-            inputs.agentStatus = data.agentStatus;
-        }
-
-        if (data.trustScore !== undefined) {
-            updateFields.push('TrustScore = @trustScore');
-            inputs.trustScore = data.trustScore;
-        }
-
-        if (data.isActive !== undefined) {
-            updateFields.push('IsActive = @isActive');
-            inputs.isActive = data.isActive;
-        }
-
-        if (updateFields.length === 0) {
-            throw new Error('No fields to update');
-        }
-
-        updateFields.push('UpdatedAt = GETDATE()');
-
-        const query = `
-            UPDATE Users 
-            SET ${updateFields.join(', ')} 
-            OUTPUT INSERTED.*
-            WHERE UserId = @userId
-        `;
-
-        try {
-            const request = db.request()
-                .input('userId', sql.UniqueIdentifier, userId);
-
-            // Add all inputs dynamically
-            Object.keys(inputs).forEach(key => {
-                if (key !== 'userId') {
-                    const value = inputs[key];
-                    if (typeof value === 'string') {
-                        request.input(key, sql.NVarChar, value);
-                    } else if (typeof value === 'number') {
-                        request.input(key, sql.Int, value);
-                    } else if (typeof value === 'boolean') {
-                        request.input(key, sql.Bit, value);
-                    }
-                }
-            });
-
-            const result = await request.query(query);
-            return result.recordset[0] || null;
-        } catch (error: any) {
-            if (error.message?.includes('UNIQUE') || error.message?.includes('duplicate')) {
-                if (error.message?.includes('Email')) {
-                    throw new Error('Email already exists');
-                }
-                if (error.message?.includes('PhoneNumber')) {
-                    throw new Error('Phone number already exists');
-                }
-            }
-            throw error;
-        }
+// In your userService.js, update the updateUser method:
+async updateUser(userId: string, data: UpdateUserInput): Promise<User | null> {
+    const db = await this.getDb();
+    
+    if (!ValidationUtils.isValidUUID(userId)) {
+        throw new Error('Invalid user ID format');
     }
+
+    // Build dynamic update query WITHOUT OUTPUT clause
+    let updateFields: string[] = [];
+    const inputs: { [key: string]: any } = { userId };
+
+    if (data.fullName) {
+        const validation = UserValidators.validateFullName(data.fullName);
+        if (!validation.isValid) {
+            throw new Error(validation.error);
+        }
+        updateFields.push('FullName = @fullName');
+        inputs.fullName = data.fullName;
+    }
+
+    if (data.phoneNumber) {
+        const validation = UserValidators.validatePhoneNumber(data.phoneNumber);
+        if (!validation.isValid) {
+            throw new Error(validation.error);
+        }
+        
+        let formattedPhone = data.phoneNumber.replace(/\D/g, '');
+        if (formattedPhone.startsWith('0')) {
+            formattedPhone = '254' + formattedPhone.substring(1);
+        }
+        
+        updateFields.push('PhoneNumber = @phoneNumber');
+        inputs.phoneNumber = formattedPhone;
+    }
+
+    if (data.email) {
+        const validation = UserValidators.validateEmail(data.email);
+        if (!validation.isValid) {
+            throw new Error(validation.error);
+        }
+        updateFields.push('Email = @email');
+        inputs.email = data.email.toLowerCase();
+    }
+
+    if (data.role) {
+        const validation = UserValidators.validateRole(data.role);
+        if (!validation.isValid) {
+            throw new Error(validation.error);
+        }
+        updateFields.push('Role = @role');
+        inputs.role = data.role;
+    }
+
+    if (data.agentStatus) {
+        const validation = UserValidators.validateAgentStatus(data.agentStatus);
+        if (!validation.isValid) {
+            throw new Error(validation.error);
+        }
+        updateFields.push('AgentStatus = @agentStatus');
+        inputs.agentStatus = data.agentStatus;
+    }
+
+    if (data.trustScore !== undefined) {
+        updateFields.push('TrustScore = @trustScore');
+        inputs.trustScore = data.trustScore;
+    }
+
+    if (data.isActive !== undefined) {
+        updateFields.push('IsActive = @isActive');
+        inputs.isActive = data.isActive;
+    }
+
+    if (updateFields.length === 0) {
+        throw new Error('No fields to update');
+    }
+
+    updateFields.push('UpdatedAt = GETDATE()');
+
+    // Method 1: Update and then select (recommended for triggers)
+    const updateQuery = `
+        UPDATE Users 
+        SET ${updateFields.join(', ')} 
+        WHERE UserId = @userId
+    `;
+
+    const selectQuery = 'SELECT * FROM Users WHERE UserId = @userId';
+
+    try {
+        const request = db.request()
+            .input('userId', sql.UniqueIdentifier, userId);
+
+        // Add all inputs dynamically
+        Object.keys(inputs).forEach(key => {
+            if (key !== 'userId') {
+                const value = inputs[key];
+                if (typeof value === 'string') {
+                    request.input(key, sql.NVarChar, value);
+                } else if (typeof value === 'number') {
+                    request.input(key, sql.Int, value);
+                } else if (typeof value === 'boolean') {
+                    request.input(key, sql.Bit, value);
+                }
+            }
+        });
+
+        // Execute update
+        await request.query(updateQuery);
+        
+        // Then select the updated user
+        const result = await db.request()
+            .input('userId', sql.UniqueIdentifier, userId)
+            .query(selectQuery);
+        
+        return result.recordset[0] || null;
+    } catch (error: any) {
+        if (error.message?.includes('UNIQUE') || error.message?.includes('duplicate')) {
+            if (error.message?.includes('Email')) {
+                throw new Error('Email already exists');
+            }
+            if (error.message?.includes('PhoneNumber')) {
+                throw new Error('Phone number already exists');
+            }
+        }
+        throw error;
+    }
+}
 
     // Update user password
     async updateUserPassword(userId: string, newPassword: string): Promise<boolean> {

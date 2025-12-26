@@ -50,10 +50,10 @@ export class AgentVerificationService {
     async createVerification(data: CreateVerificationInput): Promise<AgentVerification> {
         const db = await this.getDb();
         
-        // Validate user exists and is an agent
+        // Validate user exists and is active
         const userCheckQuery = `
-            SELECT UserId, Role FROM Users 
-            WHERE UserId = @userId AND Role = 'AGENT' AND IsActive = 1
+            SELECT UserId, Role, AgentStatus FROM Users 
+            WHERE UserId = @userId AND IsActive = 1
         `;
         
         const userCheck = await db.request()
@@ -61,10 +61,99 @@ export class AgentVerificationService {
             .query(userCheckQuery);
         
         if (userCheck.recordset.length === 0) {
-            throw new Error('User not found or is not an agent');
+            throw new Error('User not found or inactive');
         }
 
-        // Check if verification already exists
+        const user = userCheck.recordset[0];
+        const userRole = user.Role?.toUpperCase();
+        const agentStatus = user.AgentStatus?.toUpperCase();
+
+        // Check if user is already an approved agent
+        if (userRole === 'AGENT' && agentStatus === 'APPROVED') {
+            throw new Error('You are already an approved agent');
+        }
+
+        // Check if user is admin
+        if (userRole === 'ADMIN') {
+            throw new Error('Administrators cannot apply to become agents');
+        }
+
+        // Check if user already has a pending verification
+        const existingQuery = `
+            SELECT VerificationId FROM AgentVerification 
+            WHERE UserId = @userId AND ReviewStatus IN ('PENDING', 'APPROVED')
+        `;
+        
+        const existing = await db.request()
+            .input('userId', sql.UniqueIdentifier, data.userId)
+            .query(existingQuery);
+        
+        if (existing.recordset.length > 0) {
+            throw new Error('Agent verification already exists or is pending');
+        }
+
+        // Create verification
+        const query = `
+            INSERT INTO AgentVerification (
+                UserId, NationalId, SelfieUrl, IdFrontUrl, IdBackUrl, PropertyProofUrl
+            ) 
+            OUTPUT INSERTED.*
+            VALUES (
+                @userId, @nationalId, @selfieUrl, @idFrontUrl, @idBackUrl, @propertyProofUrl
+            )
+        `;
+
+        const result = await db.request()
+            .input('userId', sql.UniqueIdentifier, data.userId)
+            .input('nationalId', sql.NVarChar(50), data.nationalId)
+            .input('selfieUrl', sql.NVarChar(500), data.selfieUrl)
+            .input('idFrontUrl', sql.NVarChar(500), data.idFrontUrl)
+            .input('idBackUrl', sql.NVarChar(500), data.idBackUrl || null)
+            .input('propertyProofUrl', sql.NVarChar(500), data.propertyProofUrl || null)
+            .query(query);
+
+        // Update user's agent status to PENDING (keep role as TENANT for now)
+        // When approved, we'll update role to AGENT
+        await db.request()
+            .input('userId', sql.UniqueIdentifier, data.userId)
+            .input('agentStatus', sql.NVarChar(20), 'PENDING')
+            .query(`
+                UPDATE Users 
+                SET AgentStatus = @agentStatus, UpdatedAt = GETDATE() 
+                WHERE UserId = @userId
+            `);
+
+        return result.recordset[0];
+    }
+
+    // Create verification by admin for a user
+    async createVerificationForUser(data: CreateVerificationInput): Promise<AgentVerification> {
+        const db = await this.getDb();
+        
+        // Validate user exists and is active
+        const userCheckQuery = `
+            SELECT UserId, Role, AgentStatus FROM Users 
+            WHERE UserId = @userId AND IsActive = 1
+        `;
+        
+        const userCheck = await db.request()
+            .input('userId', sql.UniqueIdentifier, data.userId)
+            .query(userCheckQuery);
+        
+        if (userCheck.recordset.length === 0) {
+            throw new Error('User not found or inactive');
+        }
+
+        const user = userCheck.recordset[0];
+        const userRole = user.Role?.toUpperCase();
+        const agentStatus = user.AgentStatus?.toUpperCase();
+
+        // Check if user is already an approved agent
+        if (userRole === 'AGENT' && agentStatus === 'APPROVED') {
+            throw new Error('User is already an approved agent');
+        }
+
+        // Check if user already has a pending verification
         const existingQuery = `
             SELECT VerificationId FROM AgentVerification 
             WHERE UserId = @userId AND ReviewStatus IN ('PENDING', 'APPROVED')
@@ -120,7 +209,13 @@ export class AgentVerificationService {
         }
 
         const query = `
-            SELECT av.*, u.FullName, u.Email, u.PhoneNumber, u.Role 
+            SELECT 
+                av.*, 
+                u.FullName, 
+                u.Email, 
+                u.PhoneNumber, 
+                u.Role,
+                u.AgentStatus
             FROM AgentVerification av
             INNER JOIN Users u ON av.UserId = u.UserId
             WHERE av.VerificationId = @verificationId
@@ -142,9 +237,17 @@ export class AgentVerificationService {
         }
 
         const query = `
-            SELECT * FROM AgentVerification 
-            WHERE UserId = @userId
-            ORDER BY SubmittedAt DESC
+            SELECT 
+                av.*,
+                u.FullName,
+                u.Email,
+                u.PhoneNumber,
+                u.Role,
+                u.AgentStatus
+            FROM AgentVerification av
+            INNER JOIN Users u ON av.UserId = u.UserId
+            WHERE av.UserId = @userId
+            ORDER BY av.SubmittedAt DESC
         `;
 
         const result = await db.request()
@@ -181,6 +284,7 @@ export class AgentVerificationService {
                 u.Email as UserEmail,
                 u.PhoneNumber as UserPhoneNumber,
                 u.Role as UserRole,
+                u.AgentStatus as UserAgentStatus,
                 r.FullName as ReviewerFullName
             FROM AgentVerification av
             INNER JOIN Users u ON av.UserId = u.UserId
@@ -232,6 +336,12 @@ export class AgentVerificationService {
             throw new Error('Invalid reviewer ID format');
         }
 
+        console.log('Service: updateVerification called with:', {
+            verificationId,
+            data,
+            reviewerId
+        });
+
         // Check if verification exists
         const verification = await this.getVerificationById(verificationId);
         if (!verification) {
@@ -240,7 +350,9 @@ export class AgentVerificationService {
 
         // Build dynamic update query
         let updateFields: string[] = [];
-        const inputs: { [key: string]: any } = { verificationId, reviewerId };
+        const request = db.request()
+            .input('verificationId', sql.UniqueIdentifier, verificationId)
+            .input('reviewerId', sql.UniqueIdentifier, reviewerId);
 
         if (data.reviewStatus) {
             const validStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
@@ -248,27 +360,21 @@ export class AgentVerificationService {
                 throw new Error('Invalid review status');
             }
             updateFields.push('ReviewStatus = @reviewStatus');
-            inputs.reviewStatus = data.reviewStatus;
+            request.input('reviewStatus', sql.NVarChar(20), data.reviewStatus);
         }
 
         if (data.reviewNotes !== undefined) {
             updateFields.push('ReviewNotes = @reviewNotes');
-            inputs.reviewNotes = data.reviewNotes;
+            request.input('reviewNotes', sql.NVarChar(sql.MAX), data.reviewNotes);
         }
 
-        if (data.reviewedBy) {
-            if (!ValidationUtils.isValidUUID(data.reviewedBy)) {
-                throw new Error('Invalid reviewer ID format');
-            }
-            updateFields.push('ReviewedBy = @reviewedBy');
-            inputs.reviewedBy = data.reviewedBy;
-        }
+        // Always set ReviewedBy to the reviewerId
+        updateFields.push('ReviewedBy = @reviewerId');
+        updateFields.push('ReviewedAt = GETDATE()');
 
         if (updateFields.length === 0) {
             throw new Error('No fields to update');
         }
-
-        updateFields.push('ReviewedAt = GETDATE()');
 
         const query = `
             UPDATE AgentVerification 
@@ -277,40 +383,80 @@ export class AgentVerificationService {
             WHERE VerificationId = @verificationId
         `;
 
+        console.log('Service: SQL Query:', query);
+
         try {
-            const request = db.request()
-                .input('verificationId', sql.UniqueIdentifier, verificationId);
-
-            // Add all inputs dynamically
-            Object.keys(inputs).forEach(key => {
-                if (key !== 'verificationId') {
-                    const value = inputs[key];
-                    if (typeof value === 'string') {
-                        request.input(key, sql.NVarChar, value);
-                    }
-                }
-            });
-
             const result = await request.query(query);
+            console.log('Service: Update result:', result);
 
-            // Update user's agent status if review status changed
+            // Update user's role and agent status based on verification review
             if (data.reviewStatus && data.reviewStatus !== 'PENDING') {
-                const userStatus = data.reviewStatus === 'APPROVED' ? 'APPROVED' : 'REJECTED';
-                
-                await db.request()
-                    .input('userId', sql.UniqueIdentifier, verification.UserId)
-                    .input('agentStatus', sql.NVarChar(20), userStatus)
-                    .query(`
-                        UPDATE Users 
-                        SET AgentStatus = @agentStatus, UpdatedAt = GETDATE() 
-                        WHERE UserId = @userId
-                    `);
+                if (data.reviewStatus === 'APPROVED') {
+                    // User is approved - update to AGENT role with APPROVED status
+                    await db.request()
+                        .input('userId', sql.UniqueIdentifier, verification.UserId)
+                        .input('userRole', sql.NVarChar(20), 'AGENT')
+                        .input('agentStatus', sql.NVarChar(20), 'APPROVED')
+                        .query(`
+                            UPDATE Users 
+                            SET Role = @userRole,
+                                AgentStatus = @agentStatus, 
+                                UpdatedAt = GETDATE() 
+                            WHERE UserId = @userId
+                        `);
+                } else if (data.reviewStatus === 'REJECTED') {
+                    // User is rejected - keep as TENANT (or current role) with REJECTED status
+                    await db.request()
+                        .input('userId', sql.UniqueIdentifier, verification.UserId)
+                        .input('agentStatus', sql.NVarChar(20), 'REJECTED')
+                        .query(`
+                            UPDATE Users 
+                            SET AgentStatus = @agentStatus, 
+                                UpdatedAt = GETDATE() 
+                            WHERE UserId = @userId
+                        `);
+                }
             }
 
             return result.recordset[0] || null;
         } catch (error: any) {
+            console.error('Service: SQL Error in updateVerification:', error.message);
+            console.error('Service: Error stack:', error.stack);
+            
+            // Check for specific SQL errors
+            if (error.message.includes('Invalid column name')) {
+                throw new Error(`Database schema error: ${error.message}`);
+            }
+            if (error.message.includes('Cannot insert the value NULL')) {
+                throw new Error(`Missing required field: ${error.message}`);
+            }
+            
             throw error;
         }
+    }
+
+    // Approve verification (convenience method)
+    async approveVerification(
+        verificationId: string,
+        reviewerId: string,
+        reviewNotes?: string
+    ): Promise<AgentVerification | null> {
+        return this.updateVerification(verificationId, {
+            reviewStatus: 'APPROVED',
+            reviewNotes
+        }, reviewerId);
+    }
+
+    // Reject verification (convenience method)
+    async rejectVerification(
+        verificationId: string,
+        reviewerId: string,
+        reviewNotes?: string
+    ): Promise<AgentVerification | null> {
+        return this.updateVerification(verificationId, {
+            reviewStatus: 'REJECTED',
+            reviewNotes
+        }, reviewerId);
     }
 
     // Get verification statistics
@@ -384,6 +530,96 @@ export class AgentVerificationService {
         }
 
         return false;
+    }
+
+    // Bulk approve verifications
+    async bulkApproveVerifications(
+        verificationIds: string[],
+        reviewerId: string,
+        reviewNotes?: string
+    ): Promise<AgentVerification[]> {
+        const db = await this.getDb();
+        
+        if (!Array.isArray(verificationIds) || verificationIds.length === 0) {
+            throw new Error('No verification IDs provided');
+        }
+
+        if (!ValidationUtils.isValidUUID(reviewerId)) {
+            throw new Error('Invalid reviewer ID format');
+        }
+
+        // Validate all verification IDs are UUIDs
+        for (const id of verificationIds) {
+            if (!ValidationUtils.isValidUUID(id)) {
+                throw new Error(`Invalid verification ID format: ${id}`);
+            }
+        }
+
+        const results: AgentVerification[] = [];
+        
+        // Process each verification
+        for (const verificationId of verificationIds) {
+            try {
+                const approved = await this.approveVerification(
+                    verificationId,
+                    reviewerId,
+                    reviewNotes
+                );
+                if (approved) {
+                    results.push(approved);
+                }
+            } catch (error) {
+                console.error(`Failed to approve verification ${verificationId}:`, error);
+                // Continue with other verifications
+            }
+        }
+
+        return results;
+    }
+
+    // Bulk reject verifications
+    async bulkRejectVerifications(
+        verificationIds: string[],
+        reviewerId: string,
+        reviewNotes?: string
+    ): Promise<AgentVerification[]> {
+        const db = await this.getDb();
+        
+        if (!Array.isArray(verificationIds) || verificationIds.length === 0) {
+            throw new Error('No verification IDs provided');
+        }
+
+        if (!ValidationUtils.isValidUUID(reviewerId)) {
+            throw new Error('Invalid reviewer ID format');
+        }
+
+        // Validate all verification IDs are UUIDs
+        for (const id of verificationIds) {
+            if (!ValidationUtils.isValidUUID(id)) {
+                throw new Error(`Invalid verification ID format: ${id}`);
+            }
+        }
+
+        const results: AgentVerification[] = [];
+        
+        // Process each verification
+        for (const verificationId of verificationIds) {
+            try {
+                const rejected = await this.rejectVerification(
+                    verificationId,
+                    reviewerId,
+                    reviewNotes
+                );
+                if (rejected) {
+                    results.push(rejected);
+                }
+            } catch (error) {
+                console.error(`Failed to reject verification ${verificationId}:`, error);
+                // Continue with other verifications
+            }
+        }
+
+        return results;
     }
 }
 

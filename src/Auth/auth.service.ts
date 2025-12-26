@@ -1,3 +1,4 @@
+// src/services/auth.service.ts
 import sql from 'mssql';
 import crypto from 'crypto';
 import { getConnectionPool } from '../Database/config.js';
@@ -5,7 +6,6 @@ import { JWTUtils, TokenPayload } from '../utils/jwt.js';
 import { EmailUtils } from '../utils/email.js';
 import { SecurityUtils } from '../utils/security.js';
 import { UserValidators } from '../utils/validators.js';
-// import { env } from '../Database/envConfig.js';
 import { usersService, User } from '../Users/userService.js';
 
 export interface LoginInput {
@@ -27,6 +27,7 @@ export interface AuthResponse {
     tokens: {
         accessToken: string;
         refreshToken: string;
+        sessionId?: string;
     };
 }
 
@@ -55,8 +56,17 @@ export class AuthService {
 
     // Helper method to hash tokens for storage
     private hashTokenForStorage(token: string): string {
-        // Use SHA-256 for token hashing (not bcrypt)
         return crypto.createHash('sha256').update(token).digest('hex');
+    }
+
+    // Generate consistent token payload
+    private generateTokenPayload(user: User): TokenPayload {
+        return {
+            userId: user.UserId,  // Ensure consistent field name
+            username: user.Username,
+            email: user.Email,
+            role: user.Role as 'TENANT' | 'AGENT' | 'ADMIN'
+        };
     }
 
     // Register new user
@@ -68,23 +78,19 @@ export class AuthService {
             const user = await usersService.createUser(data);
             console.log('User created successfully:', user.UserId);
 
+            // Generate consistent token payload
+            const tokenPayload = this.generateTokenPayload(user);
+            
             // Generate tokens
-            const tokenPayload: TokenPayload = {
-                userId: user.UserId,
-                username: user.Username,
-                email: user.Email,
-                role: user.Role as 'TENANT' | 'AGENT' | 'ADMIN'
-            };
-
             const tokens = {
                 accessToken: JWTUtils.generateAccessToken(tokenPayload),
                 refreshToken: JWTUtils.generateRefreshToken(tokenPayload)
             };
             console.log('Tokens generated');
 
-            // Create session
-            await this.createSession(user.UserId, tokens.refreshToken);
-            console.log('Session created');
+            // Create session and get sessionId
+            const sessionId = await this.createSession(user.UserId, tokens.refreshToken);
+            console.log('Session created with ID:', sessionId);
 
             // Send verification email
             try {
@@ -103,7 +109,10 @@ export class AuthService {
 
             return {
                 user: userWithoutPassword,
-                tokens
+                tokens: {
+                    ...tokens,
+                    sessionId
+                }
             };
 
         } catch (error: any) {
@@ -171,33 +180,36 @@ export class AuthService {
         // Reset login attempts on successful login
         await usersService.updateLoginAttempts(fullUser.UserId, true);
 
-        // Generate tokens
-        const tokenPayload: TokenPayload = {
-            userId: fullUser.UserId,
-            username: fullUser.Username,
-            email: fullUser.Email,
-            role: fullUser.Role as 'TENANT' | 'AGENT' | 'ADMIN'
-        };
+        // Generate consistent token payload
+        const tokenPayload = this.generateTokenPayload(fullUser);
 
+        // Generate tokens
         const tokens = {
             accessToken: JWTUtils.generateAccessToken(tokenPayload),
             refreshToken: JWTUtils.generateRefreshToken(tokenPayload)
         };
 
-        // Create or update session
-        await this.createSession(fullUser.UserId, tokens.refreshToken);
+        // Create session and get sessionId
+        const sessionId = await this.createSession(fullUser.UserId, tokens.refreshToken);
 
         // Remove password hash from response
         const { PasswordHash, ...userWithoutPassword } = fullUser;
 
         return {
             user: userWithoutPassword,
-            tokens
+            tokens: {
+                ...tokens,
+                sessionId
+            }
         };
     }
 
     // Refresh token
-    async refreshToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+    async refreshToken(refreshToken: string): Promise<{ 
+        accessToken: string; 
+        refreshToken: string;
+        sessionId: string;
+    }> {
         const db = await this.getDb();
         
         // Verify refresh token
@@ -224,16 +236,28 @@ export class AuthService {
             throw new Error('Invalid or expired session');
         }
 
+        const session = sessionResult.recordset[0];
+
         // Generate new tokens
+        const newTokenPayload: TokenPayload = {
+            userId: payload.userId,  // Use consistent field name
+            username: payload.username,
+            email: payload.email,
+            role: payload.role
+        };
+
         const newTokens = {
-            accessToken: JWTUtils.generateAccessToken(payload),
-            refreshToken: JWTUtils.generateRefreshToken(payload)
+            accessToken: JWTUtils.generateAccessToken(newTokenPayload),
+            refreshToken: JWTUtils.generateRefreshToken(newTokenPayload)
         };
 
         // Update session with new refresh token
-        await this.updateSession(sessionResult.recordset[0].SessionId, newTokens.refreshToken);
+        await this.updateSession(session.SessionId, newTokens.refreshToken);
 
-        return newTokens;
+        return {
+            ...newTokens,
+            sessionId: session.SessionId
+        };
     }
 
     // Logout
@@ -276,7 +300,7 @@ export class AuthService {
             throw new Error('Invalid or expired verification token');
         }
 
-        // Check if token exists in database (store and compare plain tokens for email verification)
+        // Check if token exists in database
         const tokenQuery = `
             SELECT * FROM EmailVerificationTokens 
             WHERE VerificationToken = @token 
@@ -328,10 +352,10 @@ export class AuthService {
             return;
         }
 
-        // Generate reset token
+        // Generate reset token with consistent userId
         const resetToken = JWTUtils.generatePasswordResetToken(user.UserId);
 
-        // Hash the token for storage (using SHA-256, not bcrypt)
+        // Hash the token for storage
         const tokenHash = this.hashTokenForStorage(resetToken);
         
         // Save token to database
@@ -454,28 +478,36 @@ export class AuthService {
     }
 
     // Private helper methods
-    private async createSession(userId: string, refreshToken: string, deviceId?: string): Promise<void> {
+    private async createSession(userId: string, refreshToken: string, deviceId?: string): Promise<string> {
         try {
             const db = await this.getDb();
             
-            // Hash the token for storage (using SHA-256, not bcrypt)
+            // Generate session ID
+            const sessionId = crypto.randomUUID();
+            
+            // Hash the token for storage
             const tokenHash = this.hashTokenForStorage(refreshToken);
             
-            console.log('Creating session with token hash length:', tokenHash.length);
-            console.log('Token hash sample:', tokenHash.substring(0, 20) + '...');
+            console.log('Creating session:', {
+                sessionId,
+                userId,
+                tokenHashLength: tokenHash.length
+            });
             
             const query = `
-                INSERT INTO UserSessions (UserId, DeviceId, RefreshTokenHash, ExpiresAt)
-                VALUES (@userId, @deviceId, @tokenHash, DATEADD(DAY, 7, GETDATE()))
+                INSERT INTO UserSessions (SessionId, UserId, DeviceId, RefreshTokenHash, ExpiresAt)
+                VALUES (@sessionId, @userId, @deviceId, @tokenHash, DATEADD(DAY, 7, GETDATE()))
             `;
 
             await db.request()
+                .input('sessionId', sql.UniqueIdentifier, sessionId)
                 .input('userId', sql.UniqueIdentifier, userId)
                 .input('deviceId', sql.NVarChar(200), deviceId || null)
                 .input('tokenHash', sql.NVarChar(500), tokenHash)
                 .query(query);
                 
-            console.log('Session created successfully for user:', userId);
+            console.log('Session created successfully:', sessionId);
+            return sessionId;
         } catch (error: any) {
             console.error('Error creating session:', error.message);
             console.error('Error stack:', error.stack);
@@ -485,15 +517,16 @@ export class AuthService {
                 console.error('SQL Server error:', error.originalError.message);
             }
             
-            // Don't throw error for session creation failure - registration should still succeed
-            console.warn('Session creation failed, but continuing with registration');
+            // Generate a temporary session ID if DB fails
+            console.warn('Session creation failed, generating temporary session ID');
+            return `temp-${crypto.randomUUID()}`;
         }
     }
 
     private async updateSession(sessionId: string, newRefreshToken: string): Promise<void> {
         const db = await this.getDb();
         
-        // Hash the new token (using SHA-256, not bcrypt)
+        // Hash the new token
         const tokenHash = this.hashTokenForStorage(newRefreshToken);
         
         const query = `
@@ -579,6 +612,35 @@ export class AuthService {
         return userWithoutPassword;
     }
 
+    // Get user ID from token
+    async getUserIdFromToken(token: string): Promise<string | null> {
+        const payload = JWTUtils.verifyAccessToken(token);
+        return payload?.userId || null;
+    }
+
+    // Debug method to check JWT token structure
+    async debugTokenStructure(token: string): Promise<any> {
+        try {
+            // Try to verify the token
+            const verifiedPayload = JWTUtils.verifyAccessToken(token);
+            
+            // Also decode without verification to see the raw structure
+            const rawDecoded = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+            
+            return {
+                verifiedPayload,
+                rawDecoded,
+                fields: Object.keys(rawDecoded),
+                hasUserId: 'userId' in rawDecoded,
+                hasUserid: 'userid' in rawDecoded,
+                hasUserID: 'userID' in rawDecoded
+            };
+        } catch (error: any) {
+            console.error('Error debugging token:', error.message);
+            return { error: error.message };
+        }
+    }
+
     // Debug method to check database schema
     async debugDatabaseSchema(): Promise<void> {
         const db = await this.getDb();
@@ -608,6 +670,44 @@ export class AuthService {
             
         } catch (error: any) {
             console.error('Error checking database schema:', error.message);
+        }
+    }
+
+    // Test method to verify JWT generation
+    async testJwtGeneration(userId: string): Promise<{ 
+        token: string; 
+        decoded: any;
+        fieldCheck: any;
+    }> {
+        try {
+            // Get user
+            const user = await usersService.getUserById(userId);
+            if (!user) {
+                throw new Error('User not found');
+            }
+
+            // Generate token payload
+            const tokenPayload = this.generateTokenPayload(user);
+            
+            // Generate token
+            const token = JWTUtils.generateAccessToken(tokenPayload);
+            
+            // Decode to verify structure
+            const decoded = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+            
+            return {
+                token,
+                decoded,
+                fieldCheck: {
+                    hasUserId: 'userId' in decoded,
+                    hasUserid: 'userid' in decoded,
+                    userIdValue: decoded.userId || decoded.userid,
+                    allFields: Object.keys(decoded)
+                }
+            };
+        } catch (error: any) {
+            console.error('Error testing JWT generation:', error.message);
+            throw error;
         }
     }
 }

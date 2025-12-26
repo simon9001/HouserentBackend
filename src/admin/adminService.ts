@@ -609,7 +609,7 @@ export const getAgentStatusSummaryService = async (): Promise<AgentStatusSummary
             WHERE Role IN ('AGENT', 'TENANT') AND IsActive = 1
             GROUP BY AgentStatus
             ORDER BY 
-                CASE status
+                CASE AgentStatus
                     WHEN 'PENDING' THEN 1
                     WHEN 'APPROVED' THEN 2
                     WHEN 'REJECTED' THEN 3
@@ -626,7 +626,6 @@ export const getAgentStatusSummaryService = async (): Promise<AgentStatusSummary
         throw error;
     }
 }
-
 // Get Popular Locations
 export const getPopularLocationsService = async (limit: number = 10): Promise<PopularLocation[]> => {
     const db = await getDbPool();

@@ -1,13 +1,9 @@
+// src/middleware/auth.ts
 import { Context, Next } from 'hono';
-import { JWTUtils } from '../utils/jwt.js';
+import { JWTUtils, TokenPayload } from '../utils/jwt.js';
 
 export interface AuthContext extends Context {
-    user?: {
-        userId: string;
-        username: string;
-        email: string;
-        role: 'TENANT' | 'AGENT' | 'ADMIN';
-    };
+    user?: TokenPayload;  // Use the same interface
 }
 
 // Authentication middleware
@@ -15,7 +11,13 @@ export const authenticate = async (c: AuthContext, next: Next) => {
     try {
         const authHeader = c.req.header('Authorization');
         
+        console.log('🔐 Authentication attempt:', {
+            hasHeader: !!authHeader,
+            headerPrefix: authHeader?.substring(0, 30) + '...'
+        });
+        
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.log('❌ No Bearer token found');
             return c.json({
                 success: false,
                 error: 'Authorization header required'
@@ -23,21 +25,41 @@ export const authenticate = async (c: AuthContext, next: Next) => {
         }
 
         const token = authHeader.split(' ')[1];
+        
+        // Log token for debugging (first 50 chars)
+        console.log('📝 Token received:', token.substring(0, 50) + '...');
+        
         const payload = JWTUtils.verifyAccessToken(token);
+        console.log('🔍 Decoded payload:', payload);
 
         if (!payload) {
+            console.log('❌ Token verification failed');
             return c.json({
                 success: false,
                 error: 'Invalid or expired token'
             }, 401);
         }
 
+        // Ensure we have the userId field
+        if (!payload.userId) {
+            console.log('❌ Missing userId in token payload');
+            return c.json({
+                success: false,
+                error: 'Invalid token structure'
+            }, 401);
+        }
+
         // Attach user to context
         c.user = payload;
+        console.log('✅ User authenticated:', {
+            userId: c.user.userId,
+            username: c.user.username,
+            role: c.user.role
+        });
 
         await next();
     } catch (error) {
-        console.error('Authentication error:', error);
+        console.error('🔥 Authentication error:', error);
         return c.json({
             success: false,
             error: 'Authentication failed'
@@ -58,16 +80,26 @@ export const authorize = (...allowedRoles: ('TENANT' | 'AGENT' | 'ADMIN')[]) => 
                 }, 401);
             }
 
+            console.log('🔐 Authorization check:', {
+                userRole: user.role,
+                allowedRoles
+            });
+
             if (!allowedRoles.includes(user.role)) {
+                console.log('❌ Insufficient permissions:', {
+                    userRole: user.role,
+                    requiredRoles: allowedRoles
+                });
                 return c.json({
                     success: false,
                     error: 'Insufficient permissions'
                 }, 403);
             }
 
+            console.log('✅ Authorization granted');
             await next();
         } catch (error) {
-            console.error('Authorization error:', error);
+            console.error('🔥 Authorization error:', error);
             return c.json({
                 success: false,
                 error: 'Authorization failed'
@@ -76,7 +108,7 @@ export const authorize = (...allowedRoles: ('TENANT' | 'AGENT' | 'ADMIN')[]) => 
     };
 };
 
-// Optional authentication (for routes that work with or without auth)
+// Optional authentication
 export const optionalAuthenticate = async (c: AuthContext, next: Next) => {
     try {
         const authHeader = c.req.header('Authorization');
@@ -87,12 +119,13 @@ export const optionalAuthenticate = async (c: AuthContext, next: Next) => {
             
             if (payload) {
                 c.user = payload;
+                console.log('🔐 Optional auth - User authenticated:', c.user.userId);
             }
         }
 
         await next();
     } catch (error) {
-        // Don't throw error for optional auth
+        console.error('Optional auth error:', error);
         await next();
     }
 };

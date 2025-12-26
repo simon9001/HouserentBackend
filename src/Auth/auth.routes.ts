@@ -14,6 +14,15 @@ authRoutes.post('/reset-password', authControllers.resetPassword); // Reset pass
 authRoutes.post('/resend-verification', authControllers.resendVerificationEmail); // Resend verification email
 authRoutes.get('/email-health', authControllers.checkEmailHealth); // Check email service health
 
+
+
+authRoutes.post('/debug/token', authControllers.debugToken);
+authRoutes.post('/debug/test-jwt', authControllers.testJwtGeneration);
+authRoutes.post('/debug/validate', authControllers.validateToken);
+authRoutes.post('/debug/echo', authControllers.echo);
+authRoutes.get('/debug/check-auth', authControllers.checkAuth);
+authRoutes.get('/debug/email-health', authControllers.checkEmailHealth);
+
 // Protected routes (authentication required)
 authRoutes.post('/logout', authenticate, authControllers.logout); // Logout
 authRoutes.post('/change-password', authenticate, authControllers.changePassword); // Change password

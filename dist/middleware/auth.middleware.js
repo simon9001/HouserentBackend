@@ -1,0 +1,110 @@
+import { JWTUtils } from '../utils/jwt.js';
+// Authentication middleware
+export const authenticate = async (c, next) => {
+    try {
+        const authHeader = c.req.header('Authorization');
+        console.log('🔐 Authentication attempt:', {
+            hasHeader: !!authHeader,
+            headerPrefix: authHeader?.substring(0, 30) + '...'
+        });
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.log('❌ No Bearer token found');
+            return c.json({
+                success: false,
+                error: 'Authorization header required'
+            }, 401);
+        }
+        const token = authHeader.split(' ')[1];
+        // Log token for debugging (first 50 chars)
+        console.log('📝 Token received:', token.substring(0, 50) + '...');
+        const payload = JWTUtils.verifyAccessToken(token);
+        console.log('🔍 Decoded payload:', payload);
+        if (!payload) {
+            console.log('❌ Token verification failed');
+            return c.json({
+                success: false,
+                error: 'Invalid or expired token'
+            }, 401);
+        }
+        // Ensure we have the userId field
+        if (!payload.userId) {
+            console.log('❌ Missing userId in token payload');
+            return c.json({
+                success: false,
+                error: 'Invalid token structure'
+            }, 401);
+        }
+        // Attach user to context
+        c.user = payload;
+        console.log('✅ User authenticated:', {
+            userId: c.user.userId,
+            username: c.user.username,
+            role: c.user.role
+        });
+        await next();
+    }
+    catch (error) {
+        console.error('🔥 Authentication error:', error);
+        return c.json({
+            success: false,
+            error: 'Authentication failed'
+        }, 401);
+    }
+};
+// Role-based authorization middleware
+export const authorize = (...allowedRoles) => {
+    return async (c, next) => {
+        try {
+            const user = c.user;
+            if (!user) {
+                return c.json({
+                    success: false,
+                    error: 'Authentication required'
+                }, 401);
+            }
+            console.log('🔐 Authorization check:', {
+                userRole: user.role,
+                allowedRoles
+            });
+            if (!allowedRoles.includes(user.role)) {
+                console.log('❌ Insufficient permissions:', {
+                    userRole: user.role,
+                    requiredRoles: allowedRoles
+                });
+                return c.json({
+                    success: false,
+                    error: 'Insufficient permissions'
+                }, 403);
+            }
+            console.log('✅ Authorization granted');
+            await next();
+        }
+        catch (error) {
+            console.error('🔥 Authorization error:', error);
+            return c.json({
+                success: false,
+                error: 'Authorization failed'
+            }, 403);
+        }
+    };
+};
+// Optional authentication
+export const optionalAuthenticate = async (c, next) => {
+    try {
+        const authHeader = c.req.header('Authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.split(' ')[1];
+            const payload = JWTUtils.verifyAccessToken(token);
+            if (payload) {
+                c.user = payload;
+                console.log('🔐 Optional auth - User authenticated:', c.user.userId);
+            }
+        }
+        await next();
+    }
+    catch (error) {
+        console.error('Optional auth error:', error);
+        await next();
+    }
+};
+//# sourceMappingURL=auth.middleware.js.map

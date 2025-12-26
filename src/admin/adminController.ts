@@ -49,7 +49,6 @@ import {
     type RevenueBreakdown,
     type ActiveSubscription,
     type SubscriptionPlan,
-    type SubscriptionInvoice,
     type SubscriptionEvent,
     type UsageLog,
     type SubscriptionStats,

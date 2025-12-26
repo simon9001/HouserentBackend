@@ -1080,3 +1080,19 @@ BEGIN
     INNER JOIN inserted i ON fg.GateId = i.GateId
 END;
 GO
+
+
+
+CREATE TRIGGER trg_UpdateUsersTimestamp 
+ON Users
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Use a different approach that doesn't conflict with OUTPUT clause
+    UPDATE u
+    SET UpdatedAt = SYSDATETIME()
+    FROM Users u
+    INNER JOIN inserted i ON u.UserId = i.UserId;
+END;

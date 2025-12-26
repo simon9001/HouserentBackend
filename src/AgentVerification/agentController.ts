@@ -1,9 +1,10 @@
-import { Context } from 'hono';
+// agentController.ts
 import { agentVerificationService, CreateVerificationInput, UpdateVerificationInput } from './agentService.js';
 import { ValidationUtils } from '../utils/validators.js';
+import { AuthContext } from './agentRoutes.js';
 
 // Create new agent verification
-export const createVerification = async (c: Context) => {
+export const createVerification = async (c: AuthContext) => {
     try {
         const body = await c.req.json();
 
@@ -63,7 +64,7 @@ export const createVerification = async (c: Context) => {
 };
 
 // Get verification by ID
-export const getVerificationById = async (c: Context) => {
+export const getVerificationById = async (c: AuthContext) => {
     try {
         const verificationId = c.req.param('verificationId');
 
@@ -98,7 +99,7 @@ export const getVerificationById = async (c: Context) => {
 };
 
 // Get verification by user ID
-export const getVerificationByUserId = async (c: Context) => {
+export const getVerificationByUserId = async (c: AuthContext) => {
     try {
         const userId = c.req.param('userId');
 
@@ -133,7 +134,7 @@ export const getVerificationByUserId = async (c: Context) => {
 };
 
 // Get all verifications
-export const getAllVerifications = async (c: Context) => {
+export const getAllVerifications = async (c: AuthContext) => {
     try {
         const page = parseInt(c.req.query('page') || '1');
         const limit = parseInt(c.req.query('limit') || '20');
@@ -178,10 +179,17 @@ export const getAllVerifications = async (c: Context) => {
 };
 
 // Update verification (admin review)
-export const updateVerification = async (c: Context) => {
+export const updateVerification = async (c: AuthContext) => {
     try {
         const verificationId = c.req.param('verificationId');
         const body = await c.req.json();
+        const user = c.get('user');
+
+        console.log('Update verification request:', {
+            verificationId,
+            body,
+            userId: user?.userId
+        });
 
         if (!ValidationUtils.isValidUUID(verificationId)) {
             return c.json({
@@ -190,31 +198,44 @@ export const updateVerification = async (c: Context) => {
             }, 400);
         }
 
-        // Validate required fields for admin review
-        if (!body.reviewerId) {
+        if (!user) {
             return c.json({
                 success: false,
-                error: 'Reviewer ID is required'
+                error: 'Authentication required'
+            }, 401);
+        }
+
+        if (!body.reviewStatus) {
+            return c.json({
+                success: false,
+                error: 'Review status is required'
             }, 400);
         }
 
-        if (!ValidationUtils.isValidUUID(body.reviewerId)) {
+        // Validate review status
+        const validStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
+        if (!validStatuses.includes(body.reviewStatus)) {
             return c.json({
                 success: false,
-                error: 'Invalid reviewer ID format'
+                error: 'Invalid review status. Must be one of: PENDING, APPROVED, REJECTED'
             }, 400);
         }
 
         const updateData: UpdateVerificationInput = {
             reviewStatus: body.reviewStatus,
-            reviewNotes: body.reviewNotes,
-            reviewedBy: body.reviewedBy || body.reviewerId
+            reviewNotes: body.reviewNotes
         };
+
+        console.log('Calling service with:', {
+            verificationId,
+            updateData,
+            reviewerId: user.userId
+        });
 
         const updatedVerification = await agentVerificationService.updateVerification(
             verificationId, 
             updateData, 
-            body.reviewerId
+            user.userId
         );
 
         if (!updatedVerification) {
@@ -232,6 +253,7 @@ export const updateVerification = async (c: Context) => {
 
     } catch (error: any) {
         console.error('Error updating verification:', error.message);
+        console.error('Error stack:', error.stack);
         
         if (error.message.includes('Invalid') || error.message.includes('not found')) {
             return c.json({
@@ -247,8 +269,220 @@ export const updateVerification = async (c: Context) => {
     }
 };
 
+// Approve verification
+export const approveVerification = async (c: AuthContext) => {
+    try {
+        const verificationId = c.req.param('verificationId');
+        const body = await c.req.json();
+        const user = c.get('user');
+
+        if (!ValidationUtils.isValidUUID(verificationId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid verification ID format'
+            }, 400);
+        }
+
+        if (!user) {
+            return c.json({
+                success: false,
+                error: 'Authentication required'
+            }, 401);
+        }
+
+        const approvedVerification = await agentVerificationService.approveVerification(
+            verificationId,
+            user.userId,
+            body.reviewNotes
+        );
+
+        if (!approvedVerification) {
+            return c.json({
+                success: false,
+                error: 'Failed to approve verification'
+            }, 500);
+        }
+
+        return c.json({
+            success: true,
+            message: 'Verification approved successfully',
+            data: approvedVerification
+        });
+
+    } catch (error: any) {
+        console.error('Error approving verification:', error.message);
+        
+        if (error.message.includes('Invalid') || error.message.includes('not found')) {
+            return c.json({
+                success: false,
+                error: error.message
+            }, 400);
+        }
+
+        return c.json({
+            success: false,
+            error: 'Failed to approve verification'
+        }, 500);
+    }
+};
+
+// Reject verification
+export const rejectVerification = async (c: AuthContext) => {
+    try {
+        const verificationId = c.req.param('verificationId');
+        const body = await c.req.json();
+        const user = c.get('user');
+
+        if (!ValidationUtils.isValidUUID(verificationId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid verification ID format'
+            }, 400);
+        }
+
+        if (!user) {
+            return c.json({
+                success: false,
+                error: 'Authentication required'
+            }, 401);
+        }
+
+        const rejectedVerification = await agentVerificationService.rejectVerification(
+            verificationId,
+            user.userId,
+            body.reviewNotes
+        );
+
+        if (!rejectedVerification) {
+            return c.json({
+                success: false,
+                error: 'Failed to reject verification'
+            }, 500);
+        }
+
+        return c.json({
+            success: true,
+            message: 'Verification rejected successfully',
+            data: rejectedVerification
+        });
+
+    } catch (error: any) {
+        console.error('Error rejecting verification:', error.message);
+        
+        if (error.message.includes('Invalid') || error.message.includes('not found')) {
+            return c.json({
+                success: false,
+                error: error.message
+            }, 400);
+        }
+
+        return c.json({
+            success: false,
+            error: 'Failed to reject verification'
+        }, 500);
+    }
+};
+
+// Bulk approve verifications
+export const bulkApproveVerifications = async (c: AuthContext) => {
+    try {
+        const body = await c.req.json();
+        const user = c.get('user');
+
+        if (!user) {
+            return c.json({
+                success: false,
+                error: 'Authentication required'
+            }, 401);
+        }
+
+        if (!body.verificationIds || !Array.isArray(body.verificationIds) || body.verificationIds.length === 0) {
+            return c.json({
+                success: false,
+                error: 'verificationIds array is required'
+            }, 400);
+        }
+
+        const approvedVerifications = await agentVerificationService.bulkApproveVerifications(
+            body.verificationIds,
+            user.userId,
+            body.reviewNotes
+        );
+
+        return c.json({
+            success: true,
+            message: `Successfully approved ${approvedVerifications.length} verification(s)`,
+            data: approvedVerifications
+        });
+
+    } catch (error: any) {
+        console.error('Error bulk approving verifications:', error.message);
+        
+        if (error.message.includes('Invalid') || error.message.includes('not found')) {
+            return c.json({
+                success: false,
+                error: error.message
+            }, 400);
+        }
+
+        return c.json({
+            success: false,
+            error: 'Failed to bulk approve verifications'
+        }, 500);
+    }
+};
+
+// Bulk reject verifications
+export const bulkRejectVerifications = async (c: AuthContext) => {
+    try {
+        const body = await c.req.json();
+        const user = c.get('user');
+
+        if (!user) {
+            return c.json({
+                success: false,
+                error: 'Authentication required'
+            }, 401);
+        }
+
+        if (!body.verificationIds || !Array.isArray(body.verificationIds) || body.verificationIds.length === 0) {
+            return c.json({
+                success: false,
+                error: 'verificationIds array is required'
+            }, 400);
+        }
+
+        const rejectedVerifications = await agentVerificationService.bulkRejectVerifications(
+            body.verificationIds,
+            user.userId,
+            body.reviewNotes
+        );
+
+        return c.json({
+            success: true,
+            message: `Successfully rejected ${rejectedVerifications.length} verification(s)`,
+            data: rejectedVerifications
+        });
+
+    } catch (error: any) {
+        console.error('Error bulk rejecting verifications:', error.message);
+        
+        if (error.message.includes('Invalid') || error.message.includes('not found')) {
+            return c.json({
+                success: false,
+                error: error.message
+            }, 400);
+        }
+
+        return c.json({
+            success: false,
+            error: 'Failed to bulk reject verifications'
+        }, 500);
+    }
+};
+
 // Get verification statistics
-export const getVerificationStatistics = async (c: Context) => {
+export const getVerificationStatistics = async (c: AuthContext) => {
     try {
         const stats = await agentVerificationService.getVerificationStatistics();
 
@@ -267,7 +501,7 @@ export const getVerificationStatistics = async (c: Context) => {
 };
 
 // Delete verification
-export const deleteVerification = async (c: Context) => {
+export const deleteVerification = async (c: AuthContext) => {
     try {
         const verificationId = c.req.param('verificationId');
 
@@ -307,4 +541,26 @@ export const deleteVerification = async (c: Context) => {
             error: 'Failed to delete verification'
         }, 500);
     }
+};
+
+// Test authentication
+export const testAuth = async (c: AuthContext) => {
+    const user = c.get('user');
+    
+    if (!user) {
+        return c.json({
+            success: false,
+            error: 'Not authenticated'
+        }, 401);
+    }
+
+    return c.json({
+        success: true,
+        message: 'Authentication successful',
+        user: {
+            userId: user.userId,
+            username: user.username,
+            role: user.role
+        }
+    });
 };

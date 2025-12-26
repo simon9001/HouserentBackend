@@ -1,3 +1,4 @@
+// src/controllers/auth.controller.ts
 import { Context } from 'hono';
 import { authService, LoginInput, RegisterInput } from './auth.service.js';
 import { JWTUtils } from '../utils/jwt.js';
@@ -6,6 +7,7 @@ import { EmailUtils } from '../utils/email.js';
 // Register new user
 export const register = async (c: Context) => {
     try {
+        console.log('📝 Registration request received');
         const body = await c.req.json();
 
         // Validate required fields
@@ -13,6 +15,7 @@ export const register = async (c: Context) => {
         const missingFields = requiredFields.filter(field => !body[field]);
 
         if (missingFields.length > 0) {
+            console.log('❌ Missing fields:', missingFields);
             return c.json({
                 success: false,
                 error: `Missing required fields: ${missingFields.join(', ')}`
@@ -28,7 +31,15 @@ export const register = async (c: Context) => {
             role: body.role || 'TENANT'
         };
 
+        console.log('🔄 Processing registration for:', registerData.username);
         const result = await authService.register(registerData);
+
+        // Debug: Check the token structure
+        console.log('🔍 Registration successful, token structure:', {
+            accessTokenLength: result.tokens.accessToken?.length,
+            hasSessionId: !!result.tokens.sessionId,
+            userId: result.user.UserId
+        });
 
         return c.json({
             success: true,
@@ -37,7 +48,7 @@ export const register = async (c: Context) => {
         }, 201);
 
     } catch (error: any) {
-        console.error('Error during registration:', error.message);
+        console.error('🔥 Error during registration:', error.message, error.stack);
         
         if (error.message.includes('already exists')) {
             return c.json({
@@ -63,6 +74,7 @@ export const register = async (c: Context) => {
 // Login user
 export const login = async (c: Context) => {
     try {
+        console.log('🔐 Login attempt');
         const body = await c.req.json();
 
         // Validate required fields
@@ -80,6 +92,14 @@ export const login = async (c: Context) => {
 
         const result = await authService.login(loginData);
 
+        // Debug: Check the token structure
+        console.log('🔍 Login successful, token details:', {
+            accessTokenLength: result.tokens.accessToken?.length,
+            hasSessionId: !!result.tokens.sessionId,
+            userId: result.user.UserId,
+            userRole: result.user.Role
+        });
+
         return c.json({
             success: true,
             message: 'Login successful',
@@ -87,7 +107,7 @@ export const login = async (c: Context) => {
         });
 
     } catch (error: any) {
-        console.error('Error during login:', error.message);
+        console.error('🔥 Error during login:', error.message);
         
         if (error.message.includes('Invalid credentials') || 
             error.message.includes('Account is temporarily locked')) {
@@ -107,6 +127,7 @@ export const login = async (c: Context) => {
 // Refresh token
 export const refreshToken = async (c: Context) => {
     try {
+        console.log('🔄 Refresh token request');
         const body = await c.req.json();
 
         if (!body.refreshToken) {
@@ -117,6 +138,11 @@ export const refreshToken = async (c: Context) => {
         }
 
         const tokens = await authService.refreshToken(body.refreshToken);
+        
+        console.log('✅ Token refreshed:', {
+            newAccessTokenLength: tokens.accessToken?.length,
+            sessionId: tokens.sessionId
+        });
 
         return c.json({
             success: true,
@@ -125,7 +151,7 @@ export const refreshToken = async (c: Context) => {
         });
 
     } catch (error: any) {
-        console.error('Error refreshing token:', error.message);
+        console.error('🔥 Error refreshing token:', error.message);
         
         if (error.message.includes('Invalid') || error.message.includes('expired')) {
             return c.json({
@@ -144,6 +170,7 @@ export const refreshToken = async (c: Context) => {
 // Logout
 export const logout = async (c: Context) => {
     try {
+        console.log('🚪 Logout request');
         const authHeader = c.req.header('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return c.json({
@@ -156,6 +183,7 @@ export const logout = async (c: Context) => {
         const payload = JWTUtils.verifyAccessToken(token);
 
         if (!payload) {
+            console.log('❌ Invalid token during logout');
             return c.json({
                 success: false,
                 error: 'Invalid token'
@@ -165,6 +193,11 @@ export const logout = async (c: Context) => {
         const body = await c.req.json().catch(() => ({}));
         const sessionId = body.sessionId;
 
+        console.log('🔍 Logging out user:', {
+            userId: payload.userId,
+            sessionId: sessionId || 'all sessions'
+        });
+
         await authService.logout(payload.userId, sessionId);
 
         return c.json({
@@ -173,7 +206,7 @@ export const logout = async (c: Context) => {
         });
 
     } catch (error: any) {
-        console.error('Error during logout:', error.message);
+        console.error('🔥 Error during logout:', error.message);
         return c.json({
             success: false,
             error: 'Logout failed'
@@ -184,6 +217,7 @@ export const logout = async (c: Context) => {
 // Verify email
 export const verifyEmail = async (c: Context) => {
     try {
+        console.log('📧 Email verification request');
         const body = await c.req.json();
 
         if (!body.token) {
@@ -202,13 +236,14 @@ export const verifyEmail = async (c: Context) => {
             }, 400);
         }
 
+        console.log('✅ Email verified successfully');
         return c.json({
             success: true,
             message: 'Email verified successfully'
         });
 
     } catch (error: any) {
-        console.error('Error verifying email:', error.message);
+        console.error('🔥 Error verifying email:', error.message);
         
         if (error.message.includes('Invalid') || error.message.includes('expired')) {
             return c.json({
@@ -227,6 +262,7 @@ export const verifyEmail = async (c: Context) => {
 // Request password reset
 export const requestPasswordReset = async (c: Context) => {
     try {
+        console.log('🔑 Password reset request');
         const body = await c.req.json();
 
         if (!body.email) {
@@ -236,6 +272,7 @@ export const requestPasswordReset = async (c: Context) => {
             }, 400);
         }
 
+        console.log('📧 Sending password reset for:', body.email);
         await authService.requestPasswordReset(body.email);
 
         // Always return success to prevent email enumeration
@@ -245,7 +282,7 @@ export const requestPasswordReset = async (c: Context) => {
         });
 
     } catch (error: any) {
-        console.error('Error requesting password reset:', error.message);
+        console.error('🔥 Error requesting password reset:', error.message);
         
         // Still return success to prevent email enumeration
         return c.json({
@@ -258,6 +295,7 @@ export const requestPasswordReset = async (c: Context) => {
 // Reset password
 export const resetPassword = async (c: Context) => {
     try {
+        console.log('🔄 Password reset attempt');
         const body = await c.req.json();
 
         if (!body.token || !body.newPassword) {
@@ -276,13 +314,14 @@ export const resetPassword = async (c: Context) => {
             }, 400);
         }
 
+        console.log('✅ Password reset successfully');
         return c.json({
             success: true,
             message: 'Password reset successfully'
         });
 
     } catch (error: any) {
-        console.error('Error resetting password:', error.message);
+        console.error('🔥 Error resetting password:', error.message);
         
         if (error.message.includes('Invalid') || error.message.includes('expired')) {
             return c.json({
@@ -308,6 +347,7 @@ export const resetPassword = async (c: Context) => {
 // Change password (authenticated)
 export const changePassword = async (c: Context) => {
     try {
+        console.log('🔒 Change password request');
         const authHeader = c.req.header('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return c.json({
@@ -320,6 +360,7 @@ export const changePassword = async (c: Context) => {
         const payload = JWTUtils.verifyAccessToken(token);
 
         if (!payload) {
+            console.log('❌ Invalid token during password change');
             return c.json({
                 success: false,
                 error: 'Invalid token'
@@ -335,6 +376,7 @@ export const changePassword = async (c: Context) => {
             }, 400);
         }
 
+        console.log('🔄 Changing password for user:', payload.userId);
         const success = await authService.changePassword(
             payload.userId,
             body.currentPassword,
@@ -348,13 +390,14 @@ export const changePassword = async (c: Context) => {
             }, 400);
         }
 
+        console.log('✅ Password changed successfully');
         return c.json({
             success: true,
             message: 'Password changed successfully'
         });
 
     } catch (error: any) {
-        console.error('Error changing password:', error.message);
+        console.error('🔥 Error changing password:', error.message);
         
         if (error.message.includes('Current password is incorrect')) {
             return c.json({
@@ -380,6 +423,7 @@ export const changePassword = async (c: Context) => {
 // Get user sessions
 export const getUserSessions = async (c: Context) => {
     try {
+        console.log('📋 Get user sessions request');
         const authHeader = c.req.header('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return c.json({
@@ -398,6 +442,7 @@ export const getUserSessions = async (c: Context) => {
             }, 401);
         }
 
+        console.log('🔍 Getting sessions for user:', payload.userId);
         const sessions = await authService.getUserSessions(payload.userId);
 
         return c.json({
@@ -406,7 +451,7 @@ export const getUserSessions = async (c: Context) => {
         });
 
     } catch (error: any) {
-        console.error('Error getting user sessions:', error.message);
+        console.error('🔥 Error getting user sessions:', error.message);
         return c.json({
             success: false,
             error: 'Failed to get user sessions'
@@ -417,6 +462,7 @@ export const getUserSessions = async (c: Context) => {
 // Revoke session
 export const revokeSession = async (c: Context) => {
     try {
+        console.log('🗑️ Revoke session request');
         const authHeader = c.req.header('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return c.json({
@@ -443,6 +489,7 @@ export const revokeSession = async (c: Context) => {
             }, 400);
         }
 
+        console.log('🔍 Revoking session:', { userId: payload.userId, sessionId });
         const success = await authService.revokeSession(payload.userId, sessionId);
 
         if (!success) {
@@ -452,13 +499,14 @@ export const revokeSession = async (c: Context) => {
             }, 400);
         }
 
+        console.log('✅ Session revoked successfully');
         return c.json({
             success: true,
             message: 'Session revoked successfully'
         });
 
     } catch (error: any) {
-        console.error('Error revoking session:', error.message);
+        console.error('🔥 Error revoking session:', error.message);
         return c.json({
             success: false,
             error: 'Failed to revoke session'
@@ -469,6 +517,7 @@ export const revokeSession = async (c: Context) => {
 // Get auth profile
 export const getAuthProfile = async (c: Context) => {
     try {
+        console.log('👤 Get auth profile request');
         const authHeader = c.req.header('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return c.json({
@@ -481,12 +530,14 @@ export const getAuthProfile = async (c: Context) => {
         const payload = JWTUtils.verifyAccessToken(token);
 
         if (!payload) {
+            console.log('❌ Invalid token for profile request');
             return c.json({
                 success: false,
                 error: 'Invalid token'
             }, 401);
         }
 
+        console.log('🔍 Getting profile for user:', payload.userId);
         const profile = await authService.getAuthProfile(payload.userId);
 
         if (!profile) {
@@ -496,13 +547,14 @@ export const getAuthProfile = async (c: Context) => {
             }, 404);
         }
 
+        console.log('✅ Profile retrieved successfully');
         return c.json({
             success: true,
             data: profile
         });
 
     } catch (error: any) {
-        console.error('Error getting auth profile:', error.message);
+        console.error('🔥 Error getting auth profile:', error.message);
         return c.json({
             success: false,
             error: 'Failed to get profile'
@@ -513,6 +565,7 @@ export const getAuthProfile = async (c: Context) => {
 // Resend verification email
 export const resendVerificationEmail = async (c: Context) => {
     try {
+        console.log('📧 Resend verification email request');
         const body = await c.req.json();
 
         if (!body.email) {
@@ -522,6 +575,7 @@ export const resendVerificationEmail = async (c: Context) => {
             }, 400);
         }
 
+        console.log('📧 Resending verification for:', body.email);
         await authService.resendVerificationEmail(body.email);
 
         // Always return success to prevent email enumeration
@@ -531,7 +585,7 @@ export const resendVerificationEmail = async (c: Context) => {
         });
 
     } catch (error: any) {
-        console.error('Error resending verification email:', error.message);
+        console.error('🔥 Error resending verification email:', error.message);
         
         if (error.message.includes('Email is already verified')) {
             return c.json({
@@ -551,8 +605,10 @@ export const resendVerificationEmail = async (c: Context) => {
 // Health check for email service
 export const checkEmailHealth = async (c: Context) => {
     try {
+        console.log('🏥 Email health check');
         const isHealthy = await EmailUtils.testConnection();
         
+        console.log('✅ Email service status:', isHealthy ? 'healthy' : 'unhealthy');
         return c.json({
             success: true,
             data: {
@@ -561,10 +617,219 @@ export const checkEmailHealth = async (c: Context) => {
             }
         });
     } catch (error: any) {
-        console.error('Error checking email health:', error.message);
+        console.error('🔥 Error checking email health:', error.message);
         return c.json({
             success: false,
             error: 'Email service check failed'
+        }, 500);
+    }
+};
+
+// =============================================
+// DEBUG ENDPOINTS
+// =============================================
+
+// Debug token endpoint
+export const debugToken = async (c: Context) => {
+    try {
+        console.log('🔧 Debug token request');
+        const authHeader = c.req.header('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return c.json({
+                success: false,
+                error: 'No token provided'
+            }, 400);
+        }
+
+        const token = authHeader.split(' ')[1];
+        console.log('🔍 Debugging token (first 50 chars):', token.substring(0, 50) + '...');
+        
+        const debugInfo = await authService.debugTokenStructure(token);
+
+        console.log('✅ Token debug info:', {
+            hasUserId: debugInfo?.fieldCheck?.hasUserId,
+            userIdValue: debugInfo?.fieldCheck?.userIdValue
+        });
+
+        return c.json({
+            success: true,
+            data: debugInfo
+        });
+    } catch (error: any) {
+        console.error('🔥 Error debugging token:', error.message);
+        return c.json({
+            success: false,
+            error: error.message
+        }, 400);
+    }
+};
+
+// Test JWT generation endpoint
+export const testJwtGeneration = async (c: Context) => {
+    try {
+        console.log('🔧 Test JWT generation request');
+        const body = await c.req.json();
+        
+        if (!body.userId) {
+            return c.json({
+                success: false,
+                error: 'userId is required'
+            }, 400);
+        }
+
+        console.log('🔄 Testing JWT generation for user:', body.userId);
+        const testResult = await authService.testJwtGeneration(body.userId);
+
+        console.log('✅ JWT test successful:', {
+            hasUserId: testResult.fieldCheck.hasUserId,
+            userIdValue: testResult.fieldCheck.userIdValue
+        });
+
+        return c.json({
+            success: true,
+            data: testResult
+        });
+    } catch (error: any) {
+        console.error('🔥 Error testing JWT generation:', error.message);
+        return c.json({
+            success: false,
+            error: error.message
+        }, 400);
+    }
+};
+
+// Validate token endpoint
+export const validateToken = async (c: Context) => {
+    try {
+        console.log('✅ Validate token request');
+        const authHeader = c.req.header('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return c.json({
+                success: false,
+                error: 'No token provided'
+            }, 400);
+        }
+
+        const token = authHeader.split(' ')[1];
+        console.log('🔍 Validating token...');
+        
+        // Try multiple verification approaches
+        const jwtPayload = JWTUtils.verifyAccessToken(token);
+        const serviceValidation = await authService.validateAccessToken(token);
+        const userIdFromToken = await authService.getUserIdFromToken(token);
+
+        // Decode without verification to see structure
+        let rawDecoded = null;
+        try {
+            const tokenParts = token.split('.');
+            if (tokenParts.length === 3) {
+                rawDecoded = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+            }
+        } catch (e) {
+            console.warn('Could not decode token:', e);
+        }
+
+        const validationResult = {
+            jwtUtilsVerification: jwtPayload,
+            serviceValidation: serviceValidation,
+            userIdFromToken: userIdFromToken,
+            rawTokenStructure: rawDecoded,
+            tokenLength: token.length,
+            isWellFormed: token.split('.').length === 3,
+            timestamp: new Date().toISOString()
+        };
+
+        console.log('✅ Token validation result:', {
+            isValid: !!jwtPayload,
+            userId: userIdFromToken
+        });
+
+        return c.json({
+            success: true,
+            message: jwtPayload ? 'Token is valid' : 'Token is invalid',
+            data: validationResult
+        });
+    } catch (error: any) {
+        console.error('🔥 Error validating token:', error.message);
+        return c.json({
+            success: false,
+            error: error.message
+        }, 400);
+    }
+};
+
+// Simple echo endpoint to test if API is working
+export const echo = async (c: Context) => {
+    try {
+        const body = await c.req.json().catch(() => ({}));
+        console.log('🔊 Echo request:', body);
+        
+        return c.json({
+            success: true,
+            message: 'API is working',
+            data: {
+                echo: body,
+                timestamp: new Date().toISOString(),
+                headers: Object.fromEntries(c.req.raw.headers)
+            }
+        });
+    } catch (error: any) {
+        console.error('🔥 Error in echo endpoint:', error.message);
+        return c.json({
+            success: false,
+            error: 'Echo failed'
+        }, 500);
+    }
+};
+
+// Check authentication middleware
+export const checkAuth = async (c: Context) => {
+    try {
+        console.log('🔐 Checking authentication');
+        const authHeader = c.req.header('Authorization');
+        
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.log('❌ No valid auth header');
+            return c.json({
+                success: false,
+                authenticated: false,
+                error: 'No authentication token provided'
+            }, 401);
+        }
+
+        const token = authHeader.split(' ')[1];
+        console.log('🔍 Token present, length:', token.length);
+        
+        const payload = JWTUtils.verifyAccessToken(token);
+        
+        if (!payload) {
+            console.log('❌ Token verification failed');
+            return c.json({
+                success: false,
+                authenticated: false,
+                error: 'Invalid or expired token'
+            }, 401);
+        }
+
+        console.log('✅ Authentication successful:', {
+            userId: payload.userId,
+            username: payload.username,
+            role: payload.role
+        });
+
+        return c.json({
+            success: true,
+            authenticated: true,
+            message: 'Authenticated successfully',
+            user: payload,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error: any) {
+        console.error('🔥 Error checking auth:', error.message);
+        return c.json({
+            success: false,
+            authenticated: false,
+            error: 'Authentication check failed'
         }, 500);
     }
 };

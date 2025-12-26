@@ -25,7 +25,7 @@ const initDatabaseConnection = initializeDatabaseConnection;
 
 // ✅ Enable CORS for your React frontend
 app.use('*', cors({
-  origin:  'http://localhost:5174', // React dev server
+  origin:  'http://localhost:5173', // React dev server
   allowHeaders: ['Content-Type', 'Authorization'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   exposeHeaders: ['Content-Length'],
@@ -48,13 +48,13 @@ app.route('api', userRoutes);
 app.route('api/auth', authRoutes); 
 app.route('api/v1', propertyAmenitiesRoutes);
 app.route('api', propertyMediaRoutes);
-app.route('api', propertiesRoutes);
+// app.route('api', propertiesRoutes);
 app.route('api', userFollowsRoutes);
 app.route('api', reviewsRoutes);
 app.route('api', propertyVisitsRoutes);
 app.route('api', propertyMediaRoutes);
 app.route('api', propertyAmenitiesRoutes);
-app.route('api', propertiesRoutes);
+app.route('api/properties', propertiesRoutes);
 app.route('api', paymentsRoutes);
 app.route('api', auditLogsRoutes);
 app.route('api', agentVerificationRoutes);

@@ -1,3 +1,4 @@
+// src/utils/jwt.ts
 import jwt from 'jsonwebtoken';
 import { env } from '../Database/envConfig.js';
 
@@ -13,11 +14,14 @@ export class JWTUtils {
     static generateAccessToken(payload: TokenPayload): string {
         return jwt.sign(
             { 
-                ...payload, 
+                userId: payload.userId,
+                username: payload.username,
+                email: payload.email,
+                role: payload.role,
                 type: 'access' 
             },
-            env.JWT_SECRET,
-            { expiresIn: env.JWT_EXPIRES_IN }
+            env.JWT_SECRET as jwt.Secret, // Add type assertion
+            { expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'] } // Add type assertion
         );
     }
 
@@ -25,20 +29,30 @@ export class JWTUtils {
     static generateRefreshToken(payload: TokenPayload): string {
         return jwt.sign(
             { 
-                ...payload, 
+                userId: payload.userId,
+                username: payload.username,
+                email: payload.email,
+                role: payload.role,
                 type: 'refresh' 
             },
-            env.JWT_REFRESH_SECRET,
-            { expiresIn: env.JWT_REFRESH_EXPIRES_IN }
+            env.JWT_REFRESH_SECRET as jwt.Secret, // Add type assertion
+            { expiresIn: env.JWT_REFRESH_EXPIRES_IN as jwt.SignOptions['expiresIn'] } // Add type assertion
         );
     }
 
     // Verify access token
     static verifyAccessToken(token: string): TokenPayload | null {
         try {
-            const decoded = jwt.verify(token, env.JWT_SECRET) as TokenPayload & { type: string };
-            return decoded;
+            const decoded = jwt.verify(token, env.JWT_SECRET as jwt.Secret) as any;
+            
+            return {
+                userId: decoded.userId,
+                username: decoded.username,
+                email: decoded.email,
+                role: decoded.role
+            };
         } catch (error) {
+            console.error('JWT verification error:', error);
             return null;
         }
     }
@@ -46,9 +60,16 @@ export class JWTUtils {
     // Verify refresh token
     static verifyRefreshToken(token: string): TokenPayload | null {
         try {
-            const decoded = jwt.verify(token, env.JWT_REFRESH_SECRET) as TokenPayload & { type: string };
-            return decoded;
+            const decoded = jwt.verify(token, env.JWT_REFRESH_SECRET as jwt.Secret) as any;
+            
+            return {
+                userId: decoded.userId,
+                username: decoded.username,
+                email: decoded.email,
+                role: decoded.role
+            };
         } catch (error) {
+            console.error('Refresh token verification error:', error);
             return null;
         }
     }
@@ -57,16 +78,16 @@ export class JWTUtils {
     static generateEmailVerificationToken(email: string): string {
         return jwt.sign(
             { email, type: 'email_verification' },
-            env.JWT_SECRET,
-            { expiresIn: '24h' }
+            env.JWT_SECRET as jwt.Secret,
+            { expiresIn: '24h' as jwt.SignOptions['expiresIn'] }
         );
     }
 
     // Verify email verification token
     static verifyEmailVerificationToken(token: string): { email: string } | null {
         try {
-            const decoded = jwt.verify(token, env.JWT_SECRET) as { email: string; type: string };
-            return decoded;
+            const decoded = jwt.verify(token, env.JWT_SECRET as jwt.Secret) as { email: string; type: string };
+            return { email: decoded.email };
         } catch (error) {
             return null;
         }
@@ -76,16 +97,16 @@ export class JWTUtils {
     static generatePasswordResetToken(userId: string): string {
         return jwt.sign(
             { userId, type: 'password_reset' },
-            env.JWT_SECRET,
-            { expiresIn: '1h' }
+            env.JWT_SECRET as jwt.Secret,
+            { expiresIn: '1h' as jwt.SignOptions['expiresIn'] }
         );
     }
 
     // Verify password reset token
     static verifyPasswordResetToken(token: string): { userId: string } | null {
         try {
-            const decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string; type: string };
-            return decoded;
+            const decoded = jwt.verify(token, env.JWT_SECRET as jwt.Secret) as { userId: string; type: string };
+            return { userId: decoded.userId };
         } catch (error) {
             return null;
         }
