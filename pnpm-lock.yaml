@@ -39,8 +39,8 @@ importers:
         specifier: ^12.2.0
         version: 12.2.0
       nodemailer:
-        specifier: ^6.9.0
-        version: 6.10.1
+        specifier: ^7.0.12
+        version: 7.0.12
       uuid:
         specifier: ^13.0.0
         version: 13.0.0
@@ -2248,8 +2248,8 @@ packages:
   node-releases@2.0.27:
     resolution: {integrity: sha512-nmh3lCkYZ3grZvqcCH+fjmQ7X+H0OeZgP40OierEaAptX4XofMh5kwNbWh7lBduUzCcV/8kZ+NDLCwm2iorIlA==}
 
-  nodemailer@6.10.1:
-    resolution: {integrity: sha512-Z+iLaBGVaSjbIzQ4pX6XV41HrooLsQ10ZWPUehGmuantvzWoDVBnmsdUcOIDM1t+yPor5pDhVlDESgOMEGxhHA==}
+  nodemailer@7.0.12:
+    resolution: {integrity: sha512-H+rnK5bX2Pi/6ms3sN4/jRQvYSMltV6vqup/0SFOrxYYY/qoNvhXPlYq3e+Pm9RFJRwrMGbMIwi81M4dxpomhA==}
     engines: {node: '>=6.0.0'}
 
   normalize-path@3.0.0:
@@ -5757,7 +5757,7 @@ snapshots:
 
   node-releases@2.0.27: {}
 
-  nodemailer@6.10.1: {}
+  nodemailer@7.0.12: {}
 
   normalize-path@3.0.0: {}
 
