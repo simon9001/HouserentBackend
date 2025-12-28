@@ -2,9 +2,7 @@ import { Context } from 'hono';
 import { 
     userSubscriptionsService, 
     CreateSubscriptionInput, 
-    UpdateSubscriptionInput,
-    UsageCheckResult
-} from './userSubscriptions.service.js';
+    UpdateSubscriptionInput} from './userSubscriptions.service.js';
 import { ValidationUtils } from '../utils/validators.js';
 
 // Create new subscription

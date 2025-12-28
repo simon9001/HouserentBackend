@@ -49,8 +49,8 @@ import {
     type RevenueBreakdown,
     type ActiveSubscription,
     type SubscriptionPlan,
-    type SubscriptionEvent,
-    type UsageLog,
+    // type SubscriptionEvent,
+    // type UsageLog,
     type SubscriptionStats,
     type SubscriptionUserDetails,
     type PaymentHistory
@@ -1082,8 +1082,6 @@ export const getSystemOverview = async (c: Context) => {
 export const exportSubscriptionData = async (c: Context) => {
     try {
         const format = c.req.query('format') || 'csv';
-        const startDate = c.req.query('startDate');
-        const endDate = c.req.query('endDate');
         
         // This would typically generate a CSV/Excel file
         // For now, return JSON data that can be converted

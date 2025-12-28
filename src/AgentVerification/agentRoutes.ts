@@ -173,7 +173,6 @@ agentVerificationRoutes.get('/verifications/check-eligibility/:userId', authenti
         }
 
         // Get user info using service method instead of direct DB access
-        const existingVerification = await agentVerificationService.getVerificationByUserId(userId);
         
         // We need a way to get user info - add a method to your service or use existing verification
         // For now, let's use a different approach:

@@ -38,7 +38,8 @@ export const subscriptionGate = (options) => {
                     upsellPlanId: options.upsellPlanId
                 });
             }
-            await next();
+            // Return the result of next()
+            return await next();
         }
         catch (error) {
             return c.json({
@@ -81,7 +82,8 @@ export const requireSubscription = (feature) => {
                     }
                 }, 403);
             }
-            await next();
+            // Return the result of next()
+            return await next();
         }
         catch (error) {
             return c.json({

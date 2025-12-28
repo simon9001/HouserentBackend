@@ -538,7 +538,6 @@ export class AgentVerificationService {
         reviewerId: string,
         reviewNotes?: string
     ): Promise<AgentVerification[]> {
-        const db = await this.getDb();
         
         if (!Array.isArray(verificationIds) || verificationIds.length === 0) {
             throw new Error('No verification IDs provided');
@@ -583,7 +582,6 @@ export class AgentVerificationService {
         reviewerId: string,
         reviewNotes?: string
     ): Promise<AgentVerification[]> {
-        const db = await this.getDb();
         
         if (!Array.isArray(verificationIds) || verificationIds.length === 0) {
             throw new Error('No verification IDs provided');

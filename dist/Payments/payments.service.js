@@ -197,7 +197,7 @@ export class PaymentsService {
         return this.updatePayment(paymentId, { status: 'COMPLETED' });
     }
     // Fail payment
-    async failPayment(paymentId, reason) {
+    async failPayment(paymentId, _reason) {
         return this.updatePayment(paymentId, { status: 'FAILED' });
     }
     // Refund payment

@@ -249,7 +249,6 @@ export const deleteAmenitiesByPropertyId = async (c: Context) => {
             }, 400);
         }
 
-        const deleted = await propertyAmenitiesService.deleteAmenitiesByPropertyId(propertyId);
 
         return c.json({
             success: true,

@@ -36,7 +36,7 @@ export const getDashboardStatsService = async () => {
                 SELECT COUNT(*) as count 
                 FROM UserSubscriptions 
                 WHERE Status IN ('ACTIVE', 'TRIAL') 
-                AND EndDate > SYSDATETIME()
+                AND EndDate > GETDATE()
             `),
             db.request().query(`
                 SELECT ISNULL(SUM(Amount), 0) as revenue 
@@ -367,13 +367,13 @@ export const getSubscriptionAnalyticsService = async () => {
             WITH SubscriptionStats AS (
                 SELECT 
                     COUNT(*) as totalSubscriptions,
-                    SUM(CASE WHEN Status IN ('ACTIVE', 'TRIAL') AND EndDate > SYSDATETIME() THEN 1 ELSE 0 END) as activeSubscriptions,
-                    SUM(CASE WHEN Status = 'TRIAL' AND EndDate > SYSDATETIME() THEN 1 ELSE 0 END) as trialSubscriptions,
-                    SUM(CASE WHEN Status = 'EXPIRED' OR (Status = 'ACTIVE' AND EndDate <= SYSDATETIME()) THEN 1 ELSE 0 END) as expiredSubscriptions,
+                    SUM(CASE WHEN Status IN ('ACTIVE', 'TRIAL') AND EndDate > GETDATE() THEN 1 ELSE 0 END) as activeSubscriptions,
+                    SUM(CASE WHEN Status = 'TRIAL' AND EndDate > GETDATE() THEN 1 ELSE 0 END) as trialSubscriptions,
+                    SUM(CASE WHEN Status = 'EXPIRED' OR (Status = 'ACTIVE' AND EndDate <= GETDATE()) THEN 1 ELSE 0 END) as expiredSubscriptions,
                     SUM(CASE WHEN Status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelledSubscriptions,
                     AVG(us.Price) as avgRevenuePerUser
                 FROM UserSubscriptions us
-                WHERE us.StartDate >= DATEADD(MONTH, -12, SYSDATETIME())
+                WHERE us.StartDate >= DATEADD(MONTH, -12, GETDATE())
             ),
             RevenueStats AS (
                 SELECT 
@@ -382,12 +382,12 @@ export const getSubscriptionAnalyticsService = async () => {
                 INNER JOIN UserSubscriptions us ON p.PaymentId = us.PaymentId
                 WHERE p.Status = 'COMPLETED'
                 AND p.Purpose = 'SUBSCRIPTION'
-                AND p.CreatedAt >= DATEADD(MONTH, -1, SYSDATETIME())
+                AND p.CreatedAt >= DATEADD(MONTH, -1, GETDATE())
             ),
             ChurnStats AS (
                 SELECT 
-                    SUM(CASE WHEN us.Status = 'CANCELLED' AND us.CancelledDate >= DATEADD(MONTH, -1, SYSDATETIME()) THEN 1 ELSE 0 END) as churned,
-                    SUM(CASE WHEN us.Status IN ('ACTIVE', 'TRIAL') AND us.StartDate >= DATEADD(MONTH, -2, SYSDATETIME()) THEN 1 ELSE 0 END) as activeMonthAgo
+                    SUM(CASE WHEN us.Status = 'CANCELLED' AND us.CancelledDate >= DATEADD(MONTH, -1, GETDATE()) THEN 1 ELSE 0 END) as churned,
+                    SUM(CASE WHEN us.Status IN ('ACTIVE', 'TRIAL') AND us.StartDate >= DATEADD(MONTH, -2, GETDATE()) THEN 1 ELSE 0 END) as activeMonthAgo
                 FROM UserSubscriptions us
             ),
             TrialStats AS (
@@ -396,7 +396,7 @@ export const getSubscriptionAnalyticsService = async () => {
                     SUM(CASE WHEN us.Status = 'ACTIVE' AND us.StartDate < us.TrialEndDate THEN 1 ELSE 0 END) as convertedTrials
                 FROM UserSubscriptions us
                 WHERE us.TrialEndDate IS NOT NULL
-                AND us.StartDate >= DATEADD(MONTH, -3, SYSDATETIME())
+                AND us.StartDate >= DATEADD(MONTH, -3, GETDATE())
             )
             SELECT 
                 ss.*,
@@ -446,7 +446,7 @@ export const getPlanDistributionService = async () => {
                 FROM SubscriptionPlans sp
                 LEFT JOIN UserSubscriptions us ON sp.PlanId = us.PlanId
                     AND us.Status IN ('ACTIVE', 'TRIAL')
-                    AND us.EndDate > SYSDATETIME()
+                    AND us.EndDate > GETDATE()
                 LEFT JOIN Payments p ON us.PaymentId = p.PaymentId
                     AND p.Status = 'COMPLETED'
                 WHERE sp.IsActive = 1
@@ -543,7 +543,7 @@ export const getUsageAnalyticsService = async () => {
             FROM UserSubscriptions us
             INNER JOIN SubscriptionPlans sp ON us.PlanId = sp.PlanId
             WHERE us.Status IN ('ACTIVE', 'TRIAL')
-            AND us.EndDate > SYSDATETIME()
+            AND us.EndDate > GETDATE()
             GROUP BY sp.DisplayName, sp.MaxProperties, sp.MaxVisitsPerMonth, sp.MaxBoostsPerMonth, sp.SortOrder
             ORDER BY sp.SortOrder
         `;
@@ -664,7 +664,7 @@ export const getActiveSubscriptionsService = async (page = 1, limit = 20, status
     const db = await getDbPool();
     try {
         const offset = (page - 1) * limit;
-        let whereClause = "WHERE us.Status IN ('ACTIVE', 'TRIAL') AND us.EndDate > SYSDATETIME()";
+        let whereClause = "WHERE us.Status IN ('ACTIVE', 'TRIAL') AND us.EndDate > GETDATE()";
         const inputs = { offset, limit };
         if (status) {
             whereClause += ` AND us.Status = @status`;
@@ -871,7 +871,7 @@ export const getSubscriptionPlansService = async () => {
             FROM SubscriptionPlans sp
             LEFT JOIN UserSubscriptions us ON sp.PlanId = us.PlanId
                 AND us.Status IN ('ACTIVE', 'TRIAL')
-                AND us.EndDate > SYSDATETIME()
+                AND us.EndDate > GETDATE()
             LEFT JOIN Payments p ON us.PaymentId = p.PaymentId
                 AND p.Status = 'COMPLETED'
             GROUP BY 
@@ -1121,7 +1121,15 @@ export const getSubscriptionUsageLogsService = async (page = 1, limit = 20, user
 export const updateSubscriptionPlanService = async (subscriptionId, planId, newEndDate, priceOverride, notes) => {
     const db = await getDbPool();
     try {
-        await db.request().query(`
+        const request = db.request();
+        request.input('subscriptionId', subscriptionId);
+        request.input('planId', planId);
+        request.input('priceOverride', priceOverride);
+        request.input('notes', notes);
+        if (newEndDate) {
+            request.input('newEndDate', newEndDate);
+        }
+        await request.query(`
             BEGIN TRANSACTION;
             
             -- Get current subscription details
@@ -1142,7 +1150,7 @@ export const updateSubscriptionPlanService = async (subscriptionId, planId, newE
                 PlanId = @planId,
                 Price = ISNULL(@priceOverride, (SELECT BasePrice FROM SubscriptionPlans WHERE PlanId = @planId)),
                 EndDate = ISNULL(@newEndDate, EndDate),
-                UpdatedAt = SYSDATETIME()
+                UpdatedAt = GETDATE()
             WHERE SubscriptionId = @subscriptionId;
             
             -- Create audit event
@@ -1165,7 +1173,7 @@ export const updateSubscriptionPlanService = async (subscriptionId, planId, newE
                     'notes': @notes,
                     'changedBy': 'ADMIN'
                 ),
-                SYSDATETIME()
+                GETDATE()
             );
             
             COMMIT TRANSACTION;
@@ -1181,7 +1189,12 @@ export const updateSubscriptionPlanService = async (subscriptionId, planId, newE
 export const cancelSubscriptionService = async (subscriptionId, cancelImmediately = false, refundAmount, reason) => {
     const db = await getDbPool();
     try {
-        await db.request().query(`
+        const request = db.request();
+        request.input('subscriptionId', subscriptionId);
+        request.input('cancelImmediately', cancelImmediately);
+        request.input('refundAmount', refundAmount || 0);
+        request.input('reason', reason);
+        await request.query(`
             BEGIN TRANSACTION;
             
             -- Update subscription based on cancellation type
@@ -1190,10 +1203,10 @@ export const cancelSubscriptionService = async (subscriptionId, cancelImmediatel
                 UPDATE UserSubscriptions
                 SET 
                     Status = 'CANCELLED',
-                    CancelledDate = SYSDATETIME(),
-                    EndDate = SYSDATETIME(), -- End immediately
+                    CancelledDate = GETDATE(),
+                    EndDate = GETDATE(), -- End immediately
                     CancelAtPeriodEnd = 0,
-                    UpdatedAt = SYSDATETIME()
+                    UpdatedAt = GETDATE()
                 WHERE SubscriptionId = @subscriptionId;
             END
             ELSE
@@ -1201,8 +1214,8 @@ export const cancelSubscriptionService = async (subscriptionId, cancelImmediatel
                 UPDATE UserSubscriptions
                 SET 
                     CancelAtPeriodEnd = 1,
-                    CancelledDate = SYSDATETIME(),
-                    UpdatedAt = SYSDATETIME()
+                    CancelledDate = GETDATE(),
+                    UpdatedAt = GETDATE()
                 WHERE SubscriptionId = @subscriptionId;
             END
             
@@ -1226,7 +1239,7 @@ export const cancelSubscriptionService = async (subscriptionId, cancelImmediatel
                     'reason': @reason,
                     'cancelledBy': 'ADMIN'
                 ),
-                SYSDATETIME()
+                GETDATE()
             );
             
             -- Process refund if specified
@@ -1270,7 +1283,15 @@ export const cancelSubscriptionService = async (subscriptionId, cancelImmediatel
 export const reactivateSubscriptionService = async (subscriptionId, newPlanId, startDate, price, notes) => {
     const db = await getDbPool();
     try {
-        await db.request().query(`
+        const request = db.request();
+        request.input('subscriptionId', subscriptionId);
+        request.input('newPlanId', newPlanId);
+        request.input('price', price);
+        request.input('notes', notes);
+        if (startDate) {
+            request.input('startDate', startDate);
+        }
+        await request.query(`
             BEGIN TRANSACTION;
             
             -- Get current subscription
@@ -1285,19 +1306,19 @@ export const reactivateSubscriptionService = async (subscriptionId, newPlanId, s
             WHERE SubscriptionId = @subscriptionId;
             
             -- Calculate new end date (add 1 month from start date or current date)
-            SET @newEndDate = DATEADD(MONTH, 1, ISNULL(@startDate, SYSDATETIME()));
+            SET @newEndDate = DATEADD(MONTH, 1, ISNULL(@startDate, GETDATE()));
             
             -- Reactivate subscription
             UPDATE UserSubscriptions
             SET 
                 PlanId = ISNULL(@newPlanId, @oldPlanId),
                 Status = 'ACTIVE',
-                StartDate = ISNULL(@startDate, SYSDATETIME()),
+                StartDate = ISNULL(@startDate, GETDATE()),
                 EndDate = @newEndDate,
                 CancelAtPeriodEnd = 0,
                 CancelledDate = NULL,
                 Price = ISNULL(@price, Price),
-                UpdatedAt = SYSDATETIME()
+                UpdatedAt = GETDATE()
             WHERE SubscriptionId = @subscriptionId;
             
             -- Create reactivation event
@@ -1313,13 +1334,13 @@ export const reactivateSubscriptionService = async (subscriptionId, newPlanId, s
                 @userId,
                 JSON_OBJECT(
                     'newPlanId': ISNULL(@newPlanId, @oldPlanId),
-                    'startDate': ISNULL(@startDate, SYSDATETIME()),
+                    'startDate': ISNULL(@startDate, GETDATE()),
                     'endDate': @newEndDate,
                     'price': ISNULL(@price, (SELECT Price FROM UserSubscriptions WHERE SubscriptionId = @subscriptionId)),
                     'notes': @notes,
                     'reactivatedBy': 'ADMIN'
                 ),
-                SYSDATETIME()
+                GETDATE()
             );
             
             COMMIT TRANSACTION;
@@ -1335,7 +1356,18 @@ export const reactivateSubscriptionService = async (subscriptionId, newPlanId, s
 export const overrideSubscriptionLimitsService = async (subscriptionId, propertiesLimit, visitsLimit, boostsLimit, mediaLimit, amenitiesLimit, expiryDate, notes) => {
     const db = await getDbPool();
     try {
-        await db.request().query(`
+        const request = db.request();
+        request.input('subscriptionId', subscriptionId);
+        request.input('propertiesLimit', propertiesLimit);
+        request.input('visitsLimit', visitsLimit);
+        request.input('boostsLimit', boostsLimit);
+        request.input('mediaLimit', mediaLimit);
+        request.input('amenitiesLimit', amenitiesLimit);
+        request.input('notes', notes);
+        if (expiryDate) {
+            request.input('expiryDate', expiryDate);
+        }
+        await request.query(`
             BEGIN TRANSACTION;
             
             -- Get user ID
@@ -1364,11 +1396,8 @@ export const overrideSubscriptionLimitsService = async (subscriptionId, properti
                 )
                 ON DUPLICATE KEY UPDATE
                     TriggerLimit = @propertiesLimit,
-                    UpdatedAt = SYSDATETIME();
+                    UpdatedAt = GETDATE();
             END
-            
-            -- Similar logic for other limits...
-            -- Note: You would need to create or update FeatureGates for each feature
             
             -- Create override event
             INSERT INTO SubscriptionEvents (
@@ -1391,7 +1420,7 @@ export const overrideSubscriptionLimitsService = async (subscriptionId, properti
                     'notes': @notes,
                     'overriddenBy': 'ADMIN'
                 ),
-                SYSDATETIME()
+                GETDATE()
             );
             
             COMMIT TRANSACTION;
@@ -1418,7 +1447,21 @@ export const generateInvoiceService = async (subscriptionId, amount, description
     const db = await getDbPool();
     try {
         const invoiceNumber = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const result = await db.request().query(`
+        const request = db.request();
+        request.input('subscriptionId', subscriptionId);
+        request.input('amount', amount);
+        request.input('description', description);
+        request.input('invoiceNumber', invoiceNumber);
+        if (dueDate) {
+            request.input('dueDate', dueDate);
+        }
+        if (items) {
+            request.input('items', JSON.stringify(items));
+        }
+        else {
+            request.input('items', '[]');
+        }
+        const result = await request.query(`
             BEGIN TRANSACTION;
             
             -- Get subscription details
@@ -1456,8 +1499,8 @@ export const generateInvoiceService = async (subscriptionId, amount, description
                 @subscriptionId,
                 @userId,
                 @invoiceNumber,
-                SYSDATETIME(),
-                ISNULL(@dueDate, DATEADD(DAY, 7, SYSDATETIME())),
+                GETDATE(),
+                ISNULL(@dueDate, DATEADD(DAY, 7, GETDATE())),
                 @startDate,
                 DATEADD(MONTH, 1, @startDate),
                 @amount,
@@ -1485,10 +1528,10 @@ export const generateInvoiceService = async (subscriptionId, amount, description
                     'invoiceNumber': @invoiceNumber,
                     'amount': @amount,
                     'description': @description,
-                    'dueDate': ISNULL(@dueDate, DATEADD(DAY, 7, SYSDATETIME())),
+                    'dueDate': ISNULL(@dueDate, DATEADD(DAY, 7, GETDATE())),
                     'items': @items
                 ),
-                SYSDATETIME()
+                GETDATE()
             );
             
             COMMIT TRANSACTION;
@@ -1512,8 +1555,14 @@ export const generateInvoiceService = async (subscriptionId, amount, description
 export const sendSubscriptionNotificationService = async (subscriptionId, notificationType, subject, message, includeInvoice = false) => {
     const db = await getDbPool();
     try {
+        const request = db.request();
+        request.input('subscriptionId', subscriptionId);
+        request.input('notificationType', notificationType);
+        request.input('subject', subject);
+        request.input('message', message);
+        request.input('includeInvoice', includeInvoice);
         // Get subscription details
-        const result = await db.request().query(`
+        const subscriptionResult = await request.query(`
             SELECT 
                 us.SubscriptionId,
                 u.UserId,
@@ -1528,12 +1577,15 @@ export const sendSubscriptionNotificationService = async (subscriptionId, notifi
             INNER JOIN SubscriptionPlans sp ON us.PlanId = sp.PlanId
             WHERE us.SubscriptionId = @subscriptionId
         `);
-        if (result.recordset.length === 0) {
+        if (subscriptionResult.recordset.length === 0) {
             throw new Error('Subscription not found');
         }
-        const subscription = result.recordset[0];
+        const subscription = subscriptionResult.recordset[0];
+        request.input('userId', subscription.UserId);
+        request.input('userEmail', subscription.userEmail);
+        request.input('userName', subscription.userName);
         // Create notification event
-        await db.request().query(`
+        await request.query(`
             INSERT INTO SubscriptionEvents (
                 EventType,
                 SubscriptionId,
@@ -1551,7 +1603,7 @@ export const sendSubscriptionNotificationService = async (subscriptionId, notifi
                     'sentTo': @userEmail,
                     'userName': @userName
                 ),
-                SYSDATETIME()
+                GETDATE()
             )
         `);
         // Here you would typically integrate with your email service
@@ -1583,8 +1635,8 @@ export const getSubscriptionStatsService = async () => {
             SELECT 
                 -- Basic counts
                 COUNT(*) as totalSubscriptions,
-                SUM(CASE WHEN Status IN ('ACTIVE', 'TRIAL') AND EndDate > SYSDATETIME() THEN 1 ELSE 0 END) as activeSubscriptions,
-                SUM(CASE WHEN Status = 'TRIAL' AND EndDate > SYSDATETIME() THEN 1 ELSE 0 END) as trialSubscriptions,
+                SUM(CASE WHEN Status IN ('ACTIVE', 'TRIAL') AND EndDate > GETDATE() THEN 1 ELSE 0 END) as activeSubscriptions,
+                SUM(CASE WHEN Status = 'TRIAL' AND EndDate > GETDATE() THEN 1 ELSE 0 END) as trialSubscriptions,
                 
                 -- Daily stats
                 SUM(CASE WHEN Status IN ('ACTIVE', 'TRIAL') AND CAST(StartDate AS DATE) = CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END) as newSubscriptionsToday,
@@ -1617,14 +1669,14 @@ export const getSubscriptionStatsService = async () => {
                 ) AS DECIMAL(5,2)) as trialConversionRate,
                 
                 -- ARPU
-                (SELECT ISNULL(AVG(Price), 0) FROM UserSubscriptions WHERE Status IN ('ACTIVE', 'TRIAL') AND EndDate > SYSDATETIME()) as avgRevenuePerUser,
+                (SELECT ISNULL(AVG(Price), 0) FROM UserSubscriptions WHERE Status IN ('ACTIVE', 'TRIAL') AND EndDate > GETDATE()) as avgRevenuePerUser,
                 
                 -- Most popular plan
                 (SELECT TOP 1 sp.DisplayName 
                  FROM UserSubscriptions us
                  INNER JOIN SubscriptionPlans sp ON us.PlanId = sp.PlanId
                  WHERE us.Status IN ('ACTIVE', 'TRIAL') 
-                 AND us.EndDate > SYSDATETIME()
+                 AND us.EndDate > GETDATE()
                  GROUP BY sp.DisplayName
                  ORDER BY COUNT(*) DESC) as mostPopularPlan,
                 
@@ -1634,7 +1686,7 @@ export const getSubscriptionStatsService = async () => {
                     FROM UserSubscriptions us
                     INNER JOIN SubscriptionPlans sp ON us.PlanId = sp.PlanId
                     WHERE us.Status IN ('ACTIVE', 'TRIAL') 
-                    AND us.EndDate > SYSDATETIME()
+                    AND us.EndDate > GETDATE()
                     AND sp.MaxProperties > 0
                 ) AS DECIMAL(5,2)) as usageRate,
                 
@@ -1677,13 +1729,20 @@ export const getSubscriptionUserDetailsService = async (userId, subscriptionId) 
         }
         let condition = '';
         if (userId) {
-            condition = `WHERE u.UserId = '${userId}'`;
+            condition = `WHERE u.UserId = @userId`;
         }
         else if (subscriptionId) {
-            condition = `WHERE us.SubscriptionId = '${subscriptionId}'`;
+            condition = `WHERE us.SubscriptionId = @subscriptionId`;
         }
-        const query = `
-            -- Get user details
+        const request = db.request();
+        if (userId) {
+            request.input('userId', userId);
+        }
+        else if (subscriptionId) {
+            request.input('subscriptionId', subscriptionId);
+        }
+        // Get user details
+        const userQuery = `
             SELECT 
                 u.UserId,
                 u.FullName as userName,
@@ -1693,7 +1752,7 @@ export const getSubscriptionUserDetailsService = async (userId, subscriptionId) 
             FROM Users u
             ${condition}
         `;
-        const userResult = await db.request().query(query);
+        const userResult = await request.query(userQuery);
         if (userResult.recordset.length === 0) {
             throw new Error('User not found');
         }
@@ -1718,12 +1777,14 @@ export const getSubscriptionUserDetailsService = async (userId, subscriptionId) 
                 DATEDIFF(DAY, GETDATE(), us.EndDate) as daysRemaining
             FROM UserSubscriptions us
             INNER JOIN SubscriptionPlans sp ON us.PlanId = sp.PlanId
-            WHERE us.UserId = '${user.UserId}'
+            WHERE us.UserId = @userId
             AND us.Status IN ('ACTIVE', 'TRIAL')
-            AND us.EndDate > SYSDATETIME()
+            AND us.EndDate > GETDATE()
             ORDER BY us.StartDate DESC
         `;
-        const currentSubResult = await db.request().query(currentSubQuery);
+        const currentSubRequest = db.request();
+        currentSubRequest.input('userId', user.UserId);
+        const currentSubResult = await currentSubRequest.query(currentSubQuery);
         const currentSubscription = currentSubResult.recordset[0] || null;
         // Get subscription history
         const historyQuery = `
@@ -1738,10 +1799,12 @@ export const getSubscriptionUserDetailsService = async (userId, subscriptionId) 
                 us.CancelAtPeriodEnd
             FROM UserSubscriptions us
             INNER JOIN SubscriptionPlans sp ON us.PlanId = sp.PlanId
-            WHERE us.UserId = '${user.UserId}'
+            WHERE us.UserId = @userId
             ORDER BY us.StartDate DESC
         `;
-        const historyResult = await db.request().query(historyQuery);
+        const historyRequest = db.request();
+        historyRequest.input('userId', user.UserId);
+        const historyResult = await historyRequest.query(historyQuery);
         // Get payment history
         const paymentQuery = `
             SELECT 
@@ -1757,27 +1820,31 @@ export const getSubscriptionUserDetailsService = async (userId, subscriptionId) 
                 CONVERT(VARCHAR, p.CompletedAt, 120) as completedAt
             FROM Payments p
             LEFT JOIN SubscriptionInvoices si ON p.PaymentId = si.PaymentId
-            WHERE p.UserId = '${user.UserId}'
+            WHERE p.UserId = @userId
             AND p.Purpose = 'SUBSCRIPTION'
             ORDER BY p.CreatedAt DESC
         `;
-        const paymentResult = await db.request().query(paymentQuery);
+        const paymentRequest = db.request();
+        paymentRequest.input('userId', user.UserId);
+        const paymentResult = await paymentRequest.query(paymentQuery);
         // Get usage summary
         const usageQuery = `
             SELECT 
                 -- Lifetime totals
-                (SELECT COUNT(*) FROM Properties WHERE OwnerId = '${user.UserId}') as totalPropertiesCreated,
-                (SELECT COUNT(*) FROM PropertyVisits WHERE TenantId = '${user.UserId}') as totalVisitsScheduled,
-                (SELECT COUNT(*) FROM Properties WHERE OwnerId = '${user.UserId}' AND IsBoosted = 1) as totalBoostsUsed,
+                (SELECT COUNT(*) FROM Properties WHERE OwnerId = @userId) as totalPropertiesCreated,
+                (SELECT COUNT(*) FROM PropertyVisits WHERE TenantId = @userId) as totalVisitsScheduled,
+                (SELECT COUNT(*) FROM Properties WHERE OwnerId = @userId AND IsBoosted = 1) as totalBoostsUsed,
                 
                 -- Current month usage
-                ISNULL((SELECT PropertiesUsed FROM UserSubscriptions WHERE UserId = '${user.UserId}' AND Status IN ('ACTIVE', 'TRIAL')), 0) as propertiesUsed,
-                ISNULL((SELECT VisitsUsedThisMonth FROM UserSubscriptions WHERE UserId = '${user.UserId}' AND Status IN ('ACTIVE', 'TRIAL')), 0) as visitsUsed,
-                ISNULL((SELECT BoostsUsedThisMonth FROM UserSubscriptions WHERE UserId = '${user.UserId}' AND Status IN ('ACTIVE', 'TRIAL')), 0) as boostsUsed,
-                ISNULL((SELECT MediaUsedThisMonth FROM UserSubscriptions WHERE UserId = '${user.UserId}' AND Status IN ('ACTIVE', 'TRIAL')), 0) as mediaUsed,
-                ISNULL((SELECT AmenitiesUsedThisMonth FROM UserSubscriptions WHERE UserId = '${user.UserId}' AND Status IN ('ACTIVE', 'TRIAL')), 0) as amenitiesUsed
+                ISNULL((SELECT PropertiesUsed FROM UserSubscriptions WHERE UserId = @userId AND Status IN ('ACTIVE', 'TRIAL')), 0) as propertiesUsed,
+                ISNULL((SELECT VisitsUsedThisMonth FROM UserSubscriptions WHERE UserId = @userId AND Status IN ('ACTIVE', 'TRIAL')), 0) as visitsUsed,
+                ISNULL((SELECT BoostsUsedThisMonth FROM UserSubscriptions WHERE UserId = @userId AND Status IN ('ACTIVE', 'TRIAL')), 0) as boostsUsed,
+                ISNULL((SELECT MediaUsedThisMonth FROM UserSubscriptions WHERE UserId = @userId AND Status IN ('ACTIVE', 'TRIAL')), 0) as mediaUsed,
+                ISNULL((SELECT AmenitiesUsedThisMonth FROM UserSubscriptions WHERE UserId = @userId AND Status IN ('ACTIVE', 'TRIAL')), 0) as amenitiesUsed
         `;
-        const usageResult = await db.request().query(usageQuery);
+        const usageRequest = db.request();
+        usageRequest.input('userId', user.UserId);
+        const usageResult = await usageRequest.query(usageQuery);
         // Get feature gates
         const gatesQuery = `
             SELECT 
@@ -1787,19 +1854,23 @@ export const getSubscriptionUserDetailsService = async (userId, subscriptionId) 
                 TriggerCount,
                 IsActive
             FROM FeatureGates
-            WHERE UserId = '${user.UserId}'
+            WHERE UserId = @userId
             AND IsActive = 1
         `;
-        const gatesResult = await db.request().query(gatesQuery);
+        const gatesRequest = db.request();
+        gatesRequest.input('userId', user.UserId);
+        const gatesResult = await gatesRequest.query(gatesQuery);
         // Calculate total spent
         const totalSpentQuery = `
             SELECT ISNULL(SUM(Amount), 0) as totalSpent
             FROM Payments
-            WHERE UserId = '${user.UserId}'
+            WHERE UserId = @userId
             AND Status = 'COMPLETED'
             AND Purpose = 'SUBSCRIPTION'
         `;
-        const totalSpentResult = await db.request().query(totalSpentQuery);
+        const totalSpentRequest = db.request();
+        totalSpentRequest.input('userId', user.UserId);
+        const totalSpentResult = await totalSpentRequest.query(totalSpentQuery);
         return {
             userId: user.UserId,
             userName: user.userName,
@@ -1857,11 +1928,14 @@ export const getSubscriptionPaymentHistoryService = async (subscriptionId, userI
     const db = await getDbPool();
     try {
         let condition = '';
+        const request = db.request();
         if (subscriptionId) {
-            condition = `WHERE us.SubscriptionId = '${subscriptionId}'`;
+            condition = `WHERE us.SubscriptionId = @subscriptionId`;
+            request.input('subscriptionId', subscriptionId);
         }
         else if (userId) {
-            condition = `WHERE p.UserId = '${userId}'`;
+            condition = `WHERE p.UserId = @userId`;
+            request.input('userId', userId);
         }
         else {
             throw new Error('Either subscriptionId or userId is required');
@@ -1885,7 +1959,7 @@ export const getSubscriptionPaymentHistoryService = async (subscriptionId, userI
             AND p.Purpose = 'SUBSCRIPTION'
             ORDER BY p.CreatedAt DESC
         `;
-        const result = await db.request().query(query);
+        const result = await request.query(query);
         return result.recordset.map(payment => ({
             ...payment,
             amount: parseFloat(payment.amount) || 0

@@ -829,8 +829,6 @@ export const getSystemOverview = async (c) => {
 export const exportSubscriptionData = async (c) => {
     try {
         const format = c.req.query('format') || 'csv';
-        const startDate = c.req.query('startDate');
-        const endDate = c.req.query('endDate');
         // This would typically generate a CSV/Excel file
         // For now, return JSON data that can be converted
         const [subscriptions, invoices, usageLogs] = await Promise.all([

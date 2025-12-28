@@ -391,7 +391,6 @@ export class UserSubscriptionsService {
 
     // Cancel subscription
     async cancelSubscription(subscriptionId: string, cancelAtPeriodEnd: boolean = false): Promise<UserSubscription> {
-        const db = await this.getDb();
         
         if (!ValidationUtils.isValidUUID(subscriptionId)) {
             throw new Error('Invalid subscription ID format');
@@ -506,7 +505,6 @@ export class UserSubscriptionsService {
 
     // Check usage limit - UPDATED to handle free plan
     async checkUsageLimit(userId: string, feature: string, requiredCount: number = 1): Promise<UsageCheckResult> {
-        const db = await this.getDb();
         
         if (!ValidationUtils.isValidUUID(userId)) {
             throw new Error('Invalid user ID format');

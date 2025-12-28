@@ -5,7 +5,7 @@ export interface SubscriptionGateOptions {
     gateType?: 'SOFT' | 'HARD';
     upsellPlanId?: string;
 }
-export declare const subscriptionGate: (options: SubscriptionGateOptions) => (c: Context, next: Next) => Promise<(Response & import("hono").TypedResponse<{
+export declare const subscriptionGate: (options: SubscriptionGateOptions) => (c: Context, next: Next) => Promise<void | (Response & import("hono").TypedResponse<{
     success: false;
     error: string;
 }, 401, "json">) | (Response & import("hono").TypedResponse<{
@@ -22,8 +22,8 @@ export declare const subscriptionGate: (options: SubscriptionGateOptions) => (c:
 }, 403, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
-}, 500, "json">) | undefined>;
-export declare const requireSubscription: (feature: string) => (c: Context, next: Next) => Promise<(Response & import("hono").TypedResponse<{
+}, 500, "json">)>;
+export declare const requireSubscription: (feature: string) => (c: Context, next: Next) => Promise<void | (Response & import("hono").TypedResponse<{
     success: false;
     error: string;
 }, 401, "json">) | (Response & import("hono").TypedResponse<{
@@ -36,5 +36,5 @@ export declare const requireSubscription: (feature: string) => (c: Context, next
 }, 403, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
-}, 500, "json">) | undefined>;
+}, 500, "json">)>;
 //# sourceMappingURL=subscription.middleware.d.ts.map

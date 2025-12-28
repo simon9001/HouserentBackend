@@ -274,7 +274,7 @@ export class PaymentsService {
     }
 
     // Fail payment
-    async failPayment(paymentId: string, reason?: string): Promise<Payment> {
+    async failPayment(paymentId: string, _reason?: string): Promise<Payment> {
         return this.updatePayment(paymentId, { status: 'FAILED' });
     }
 

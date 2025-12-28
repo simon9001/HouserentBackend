@@ -260,7 +260,6 @@ export class UserSubscriptionsService {
     }
     // Cancel subscription
     async cancelSubscription(subscriptionId, cancelAtPeriodEnd = false) {
-        const db = await this.getDb();
         if (!ValidationUtils.isValidUUID(subscriptionId)) {
             throw new Error('Invalid subscription ID format');
         }
@@ -354,7 +353,6 @@ export class UserSubscriptionsService {
     }
     // Check usage limit - UPDATED to handle free plan
     async checkUsageLimit(userId, feature, requiredCount = 1) {
-        const db = await this.getDb();
         if (!ValidationUtils.isValidUUID(userId)) {
             throw new Error('Invalid user ID format');
         }

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import * as propertiesControllers from './properties.controller.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+// import { subscriptionGate } from '../middleware/subscription.middleware.js';
 const propertiesRoutes = new Hono();
 // 🔴 REMOVE THIS DUPLICATE or fix it:
 // propertiesRoutes.post(

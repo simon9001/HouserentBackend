@@ -203,7 +203,6 @@ export class PropertyMediaService {
     }
     // Bulk create media
     async createBulkMedia(mediaList) {
-        const db = await this.getDb();
         const results = [];
         for (const media of mediaList) {
             try {

@@ -38,7 +38,7 @@ export declare class PaymentsService {
     getPaymentsByPropertyId(propertyId: string): Promise<Payment[]>;
     updatePayment(paymentId: string, data: UpdatePaymentInput): Promise<Payment>;
     completePayment(paymentId: string): Promise<Payment>;
-    failPayment(paymentId: string, reason?: string): Promise<Payment>;
+    failPayment(paymentId: string, _reason?: string): Promise<Payment>;
     refundPayment(paymentId: string): Promise<Payment>;
     getPaymentStatistics(userId?: string, startDate?: Date, endDate?: Date): Promise<{
         totalAmount: number;

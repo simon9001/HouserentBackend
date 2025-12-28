@@ -216,7 +216,6 @@ export const deleteAmenitiesByPropertyId = async (c) => {
                 error: 'Invalid property ID format'
             }, 400);
         }
-        const deleted = await propertyAmenitiesService.deleteAmenitiesByPropertyId(propertyId);
         return c.json({
             success: true,
             message: `All amenities for property ${propertyId} have been deleted`

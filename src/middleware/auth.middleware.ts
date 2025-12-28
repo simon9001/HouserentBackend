@@ -57,7 +57,8 @@ export const authenticate = async (c: AuthContext, next: Next) => {
             role: c.user.role
         });
 
-        await next();
+        // Return the result of next()
+        return await next();
     } catch (error) {
         console.error('🔥 Authentication error:', error);
         return c.json({
@@ -97,7 +98,8 @@ export const authorize = (...allowedRoles: ('TENANT' | 'AGENT' | 'ADMIN')[]) => 
             }
 
             console.log('✅ Authorization granted');
-            await next();
+            // Return the result of next()
+            return await next();
         } catch (error) {
             console.error('🔥 Authorization error:', error);
             return c.json({
@@ -123,9 +125,11 @@ export const optionalAuthenticate = async (c: AuthContext, next: Next) => {
             }
         }
 
-        await next();
+        // Return the result of next()
+        return await next();
     } catch (error) {
         console.error('Optional auth error:', error);
-        await next();
+        // Still return the result of next() even on error
+        return await next();
     }
 };

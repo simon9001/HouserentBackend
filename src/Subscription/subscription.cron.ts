@@ -219,7 +219,7 @@ export class SubscriptionCronJobs {
         return {};
     }
 
-    private static async sendReports(reportData: any): Promise<void> {
+    private static async sendReports(_reportData: any): Promise<void> {
         // Implementation: Send reports to admins
     }
 }

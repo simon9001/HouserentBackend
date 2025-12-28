@@ -199,7 +199,7 @@ export class SubscriptionCronJobs {
         // Implementation: Generate report data
         return {};
     }
-    static async sendReports(reportData) {
+    static async sendReports(_reportData) {
         // Implementation: Send reports to admins
     }
 }

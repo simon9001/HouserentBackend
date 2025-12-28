@@ -550,9 +550,7 @@ export class PropertiesService {
         const db = await this.getDb();
         
         // Create base condition
-        let baseCondition = '';
         if (ownerId) {
-            baseCondition = 'WHERE OwnerId = @ownerId';
         }
     
         // Helper function to build WHERE clause

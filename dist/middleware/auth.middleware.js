@@ -41,7 +41,8 @@ export const authenticate = async (c, next) => {
             username: c.user.username,
             role: c.user.role
         });
-        await next();
+        // Return the result of next()
+        return await next();
     }
     catch (error) {
         console.error('🔥 Authentication error:', error);
@@ -77,7 +78,8 @@ export const authorize = (...allowedRoles) => {
                 }, 403);
             }
             console.log('✅ Authorization granted');
-            await next();
+            // Return the result of next()
+            return await next();
         }
         catch (error) {
             console.error('🔥 Authorization error:', error);
@@ -100,11 +102,13 @@ export const optionalAuthenticate = async (c, next) => {
                 console.log('🔐 Optional auth - User authenticated:', c.user.userId);
             }
         }
-        await next();
+        // Return the result of next()
+        return await next();
     }
     catch (error) {
         console.error('Optional auth error:', error);
-        await next();
+        // Still return the result of next() even on error
+        return await next();
     }
 };
 //# sourceMappingURL=auth.middleware.js.map

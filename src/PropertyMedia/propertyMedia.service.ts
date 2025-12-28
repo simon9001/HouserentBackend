@@ -279,7 +279,6 @@ export class PropertyMediaService {
 
     // Bulk create media
     async createBulkMedia(mediaList: CreateMediaInput[]): Promise<PropertyMedia[]> {
-        const db = await this.getDb();
         const results: PropertyMedia[] = [];
 
         for (const media of mediaList) {

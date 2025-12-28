@@ -403,7 +403,6 @@ export class AgentVerificationService {
     }
     // Bulk approve verifications
     async bulkApproveVerifications(verificationIds, reviewerId, reviewNotes) {
-        const db = await this.getDb();
         if (!Array.isArray(verificationIds) || verificationIds.length === 0) {
             throw new Error('No verification IDs provided');
         }
@@ -434,7 +433,6 @@ export class AgentVerificationService {
     }
     // Bulk reject verifications
     async bulkRejectVerifications(verificationIds, reviewerId, reviewNotes) {
-        const db = await this.getDb();
         if (!Array.isArray(verificationIds) || verificationIds.length === 0) {
             throw new Error('No verification IDs provided');
         }

@@ -55,7 +55,8 @@ export const subscriptionGate = (options: SubscriptionGateOptions) => {
                 });
             }
 
-            await next();
+            // Return the result of next()
+            return await next();
         } catch (error: any) {
             return c.json({
                 success: false,
@@ -102,7 +103,8 @@ export const requireSubscription = (feature: string) => {
                 }, 403);
             }
 
-            await next();
+            // Return the result of next()
+            return await next();
         } catch (error: any) {
             return c.json({
                 success: false,
