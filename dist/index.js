@@ -22,7 +22,7 @@ const app = new Hono();
 const initDatabaseConnection = initializeDatabaseConnection;
 // ✅ Enable CORS for your React frontend
 app.use('*', cors({
-    origin: 'http://localhost:5173', // React dev server
+    origin: 'https://getkeja.netlify.app', // React dev server
     allowHeaders: ['Content-Type', 'Authorization'],
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     exposeHeaders: ['Content-Length'],
@@ -61,16 +61,17 @@ app.get("/", (c) => {
     });
 });
 // ─── Database Init and Server Start ───────────────────────────
+const port = process.env.PORT ? parseInt(process.env.PORT) : 3000; // fallback for local dev
 initDatabaseConnection()
     .then(() => {
     serve({
         fetch: app.fetch,
-        port: 3000,
+        port, // use dynamic port
     }, (info) => {
-        console.log(`Holllla my guy 😂😃 Server is running at http://localhost:${info.port}`);
+        console.log(`Server is running at port ${info.port}`);
     });
 })
     .catch((error) => {
-    console.error("Weeee xixixi Hifanyi bana😏 Failed to initialize database connection:", error);
+    console.error("Failed to initialize database connection:", error);
 });
 //# sourceMappingURL=index.js.map

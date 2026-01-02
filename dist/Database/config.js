@@ -23,6 +23,7 @@ export const Config = {
             enableArithAbort: true,
         },
     },
+    //the updated config for azure database
     AzureConfig: {
         user: env.DB_USER,
         password: env.DB_PASSWORD,
