@@ -72,19 +72,21 @@ app.get("/", (c: Context) => {
 
 
 // ─── Database Init and Server Start ───────────────────────────
+const port = process.env.PORT ? parseInt(process.env.PORT) : 3000; // fallback for local dev
+
 initDatabaseConnection()
   .then(() => {
     serve(
       {
         fetch: app.fetch,
-        port: 3000,
+        port, // use dynamic port
       },
       (info) => {
-        console.log(`Holllla my guy 😂😃 Server is running at http://localhost:${info.port}`);
+        console.log(`Server is running at port ${info.port}`);
       }
     );
   })
   .catch((error) => {
-    console.error("Weeee xixixi Hifanyi bana😏 Failed to initialize database connection:", error);
+    console.error("Failed to initialize database connection:", error);
   });
 
