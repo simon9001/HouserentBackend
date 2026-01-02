@@ -25,6 +25,27 @@ export const Config = {
             enableArithAbort: true,
         },
     },
+
+    AzureConfig: {
+        user: env.DB_USER,
+        password: env.DB_PASSWORD,
+        server: env.DB_SERVER,
+        database: env.DB_DATABASE,
+        port: env.DB_PORT,
+        connectionTimeout: 15000,
+        requestTimeout: 15000,
+        pool: {
+            max: 10,
+            min: 0,
+            idleTimeoutMillis: 30000,
+        },
+        options: {
+            encrypt: true,
+            trustServerCertificate: true,
+            enableArithAbort: true,
+        },
+    },
+
 };
 
 let connectionPool: sql.ConnectionPool | null = null;
@@ -36,8 +57,8 @@ const initializeDatabaseConnection = async () => {
     }
 
     try {
-        connectionPool = await sql.connect(Config.sqlConfig);
-        console.log("✅ Connected to MSSQL Database:", env.DB_DATABASE);
+        connectionPool = await sql.connect(Config.AzureConfig);
+        console.log("✅ Connected to azure Database:", env.DB_DATABASE);
         return connectionPool;
     } catch (error) {
         console.error("❌ Database connection error:", error);
@@ -51,5 +72,7 @@ export const getConnectionPool = (): sql.ConnectionPool => {
     }
     return connectionPool;
 };
+
+ 
 
 export default initializeDatabaseConnection;
