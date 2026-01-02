@@ -25,7 +25,7 @@ const initDatabaseConnection = initializeDatabaseConnection;
 
 // ✅ Enable CORS for your React frontend
 app.use('*', cors({
-  origin:  'http://localhost:5173', // React dev server
+  origin:  'https://getkeja.netlify.app', // React dev server
   allowHeaders: ['Content-Type', 'Authorization'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   exposeHeaders: ['Content-Length'],
