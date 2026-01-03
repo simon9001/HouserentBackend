@@ -24,14 +24,20 @@ const app = new Hono();
 const initDatabaseConnection = initializeDatabaseConnection;
 
 // ✅ Enable CORS for your React frontend
-app.use('*', cors({
-  origin:  'https://getkeja.netlify.app', // React dev server
-  allowHeaders: ['Content-Type', 'Authorization'],
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  exposeHeaders: ['Content-Length'],
-  maxAge: 600,
-  credentials: true,
-}))
+app.use(
+  '*',
+  cors({
+    origin: [
+      'https://getkeja.netlify.app',
+      'http://localhost:5173',
+    ],
+    allowHeaders: ['Content-Type', 'Authorization'],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    exposeHeaders: ['Content-Length'],
+    maxAge: 600,
+    credentials: true,
+  })
+);
 
 // ─── Monitoring with Prometheus ──────────────────────────────
 const { printMetrics, registerMetrics } = prometheus();
