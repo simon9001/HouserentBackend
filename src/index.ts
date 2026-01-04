@@ -19,6 +19,9 @@ import paymentsRoutes from "./Payments/payments.routes.js";
 import auditLogsRoutes from "./AuditLogs/auditLogs.routes.js";
 import agentVerificationRoutes from "./AgentVerification/agentRoutes.js";
 import subscriptionRoutes from "./Subscription/subscription.routes.js";
+import notificationRoutes from "./Notifications/notifications.routes.js";
+import statusRoutes from "./Status/status.routes.js";
+
 
 const app = new Hono();
 const initDatabaseConnection = initializeDatabaseConnection;
@@ -51,7 +54,7 @@ app.use(limiter); // rate limiter
 
 app.route('api', adminRoutes);
 app.route('api', userRoutes);
-app.route('api/auth', authRoutes); 
+app.route('api/auth', authRoutes);
 app.route('api/v1', propertyAmenitiesRoutes);
 app.route('api', propertyMediaRoutes);
 // app.route('api', propertiesRoutes);
@@ -65,6 +68,8 @@ app.route('api', paymentsRoutes);
 app.route('api', auditLogsRoutes);
 app.route('api', agentVerificationRoutes);
 app.route('api', subscriptionRoutes);
+app.route('api/notifications', notificationRoutes);
+app.route('api/status', statusRoutes);
 
 
 // ─── Base Endpoint ───────────────────────────────────────────

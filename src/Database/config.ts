@@ -4,6 +4,8 @@ import { env, validateEnv } from "./envConfig.js";
 // Validate environment variables on startup
 validateEnv();
 
+const isProduction = env.NODE_ENV === "production";
+
 export const Config = {
     port: env.PORT,
     sqlConfig: {
@@ -20,9 +22,10 @@ export const Config = {
             idleTimeoutMillis: 30000,
         },
         options: {
-            encrypt: false,
-            trustServerCertificate: true,
+            encrypt: isProduction,                 // 🔑 key difference
+            trustServerCertificate: !isProduction,
             enableArithAbort: true,
+            
         },
     },
 //the updated config for azure database
@@ -51,28 +54,33 @@ export const Config = {
 let connectionPool: sql.ConnectionPool | null = null;
 
 const initializeDatabaseConnection = async () => {
-    if (connectionPool && connectionPool.connected) {
-        console.log("Using Existing Database Connection");
-        return connectionPool;
-    }
+  if (connectionPool && connectionPool.connected) {
+    console.log("Using existing database connection");
+    return connectionPool;
+  }
 
-    try {
-        connectionPool = await sql.connect(Config.AzureConfig);
-        console.log("✅ Connected to azure Database:", env.DB_DATABASE);
-        return connectionPool;
-    } catch (error) {
-        console.error("❌ Database connection error:", error);
-        throw error;
-    }
+  try {
+    connectionPool = await sql.connect(Config.sqlConfig);
+
+    console.log(
+      `✅ Connected to ${
+        process.env.NODE_ENV === "production" ? "Azure SQL" : "Local SQL"
+      } Database:`,
+      env.DB_DATABASE
+    );
+
+    return connectionPool;
+  } catch (error) {
+    console.error("❌ Database connection error:", error);
+    throw error;
+  }
 };
 
 export const getConnectionPool = (): sql.ConnectionPool => {
-    if (!connectionPool || !connectionPool.connected) {
-        throw new Error("Database not connected. Call initializeDatabaseConnection first.");
-    }
-    return connectionPool;
+  if (!connectionPool || !connectionPool.connected) {
+    throw new Error("Database not connected. Call initializeDatabaseConnection first.");
+  }
+  return connectionPool;
 };
-
- 
 
 export default initializeDatabaseConnection;

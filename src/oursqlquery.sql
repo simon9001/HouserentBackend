@@ -410,6 +410,31 @@ CREATE TABLE EmailVerificationTokens (
     CONSTRAINT FK_EmailToken_User FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE
 );
 
+-- User Status/Stories table
+CREATE TABLE UserStatus (
+    StatusId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    UserId UNIQUEIDENTIFIER NOT NULL,
+    
+    -- Content
+    MediaUrl NVARCHAR(500) NULL,
+    TextContent NVARCHAR(500) NULL,
+    BackgroundColor NVARCHAR(20) DEFAULT 'bg-blue-500', -- For text-only statuses
+    Type NVARCHAR(20) NOT NULL DEFAULT 'IMAGE' CHECK (Type IN ('IMAGE', 'VIDEO', 'TEXT')),
+    
+    -- Status lifecycle
+    IsActive BIT NOT NULL DEFAULT 1,
+    ExpiresAt DATETIME2 NOT NULL,
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    
+    CONSTRAINT FK_Status_User FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE
+);
+GO
+
+-- Create index for retrieving active statuses
+CREATE INDEX IX_UserStatus_ExpiresAt ON UserStatus(ExpiresAt) INCLUDE (IsActive);
+CREATE INDEX IX_UserStatus_UserId ON UserStatus(UserId);
+GO
+
 
 
 SELECT * FROM Users
@@ -1096,3 +1121,40 @@ BEGIN
     FROM Users u
     INNER JOIN inserted i ON u.UserId = i.UserId;
 END;
+-- Notifications table
+CREATE TABLE Notifications (
+    NotificationId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    UserId UNIQUEIDENTIFIER NOT NULL,
+    
+    Title NVARCHAR(200) NOT NULL,
+    Message NVARCHAR(1000) NOT NULL,
+    Type NVARCHAR(50) NOT NULL CHECK (Type IN ('BOOKING', 'PAYMENT', 'REVIEW', 'SYSTEM', 'ALERT')),
+    ReferenceId UNIQUEIDENTIFIER NULL,              -- Link to booking, payment, etc.
+    
+    IsRead BIT NOT NULL DEFAULT 0,
+    
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    UpdatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+
+    CONSTRAINT FK_Notification_User FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE
+);
+GO
+
+-- Create index for performance
+CREATE INDEX IX_Notifications_UserId ON Notifications(UserId);
+CREATE INDEX IX_Notifications_IsRead ON Notifications(IsRead);
+GO
+
+-- Trigger for UpdatedAt
+CREATE TRIGGER trg_UpdateNotificationsTimestamp 
+ON Notifications
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE Notifications
+    SET UpdatedAt = SYSDATETIME()
+    FROM Notifications n
+    INNER JOIN inserted i ON n.NotificationId = i.NotificationId
+END;
+GO
