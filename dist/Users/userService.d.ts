@@ -5,6 +5,9 @@ export interface User {
     FullName: string;
     PhoneNumber: string;
     Email: string;
+    Bio?: string;
+    Address?: string;
+    AvatarUrl?: string;
     Role: 'TENANT' | 'AGENT' | 'ADMIN';
     AgentStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
     TrustScore: number;
@@ -28,6 +31,9 @@ export interface UpdateUserInput {
     fullName?: string;
     phoneNumber?: string;
     email?: string;
+    bio?: string;
+    address?: string;
+    avatarUrl?: string;
     role?: 'TENANT' | 'AGENT' | 'ADMIN';
     agentStatus?: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
     trustScore?: number;

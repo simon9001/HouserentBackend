@@ -23,8 +23,14 @@ adminRoutes.get('/dashboard/analytics/churn', adminControllers.getChurnAnalytics
 adminRoutes.get('/dashboard/analytics/revenue-breakdown', adminControllers.getRevenueBreakdown);
 // Subscription management endpoints
 adminRoutes.get('/subscriptions/active', adminControllers.getActiveSubscriptions);
+adminRoutes.get('/subscriptions/stats', adminControllers.getSubscriptionStats);
 adminRoutes.get('/subscriptions/expiring-trials', adminControllers.getExpiringTrials);
 adminRoutes.get('/subscriptions/expiring', adminControllers.getExpiringSubscriptions);
+adminRoutes.get('/subscriptions/plans', adminControllers.getSubscriptionPlans);
+adminRoutes.get('/subscriptions/invoices', adminControllers.getSubscriptionInvoices);
+adminRoutes.get('/subscriptions/events', adminControllers.getSubscriptionEvents);
+adminRoutes.get('/subscriptions/usage-logs', adminControllers.getSubscriptionUsageLogs);
+adminRoutes.get('/subscriptions/health-check', adminControllers.getSubscriptionHealthCheck);
 // Summary endpoints
 adminRoutes.get('/dashboard/summary/roles', adminControllers.getUserRoleSummary);
 adminRoutes.get('/dashboard/summary/agent-status', adminControllers.getAgentStatusSummary);

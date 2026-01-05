@@ -8,6 +8,9 @@ export declare const createUser: (c: Context) => Promise<(Response & import("hon
         FullName: string;
         PhoneNumber: string;
         Email: string;
+        Bio?: string | undefined;
+        Address?: string | undefined;
+        AvatarUrl?: string | undefined;
         Role: "TENANT" | "AGENT" | "ADMIN";
         AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
         TrustScore: number;
@@ -41,6 +44,9 @@ export declare const getAllUsers: (c: Context) => Promise<(Response & import("ho
             FullName: string;
             PhoneNumber: string;
             Email: string;
+            Bio?: string | undefined;
+            Address?: string | undefined;
+            AvatarUrl?: string | undefined;
             Role: "TENANT" | "AGENT" | "ADMIN";
             AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
             TrustScore: number;
@@ -74,6 +80,9 @@ export declare const getUserById: (c: Context) => Promise<(Response & import("ho
         FullName: string;
         PhoneNumber: string;
         Email: string;
+        Bio?: string | undefined;
+        Address?: string | undefined;
+        AvatarUrl?: string | undefined;
         Role: "TENANT" | "AGENT" | "ADMIN";
         AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
         TrustScore: number;
@@ -103,6 +112,9 @@ export declare const getUserByUsername: (c: Context) => Promise<(Response & impo
         FullName: string;
         PhoneNumber: string;
         Email: string;
+        Bio?: string | undefined;
+        Address?: string | undefined;
+        AvatarUrl?: string | undefined;
         Role: "TENANT" | "AGENT" | "ADMIN";
         AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
         TrustScore: number;
@@ -129,6 +141,9 @@ export declare const getUserByEmail: (c: Context) => Promise<(Response & import(
         FullName: string;
         PhoneNumber: string;
         Email: string;
+        Bio?: string | undefined;
+        Address?: string | undefined;
+        AvatarUrl?: string | undefined;
         Role: "TENANT" | "AGENT" | "ADMIN";
         AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
         TrustScore: number;
@@ -148,9 +163,6 @@ export declare const updateUser: (c: Context) => Promise<(Response & import("hon
     success: false;
     error: string;
 }, 404, "json">) | (Response & import("hono").TypedResponse<{
-    success: false;
-    error: string;
-}, 500, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     message: string;
     data: {
@@ -159,6 +171,9 @@ export declare const updateUser: (c: Context) => Promise<(Response & import("hon
         FullName: string;
         PhoneNumber: string;
         Email: string;
+        Bio?: string | undefined;
+        Address?: string | undefined;
+        AvatarUrl?: string | undefined;
         Role: "TENANT" | "AGENT" | "ADMIN";
         AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
         TrustScore: number;
@@ -176,7 +191,10 @@ export declare const updateUser: (c: Context) => Promise<(Response & import("hon
 }, 409, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
-}, 400, "json">)>;
+}, 400, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
+    error: any;
+}, 500, "json">)>;
 export declare const updateUserPassword: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: false;
     error: string;
@@ -211,6 +229,9 @@ export declare const updateUserRole: (c: Context) => Promise<(Response & import(
         FullName: string;
         PhoneNumber: string;
         Email: string;
+        Bio?: string | undefined;
+        Address?: string | undefined;
+        AvatarUrl?: string | undefined;
         Role: "TENANT" | "AGENT" | "ADMIN";
         AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
         TrustScore: number;
@@ -241,6 +262,9 @@ export declare const updateAgentStatus: (c: Context) => Promise<(Response & impo
         FullName: string;
         PhoneNumber: string;
         Email: string;
+        Bio?: string | undefined;
+        Address?: string | undefined;
+        AvatarUrl?: string | undefined;
         Role: "TENANT" | "AGENT" | "ADMIN";
         AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
         TrustScore: number;
@@ -307,6 +331,9 @@ export declare const searchUsers: (c: Context) => Promise<(Response & import("ho
             FullName: string;
             PhoneNumber: string;
             Email: string;
+            Bio?: string | undefined;
+            Address?: string | undefined;
+            AvatarUrl?: string | undefined;
             Role: "TENANT" | "AGENT" | "ADMIN";
             AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
             TrustScore: number;
@@ -341,6 +368,9 @@ export declare const getUsersByRole: (c: Context) => Promise<(Response & import(
             FullName: string;
             PhoneNumber: string;
             Email: string;
+            Bio?: string | undefined;
+            Address?: string | undefined;
+            AvatarUrl?: string | undefined;
             Role: "TENANT" | "AGENT" | "ADMIN";
             AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
             TrustScore: number;

@@ -191,6 +191,9 @@ export const updateUser = async (c) => {
             fullName: body.fullName,
             phoneNumber: body.phoneNumber,
             email: body.email,
+            bio: body.bio,
+            address: body.address,
+            avatarUrl: body.avatarUrl,
             role: body.role,
             agentStatus: body.agentStatus,
             trustScore: body.trustScore,
@@ -225,7 +228,7 @@ export const updateUser = async (c) => {
                 error: error.message
             }, 409);
         }
-        if (error.message.includes('must be') || error.message.includes('Invalid')) {
+        if (error.message.includes('must be') || error.message.includes('Invalid') || error.message.includes('No fields to update')) {
             return c.json({
                 success: false,
                 error: error.message
@@ -233,7 +236,7 @@ export const updateUser = async (c) => {
         }
         return c.json({
             success: false,
-            error: 'Failed to update user'
+            error: error.message || 'Failed to update user'
         }, 500);
     }
 };

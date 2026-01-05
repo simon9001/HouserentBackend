@@ -9,6 +9,9 @@ export declare const register: (c: Context) => Promise<(Response & import("hono"
             PhoneNumber: string;
             UserId: string;
             FullName: string;
+            Bio?: string | undefined;
+            Address?: string | undefined;
+            AvatarUrl?: string | undefined;
             Role: "TENANT" | "AGENT" | "ADMIN";
             AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
             TrustScore: number;
@@ -49,6 +52,9 @@ export declare const login: (c: Context) => Promise<(Response & import("hono").T
             PhoneNumber: string;
             UserId: string;
             FullName: string;
+            Bio?: string | undefined;
+            Address?: string | undefined;
+            AvatarUrl?: string | undefined;
             Role: "TENANT" | "AGENT" | "ADMIN";
             AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
             TrustScore: number;
@@ -184,6 +190,9 @@ export declare const getAuthProfile: (c: Context) => Promise<(Response & import(
         PhoneNumber: string;
         UserId: string;
         FullName: string;
+        Bio?: string | undefined;
+        Address?: string | undefined;
+        AvatarUrl?: string | undefined;
         Role: "TENANT" | "AGENT" | "ADMIN";
         AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
         TrustScore: number;

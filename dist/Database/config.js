@@ -2,6 +2,7 @@ import sql from "mssql";
 import { env, validateEnv } from "./envConfig.js";
 // Validate environment variables on startup
 validateEnv();
+const isProduction = env.NODE_ENV === "production";
 export const Config = {
     port: env.PORT,
     sqlConfig: {
@@ -18,8 +19,8 @@ export const Config = {
             idleTimeoutMillis: 30000,
         },
         options: {
-            encrypt: false,
-            trustServerCertificate: true,
+            encrypt: isProduction, // 🔑 key difference
+            trustServerCertificate: !isProduction,
             enableArithAbort: true,
         },
     },
@@ -47,12 +48,12 @@ export const Config = {
 let connectionPool = null;
 const initializeDatabaseConnection = async () => {
     if (connectionPool && connectionPool.connected) {
-        console.log("Using Existing Database Connection");
+        console.log("Using existing database connection");
         return connectionPool;
     }
     try {
-        connectionPool = await sql.connect(Config.AzureConfig);
-        console.log("✅ Connected to azure Database:", env.DB_DATABASE);
+        connectionPool = await sql.connect(Config.sqlConfig);
+        console.log(`✅ Connected to ${process.env.NODE_ENV === "production" ? "Azure SQL" : "Local SQL"} Database:`, env.DB_DATABASE);
         return connectionPool;
     }
     catch (error) {

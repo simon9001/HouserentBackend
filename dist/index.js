@@ -18,6 +18,9 @@ import paymentsRoutes from "./Payments/payments.routes.js";
 import auditLogsRoutes from "./AuditLogs/auditLogs.routes.js";
 import agentVerificationRoutes from "./AgentVerification/agentRoutes.js";
 import subscriptionRoutes from "./Subscription/subscription.routes.js";
+import notificationRoutes from "./Notifications/notifications.routes.js";
+import statusRoutes from "./Status/status.routes.js";
+import savedPropertiesRoutes from "./SavedProperties/savedProperties.routes.js";
 const app = new Hono();
 const initDatabaseConnection = initializeDatabaseConnection;
 // ✅ Enable CORS for your React frontend
@@ -55,6 +58,9 @@ app.route('api', paymentsRoutes);
 app.route('api', auditLogsRoutes);
 app.route('api', agentVerificationRoutes);
 app.route('api', subscriptionRoutes);
+app.route('api/notifications', notificationRoutes);
+app.route('api/status', statusRoutes);
+app.route('api', savedPropertiesRoutes);
 // ─── Base Endpoint ───────────────────────────────────────────
 app.get("/", (c) => {
     return c.json({

@@ -221,6 +221,18 @@ export class UsersService {
             updateFields.push('Email = @email');
             inputs.email = data.email.toLowerCase();
         }
+        if (data.bio) {
+            updateFields.push('Bio = @bio');
+            inputs.bio = data.bio;
+        }
+        if (data.address) {
+            updateFields.push('Address = @address');
+            inputs.address = data.address;
+        }
+        if (data.avatarUrl) {
+            updateFields.push('AvatarUrl = @avatarUrl');
+            inputs.avatarUrl = data.avatarUrl;
+        }
         if (data.role) {
             const validation = UserValidators.validateRole(data.role);
             if (!validation.isValid) {
@@ -246,15 +258,14 @@ export class UsersService {
             inputs.isActive = data.isActive;
         }
         if (updateFields.length === 0) {
-            throw new Error('No fields to update');
+            throw new Error('No fields to update in the request');
         }
         updateFields.push('UpdatedAt = GETDATE()');
-        // Method 1: Update and then select (recommended for triggers)
         const updateQuery = `
-        UPDATE Users 
-        SET ${updateFields.join(', ')} 
-        WHERE UserId = @userId
-    `;
+            UPDATE Users 
+            SET ${updateFields.join(', ')} 
+            WHERE UserId = @userId
+        `;
         const selectQuery = 'SELECT * FROM Users WHERE UserId = @userId';
         try {
             const request = db.request()
@@ -264,7 +275,7 @@ export class UsersService {
                 if (key !== 'userId') {
                     const value = inputs[key];
                     if (typeof value === 'string') {
-                        request.input(key, sql.NVarChar, value);
+                        request.input(key, sql.NVarChar(sql.MAX), value);
                     }
                     else if (typeof value === 'number') {
                         request.input(key, sql.Int, value);

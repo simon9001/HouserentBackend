@@ -1,0 +1,1 @@
+{"version":3,"file":"status.service.d.ts","sourceRoot":"","sources":["../../src/Status/status.service.ts"],"names":[],"mappings":"AAAA,OAAO,GAAG,MAAM,OAAO,CAAC;AAGxB,qBAAa,aAAa;IAChB,YAAY,CAAC,UAAU,EAAE,GAAG;IAoB5B,iBAAiB;IAsBjB,YAAY,CAAC,QAAQ,EAAE,MAAM,EAAE,MAAM,EAAE,MAAM;CAYtD"}
