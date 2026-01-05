@@ -21,6 +21,7 @@ import agentVerificationRoutes from "./AgentVerification/agentRoutes.js";
 import subscriptionRoutes from "./Subscription/subscription.routes.js";
 import notificationRoutes from "./Notifications/notifications.routes.js";
 import statusRoutes from "./Status/status.routes.js";
+import savedPropertiesRoutes from "./SavedProperties/savedProperties.routes.js";
 
 
 const app = new Hono();
@@ -70,6 +71,7 @@ app.route('api', agentVerificationRoutes);
 app.route('api', subscriptionRoutes);
 app.route('api/notifications', notificationRoutes);
 app.route('api/status', statusRoutes);
+app.route('api', savedPropertiesRoutes);
 
 
 // ─── Base Endpoint ───────────────────────────────────────────

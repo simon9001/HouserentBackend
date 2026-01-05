@@ -42,7 +42,7 @@ export const createUser = async (c: Context) => {
 
     } catch (error: any) {
         console.error('Error creating user:', error.message);
-        
+
         if (error.message.includes('already exists')) {
             return c.json({
                 success: false,
@@ -131,7 +131,7 @@ export const getUserById = async (c: Context) => {
 
     } catch (error: any) {
         console.error('Error fetching user:', error.message);
-        
+
         if (error.message.includes('Invalid user ID format')) {
             return c.json({
                 success: false,
@@ -227,6 +227,9 @@ export const updateUser = async (c: Context) => {
             fullName: body.fullName,
             phoneNumber: body.phoneNumber,
             email: body.email,
+            bio: body.bio,
+            address: body.address,
+            avatarUrl: body.avatarUrl,
             role: body.role,
             agentStatus: body.agentStatus,
             trustScore: body.trustScore,
@@ -253,7 +256,7 @@ export const updateUser = async (c: Context) => {
 
     } catch (error: any) {
         console.error('Error updating user:', error.message);
-        
+
         if (error.message.includes('Invalid user ID format')) {
             return c.json({
                 success: false,
@@ -268,7 +271,7 @@ export const updateUser = async (c: Context) => {
             }, 409);
         }
 
-        if (error.message.includes('must be') || error.message.includes('Invalid')) {
+        if (error.message.includes('must be') || error.message.includes('Invalid') || error.message.includes('No fields to update')) {
             return c.json({
                 success: false,
                 error: error.message
@@ -277,7 +280,7 @@ export const updateUser = async (c: Context) => {
 
         return c.json({
             success: false,
-            error: 'Failed to update user'
+            error: error.message || 'Failed to update user'
         }, 500);
     }
 };
@@ -336,7 +339,7 @@ export const updateUserPassword = async (c: Context) => {
 
     } catch (error: any) {
         console.error('Error updating password:', error.message);
-        
+
         if (error.message.includes('Invalid user ID format')) {
             return c.json({
                 success: false,
@@ -413,7 +416,7 @@ export const updateUserRole = async (c: Context) => {
 
     } catch (error: any) {
         console.error('Error updating user role:', error.message);
-        
+
         if (error.message.includes('Invalid user ID format')) {
             return c.json({
                 success: false,
@@ -491,7 +494,7 @@ export const updateAgentStatus = async (c: Context) => {
 
     } catch (error: any) {
         console.error('Error updating agent status:', error.message);
-        
+
         if (error.message.includes('Invalid user ID format')) {
             return c.json({
                 success: false,
@@ -536,7 +539,7 @@ export const verifyUserEmail = async (c: Context) => {
 
     } catch (error: any) {
         console.error('Error verifying email:', error.message);
-        
+
         if (error.message.includes('Invalid user ID format')) {
             return c.json({
                 success: false,
@@ -581,7 +584,7 @@ export const deleteUser = async (c: Context) => {
 
     } catch (error: any) {
         console.error('Error deleting user:', error.message);
-        
+
         if (error.message.includes('Invalid user ID format')) {
             return c.json({
                 success: false,

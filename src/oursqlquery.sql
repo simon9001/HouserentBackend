@@ -16,6 +16,9 @@ CREATE TABLE Users (
     FullName NVARCHAR(150) NOT NULL,
     PhoneNumber NVARCHAR(20) NOT NULL UNIQUE,
     Email NVARCHAR(150) NOT NULL UNIQUE,
+    Bio NVARCHAR(500) NULL,
+    Address NVARCHAR(255) NULL,
+    AvatarUrl NVARCHAR(500) NULL,
     
     -- User role and status
     Role NVARCHAR(20) NOT NULL DEFAULT 'TENANT' CHECK (Role IN ('TENANT', 'AGENT', 'ADMIN')),
@@ -30,11 +33,9 @@ CREATE TABLE Users (
     
     -- Timestamps
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
-    UpdatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME()
+    UpdatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    IsEmailVerified BIT NOT NULL DEFAULT 0
 );
-
-ALTER TABLE Users
-ADD IsEmailVerified BIT NOT NULL DEFAULT 0;
 
 -- Create indexes for login optimization
 CREATE INDEX IX_Users_Username ON Users(Username);
@@ -143,6 +144,18 @@ CREATE TABLE UserFollows (
     CONSTRAINT PK_Follow PRIMARY KEY (FollowerId, FollowedId),
     CONSTRAINT FK_Follow_Follower FOREIGN KEY (FollowerId) REFERENCES Users(UserId) ON DELETE NO ACTION,
     CONSTRAINT FK_Follow_Followed FOREIGN KEY (FollowedId) REFERENCES Users(UserId) ON DELETE NO ACTION
+);
+
+-- Saved Properties table
+CREATE TABLE SavedProperties (
+    SavedId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    UserId UNIQUEIDENTIFIER NOT NULL,
+    PropertyId UNIQUEIDENTIFIER NOT NULL,
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    
+    CONSTRAINT FK_Saved_User FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE,
+    CONSTRAINT FK_Saved_Property FOREIGN KEY (PropertyId) REFERENCES Properties(PropertyId) ON DELETE CASCADE,
+    UNIQUE (UserId, PropertyId)
 );
 
 -- Property visits
