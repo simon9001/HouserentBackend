@@ -53,12 +53,12 @@ export class PropertyVisitsService {
     // Create new property visit
     async createVisit(data: CreateVisitInput): Promise<PropertyVisit> {
         const db = await this.getDb();
-        
+
         // Validate property exists
         const propertyCheck = await db.request()
             .input('propertyId', sql.UniqueIdentifier, data.propertyId)
             .query('SELECT PropertyId FROM Properties WHERE PropertyId = @propertyId');
-        
+
         if (propertyCheck.recordset.length === 0) {
             throw new Error('Property not found');
         }
@@ -67,7 +67,7 @@ export class PropertyVisitsService {
         const tenantCheck = await db.request()
             .input('tenantId', sql.UniqueIdentifier, data.tenantId)
             .query('SELECT UserId, Role FROM Users WHERE UserId = @tenantId AND IsActive = 1');
-        
+
         if (tenantCheck.recordset.length === 0) {
             throw new Error('Tenant not found or inactive');
         }
@@ -79,7 +79,7 @@ export class PropertyVisitsService {
         const agentCheck = await db.request()
             .input('agentId', sql.UniqueIdentifier, data.agentId)
             .query('SELECT UserId, Role, AgentStatus FROM Users WHERE UserId = @agentId AND IsActive = 1');
-        
+
         if (agentCheck.recordset.length === 0) {
             throw new Error('Agent not found or inactive');
         }
@@ -93,9 +93,12 @@ export class PropertyVisitsService {
         }
 
         const query = `
+            DECLARE @InsertedRows TABLE (VisitId UNIQUEIDENTIFIER);
             INSERT INTO PropertyVisits (PropertyId, TenantId, AgentId, VisitDate, VisitPurpose, TenantNotes, Status)
-            OUTPUT INSERTED.*
-            VALUES (@propertyId, @tenantId, @agentId, @visitDate, @visitPurpose, @tenantNotes, 'PENDING')
+            OUTPUT INSERTED.VisitId INTO @InsertedRows
+            VALUES (@propertyId, @tenantId, @agentId, @visitDate, @visitPurpose, @tenantNotes, 'PENDING');
+
+            SELECT * FROM PropertyVisits WHERE VisitId = (SELECT TOP 1 VisitId FROM @InsertedRows);
         `;
 
         const result = await db.request()
@@ -113,7 +116,7 @@ export class PropertyVisitsService {
     // Get visit by ID
     async getVisitById(visitId: string): Promise<PropertyVisit & { PropertyTitle?: string; TenantName?: string; AgentName?: string }> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(visitId)) {
             throw new Error('Invalid visit ID format');
         }
@@ -141,7 +144,7 @@ export class PropertyVisitsService {
     // Get visits by property ID
     async getVisitsByPropertyId(propertyId: string, status?: string): Promise<PropertyVisit[]> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(propertyId)) {
             throw new Error('Invalid property ID format');
         }
@@ -161,7 +164,7 @@ export class PropertyVisitsService {
 
         const request = db.request()
             .input('propertyId', sql.UniqueIdentifier, propertyId);
-        
+
         if (status) {
             request.input('status', sql.NVarChar(20), status);
         }
@@ -173,7 +176,7 @@ export class PropertyVisitsService {
     // Get visits by user ID (as tenant or agent)
     async getVisitsByUserId(userId: string, role: 'tenant' | 'agent' = 'tenant'): Promise<PropertyVisit[]> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(userId)) {
             throw new Error('Invalid user ID format');
         }
@@ -199,7 +202,7 @@ export class PropertyVisitsService {
     // Update visit - FIXED VERSION
     async updateVisit(visitId: string, data: UpdateVisitInput): Promise<PropertyVisit> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(visitId)) {
             throw new Error('Invalid visit ID format');
         }
@@ -215,7 +218,7 @@ export class PropertyVisitsService {
             // Define validTransitions with explicit type
             type VisitStatus = PropertyVisit['Status'];
             type StatusTransitions = Record<VisitStatus, VisitStatus[]>;
-            
+
             const validTransitions: StatusTransitions = {
                 'PENDING': ['CONFIRMED', 'CANCELLED'],
                 'CONFIRMED': ['CHECKED_IN', 'CANCELLED'],
@@ -227,7 +230,7 @@ export class PropertyVisitsService {
 
             const currentStatus = currentVisit.Status;
             const allowedTransitions = validTransitions[currentStatus];
-            
+
             if (!allowedTransitions.includes(data.status)) {
                 throw new Error(`Invalid status transition from ${currentStatus} to ${data.status}`);
             }
@@ -269,8 +272,9 @@ export class PropertyVisitsService {
         const query = `
             UPDATE PropertyVisits 
             SET ${updates.join(', ')}
-            OUTPUT INSERTED.*
-            WHERE VisitId = @visitId
+            WHERE VisitId = @visitId;
+
+            SELECT * FROM PropertyVisits WHERE VisitId = @visitId;
         `;
 
         const request = db.request()
@@ -280,7 +284,7 @@ export class PropertyVisitsService {
         Object.keys(inputs).forEach(key => {
             if (key !== 'visitId') {
                 let sqlType: any = sql.NVarChar;
-                
+
                 if (key === 'checkInTime' || key === 'checkOutTime') {
                     sqlType = sql.DateTime;
                 } else if (key === 'visitPurpose') {
@@ -290,7 +294,7 @@ export class PropertyVisitsService {
                 } else if (key === 'status') {
                     sqlType = sql.NVarChar(20);
                 }
-                
+
                 request.input(key, sqlType, inputs[key]);
             }
         });
@@ -302,7 +306,7 @@ export class PropertyVisitsService {
     // Cancel visit
     async cancelVisit(visitId: string, reason?: string): Promise<boolean> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(visitId)) {
             throw new Error('Invalid visit ID format');
         }
@@ -324,7 +328,7 @@ export class PropertyVisitsService {
     // Check in to visit
     async checkIn(visitId: string): Promise<boolean> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(visitId)) {
             throw new Error('Invalid visit ID format');
         }
@@ -345,7 +349,7 @@ export class PropertyVisitsService {
     // Check out from visit
     async checkOut(visitId: string): Promise<boolean> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(visitId)) {
             throw new Error('Invalid visit ID format');
         }

@@ -50,13 +50,16 @@ export class AgentVerificationService {
         }
         // Create verification
         const query = `
+            DECLARE @InsertedRows TABLE (VerificationId UNIQUEIDENTIFIER);
             INSERT INTO AgentVerification (
                 UserId, NationalId, SelfieUrl, IdFrontUrl, IdBackUrl, PropertyProofUrl
             ) 
-            OUTPUT INSERTED.*
+            OUTPUT INSERTED.VerificationId INTO @InsertedRows
             VALUES (
                 @userId, @nationalId, @selfieUrl, @idFrontUrl, @idBackUrl, @propertyProofUrl
-            )
+            );
+
+            SELECT * FROM AgentVerification WHERE VerificationId = (SELECT TOP 1 VerificationId FROM @InsertedRows);
         `;
         const result = await db.request()
             .input('userId', sql.UniqueIdentifier, data.userId)
@@ -112,13 +115,16 @@ export class AgentVerificationService {
         }
         // Create verification
         const query = `
+            DECLARE @InsertedRows TABLE (VerificationId UNIQUEIDENTIFIER);
             INSERT INTO AgentVerification (
                 UserId, NationalId, SelfieUrl, IdFrontUrl, IdBackUrl, PropertyProofUrl
             ) 
-            OUTPUT INSERTED.*
+            OUTPUT INSERTED.VerificationId INTO @InsertedRows
             VALUES (
                 @userId, @nationalId, @selfieUrl, @idFrontUrl, @idBackUrl, @propertyProofUrl
-            )
+            );
+
+            SELECT * FROM AgentVerification WHERE VerificationId = (SELECT TOP 1 VerificationId FROM @InsertedRows);
         `;
         const result = await db.request()
             .input('userId', sql.UniqueIdentifier, data.userId)
@@ -282,8 +288,9 @@ export class AgentVerificationService {
         const query = `
             UPDATE AgentVerification 
             SET ${updateFields.join(', ')} 
-            OUTPUT INSERTED.*
-            WHERE VerificationId = @verificationId
+            WHERE VerificationId = @verificationId;
+
+            SELECT * FROM AgentVerification WHERE VerificationId = @verificationId;
         `;
         console.log('Service: SQL Query:', query);
         try {

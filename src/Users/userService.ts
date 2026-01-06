@@ -124,13 +124,16 @@ export class UsersService {
         }
 
         const query = `
+            DECLARE @InsertedRows TABLE (UserId UNIQUEIDENTIFIER);
             INSERT INTO Users (
                 Username, Email, PasswordHash, FullName, PhoneNumber, Role
             ) 
-            OUTPUT INSERTED.*
+            OUTPUT INSERTED.UserId INTO @InsertedRows
             VALUES (
                 @username, @email, @passwordHash, @fullName, @phoneNumber, @role
-            )
+            );
+            
+            SELECT * FROM Users WHERE UserId = (SELECT TOP 1 UserId FROM @InsertedRows);
         `;
 
         try {
@@ -475,8 +478,9 @@ export class UsersService {
                 UPDATE Users 
                 SET LoginAttempts = LoginAttempts + 1,
                     UpdatedAt = GETDATE()
-                OUTPUT INSERTED.LoginAttempts
-                WHERE UserId = @userId
+                WHERE UserId = @userId;
+
+                SELECT LoginAttempts FROM Users WHERE UserId = @userId;
             `;
 
             const result = await db.request()

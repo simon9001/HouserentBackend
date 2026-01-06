@@ -45,17 +45,20 @@ export class PropertiesService {
         }
         // Create property
         const query = `
+            DECLARE @InsertedRows TABLE (PropertyId UNIQUEIDENTIFIER);
             INSERT INTO Properties (
                 OwnerId, Title, Description, RentAmount, DepositAmount,
                 County, Constituency, Area, StreetAddress, Latitude, Longitude,
                 PropertyType, Bedrooms, Bathrooms, Rules
             ) 
-            OUTPUT INSERTED.*
+            OUTPUT INSERTED.PropertyId INTO @InsertedRows
             VALUES (
                 @ownerId, @title, @description, @rentAmount, @depositAmount,
                 @county, @constituency, @area, @streetAddress, @latitude, @longitude,
                 @propertyType, @bedrooms, @bathrooms, @rules
-            )
+            );
+
+            SELECT * FROM Properties WHERE PropertyId = (SELECT TOP 1 PropertyId FROM @InsertedRows);
         `;
         const result = await db.request()
             .input('ownerId', sql.UniqueIdentifier, data.ownerId)
@@ -334,8 +337,9 @@ export class PropertiesService {
         const query = `
             UPDATE Properties 
             SET ${updateFields.join(', ')} 
-            OUTPUT INSERTED.*
-            WHERE PropertyId = @propertyId
+            WHERE PropertyId = @propertyId;
+
+            SELECT * FROM Properties WHERE PropertyId = @propertyId;
         `;
         try {
             const request = db.request()

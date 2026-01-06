@@ -22,6 +22,7 @@ import subscriptionRoutes from "./Subscription/subscription.routes.js";
 import notificationRoutes from "./Notifications/notifications.routes.js";
 import statusRoutes from "./Status/status.routes.js";
 import savedPropertiesRoutes from "./SavedProperties/savedProperties.routes.js";
+import messageRoutes from "./Messages/message.routes.js";
 
 
 const app = new Hono();
@@ -72,6 +73,7 @@ app.route('api', subscriptionRoutes);
 app.route('api/notifications', notificationRoutes);
 app.route('api/status', statusRoutes);
 app.route('api', savedPropertiesRoutes);
+app.route('api/messages', messageRoutes);
 
 
 // ─── Base Endpoint ───────────────────────────────────────────

@@ -49,17 +49,17 @@ export class AgentVerificationService {
     // Create new agent verification
     async createVerification(data: CreateVerificationInput): Promise<AgentVerification> {
         const db = await this.getDb();
-        
+
         // Validate user exists and is active
         const userCheckQuery = `
             SELECT UserId, Role, AgentStatus FROM Users 
             WHERE UserId = @userId AND IsActive = 1
         `;
-        
+
         const userCheck = await db.request()
             .input('userId', sql.UniqueIdentifier, data.userId)
             .query(userCheckQuery);
-        
+
         if (userCheck.recordset.length === 0) {
             throw new Error('User not found or inactive');
         }
@@ -83,24 +83,27 @@ export class AgentVerificationService {
             SELECT VerificationId FROM AgentVerification 
             WHERE UserId = @userId AND ReviewStatus IN ('PENDING', 'APPROVED')
         `;
-        
+
         const existing = await db.request()
             .input('userId', sql.UniqueIdentifier, data.userId)
             .query(existingQuery);
-        
+
         if (existing.recordset.length > 0) {
             throw new Error('Agent verification already exists or is pending');
         }
 
         // Create verification
         const query = `
+            DECLARE @InsertedRows TABLE (VerificationId UNIQUEIDENTIFIER);
             INSERT INTO AgentVerification (
                 UserId, NationalId, SelfieUrl, IdFrontUrl, IdBackUrl, PropertyProofUrl
             ) 
-            OUTPUT INSERTED.*
+            OUTPUT INSERTED.VerificationId INTO @InsertedRows
             VALUES (
                 @userId, @nationalId, @selfieUrl, @idFrontUrl, @idBackUrl, @propertyProofUrl
-            )
+            );
+
+            SELECT * FROM AgentVerification WHERE VerificationId = (SELECT TOP 1 VerificationId FROM @InsertedRows);
         `;
 
         const result = await db.request()
@@ -129,17 +132,17 @@ export class AgentVerificationService {
     // Create verification by admin for a user
     async createVerificationForUser(data: CreateVerificationInput): Promise<AgentVerification> {
         const db = await this.getDb();
-        
+
         // Validate user exists and is active
         const userCheckQuery = `
             SELECT UserId, Role, AgentStatus FROM Users 
             WHERE UserId = @userId AND IsActive = 1
         `;
-        
+
         const userCheck = await db.request()
             .input('userId', sql.UniqueIdentifier, data.userId)
             .query(userCheckQuery);
-        
+
         if (userCheck.recordset.length === 0) {
             throw new Error('User not found or inactive');
         }
@@ -158,24 +161,27 @@ export class AgentVerificationService {
             SELECT VerificationId FROM AgentVerification 
             WHERE UserId = @userId AND ReviewStatus IN ('PENDING', 'APPROVED')
         `;
-        
+
         const existing = await db.request()
             .input('userId', sql.UniqueIdentifier, data.userId)
             .query(existingQuery);
-        
+
         if (existing.recordset.length > 0) {
             throw new Error('Agent verification already exists or is pending');
         }
 
         // Create verification
         const query = `
+            DECLARE @InsertedRows TABLE (VerificationId UNIQUEIDENTIFIER);
             INSERT INTO AgentVerification (
                 UserId, NationalId, SelfieUrl, IdFrontUrl, IdBackUrl, PropertyProofUrl
             ) 
-            OUTPUT INSERTED.*
+            OUTPUT INSERTED.VerificationId INTO @InsertedRows
             VALUES (
                 @userId, @nationalId, @selfieUrl, @idFrontUrl, @idBackUrl, @propertyProofUrl
-            )
+            );
+
+            SELECT * FROM AgentVerification WHERE VerificationId = (SELECT TOP 1 VerificationId FROM @InsertedRows);
         `;
 
         const result = await db.request()
@@ -203,7 +209,7 @@ export class AgentVerificationService {
     // Get verification by ID
     async getVerificationById(verificationId: string): Promise<AgentVerification | null> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(verificationId)) {
             throw new Error('Invalid verification ID format');
         }
@@ -231,7 +237,7 @@ export class AgentVerificationService {
     // Get verification by user ID
     async getVerificationByUserId(userId: string): Promise<AgentVerification | null> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(userId)) {
             throw new Error('Invalid user ID format');
         }
@@ -259,7 +265,7 @@ export class AgentVerificationService {
 
     // Get all verifications with pagination
     async getAllVerifications(
-        page: number = 1, 
+        page: number = 1,
         limit: number = 20,
         status?: 'PENDING' | 'APPROVED' | 'REJECTED'
     ): Promise<{ verifications: AgentVerification[]; total: number; page: number; totalPages: number }> {
@@ -306,7 +312,7 @@ export class AgentVerificationService {
 
             request.input('offset', sql.Int, offset);
             request.input('limit', sql.Int, limit);
-            
+
             const dataResult = await request.query(dataQuery);
 
             return {
@@ -322,12 +328,12 @@ export class AgentVerificationService {
 
     // Update verification (admin review)
     async updateVerification(
-        verificationId: string, 
-        data: UpdateVerificationInput, 
+        verificationId: string,
+        data: UpdateVerificationInput,
         reviewerId: string
     ): Promise<AgentVerification | null> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(verificationId)) {
             throw new Error('Invalid verification ID format');
         }
@@ -379,8 +385,9 @@ export class AgentVerificationService {
         const query = `
             UPDATE AgentVerification 
             SET ${updateFields.join(', ')} 
-            OUTPUT INSERTED.*
-            WHERE VerificationId = @verificationId
+            WHERE VerificationId = @verificationId;
+
+            SELECT * FROM AgentVerification WHERE VerificationId = @verificationId;
         `;
 
         console.log('Service: SQL Query:', query);
@@ -422,7 +429,7 @@ export class AgentVerificationService {
         } catch (error: any) {
             console.error('Service: SQL Error in updateVerification:', error.message);
             console.error('Service: Error stack:', error.stack);
-            
+
             // Check for specific SQL errors
             if (error.message.includes('Invalid column name')) {
                 throw new Error(`Database schema error: ${error.message}`);
@@ -430,7 +437,7 @@ export class AgentVerificationService {
             if (error.message.includes('Cannot insert the value NULL')) {
                 throw new Error(`Missing required field: ${error.message}`);
             }
-            
+
             throw error;
         }
     }
@@ -468,7 +475,7 @@ export class AgentVerificationService {
         last30Days: number;
     }> {
         const db = await this.getDb();
-        
+
         const queries = [
             'SELECT COUNT(*) as total FROM AgentVerification',
             'SELECT COUNT(*) as pending FROM AgentVerification WHERE ReviewStatus = \'PENDING\'',
@@ -498,7 +505,7 @@ export class AgentVerificationService {
     // Delete verification
     async deleteVerification(verificationId: string): Promise<boolean> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(verificationId)) {
             throw new Error('Invalid verification ID format');
         }
@@ -510,7 +517,7 @@ export class AgentVerificationService {
         }
 
         const query = 'DELETE FROM AgentVerification WHERE VerificationId = @verificationId';
-        
+
         const result = await db.request()
             .input('verificationId', sql.UniqueIdentifier, verificationId)
             .query(query);
@@ -525,7 +532,7 @@ export class AgentVerificationService {
                     SET AgentStatus = @agentStatus, UpdatedAt = GETDATE() 
                     WHERE UserId = @userId
                 `);
-            
+
             return true;
         }
 
@@ -538,7 +545,7 @@ export class AgentVerificationService {
         reviewerId: string,
         reviewNotes?: string
     ): Promise<AgentVerification[]> {
-        
+
         if (!Array.isArray(verificationIds) || verificationIds.length === 0) {
             throw new Error('No verification IDs provided');
         }
@@ -555,7 +562,7 @@ export class AgentVerificationService {
         }
 
         const results: AgentVerification[] = [];
-        
+
         // Process each verification
         for (const verificationId of verificationIds) {
             try {
@@ -582,7 +589,7 @@ export class AgentVerificationService {
         reviewerId: string,
         reviewNotes?: string
     ): Promise<AgentVerification[]> {
-        
+
         if (!Array.isArray(verificationIds) || verificationIds.length === 0) {
             throw new Error('No verification IDs provided');
         }
@@ -599,7 +606,7 @@ export class AgentVerificationService {
         }
 
         const results: AgentVerification[] = [];
-        
+
         // Process each verification
         for (const verificationId of verificationIds) {
             try {

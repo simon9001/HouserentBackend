@@ -45,7 +45,7 @@ export class ReviewsService {
     // Create new review
     async createReview(data: CreateReviewInput): Promise<Review> {
         const db = await this.getDb();
-        
+
         // Validate rating
         if (data.rating < 1 || data.rating > 5) {
             throw new Error('Rating must be between 1 and 5');
@@ -55,7 +55,7 @@ export class ReviewsService {
         const reviewerCheck = await db.request()
             .input('reviewerId', sql.UniqueIdentifier, data.reviewerId)
             .query('SELECT UserId FROM Users WHERE UserId = @reviewerId AND IsActive = 1');
-        
+
         if (reviewerCheck.recordset.length === 0) {
             throw new Error('Reviewer not found or inactive');
         }
@@ -64,7 +64,7 @@ export class ReviewsService {
         const agentCheck = await db.request()
             .input('agentId', sql.UniqueIdentifier, data.agentId)
             .query('SELECT UserId, Role, AgentStatus FROM Users WHERE UserId = @agentId AND IsActive = 1');
-        
+
         if (agentCheck.recordset.length === 0) {
             throw new Error('Agent not found or inactive');
         }
@@ -77,12 +77,12 @@ export class ReviewsService {
             if (!data.propertyId) {
                 throw new Error('Property ID is required for property reviews');
             }
-            
+
             const propertyCheck = await db.request()
                 .input('propertyId', sql.UniqueIdentifier, data.propertyId)
                 .input('agentId', sql.UniqueIdentifier, data.agentId)
                 .query('SELECT PropertyId FROM Properties WHERE PropertyId = @propertyId AND OwnerId = @agentId');
-            
+
             if (propertyCheck.recordset.length === 0) {
                 throw new Error('Property not found or does not belong to the agent');
             }
@@ -99,15 +99,18 @@ export class ReviewsService {
                 AND AgentId = @agentId
                 ${data.propertyId ? 'AND PropertyId = @propertyId' : 'AND PropertyId IS NULL'}
             `);
-        
+
         if (existingReview.recordset.length > 0) {
             throw new Error('You have already reviewed this ' + (data.propertyId ? 'property' : 'agent'));
         }
 
         const query = `
+            DECLARE @InsertedRows TABLE (ReviewId UNIQUEIDENTIFIER);
             INSERT INTO Reviews (PropertyId, ReviewerId, AgentId, ReviewType, Rating, Comment)
-            OUTPUT INSERTED.*
-            VALUES (@propertyId, @reviewerId, @agentId, @reviewType, @rating, @comment)
+            OUTPUT INSERTED.ReviewId INTO @InsertedRows
+            VALUES (@propertyId, @reviewerId, @agentId, @reviewType, @rating, @comment);
+
+            SELECT * FROM Reviews WHERE ReviewId = (SELECT TOP 1 ReviewId FROM @InsertedRows);
         `;
 
         const result = await db.request()
@@ -128,7 +131,7 @@ export class ReviewsService {
     // Get review by ID
     async getReviewById(reviewId: string): Promise<Review & { ReviewerName?: string; AgentName?: string; PropertyTitle?: string }> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(reviewId)) {
             throw new Error('Invalid review ID format');
         }
@@ -156,7 +159,7 @@ export class ReviewsService {
     // Get reviews by agent ID
     async getReviewsByAgentId(agentId: string, reviewType?: string): Promise<Review[]> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(agentId)) {
             throw new Error('Invalid agent ID format');
         }
@@ -180,7 +183,7 @@ export class ReviewsService {
 
         const request = db.request()
             .input('agentId', sql.UniqueIdentifier, agentId);
-        
+
         if (reviewType) {
             request.input('reviewType', sql.NVarChar(20), reviewType);
         }
@@ -192,7 +195,7 @@ export class ReviewsService {
     // Get reviews by property ID
     async getReviewsByPropertyId(propertyId: string): Promise<Review[]> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(propertyId)) {
             throw new Error('Invalid property ID format');
         }
@@ -219,7 +222,7 @@ export class ReviewsService {
     // Update review
     async updateReview(reviewId: string, data: UpdateReviewInput): Promise<Review> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(reviewId)) {
             throw new Error('Invalid review ID format');
         }
@@ -255,8 +258,9 @@ export class ReviewsService {
         const query = `
             UPDATE Reviews 
             SET ${updates.join(', ')}
-            OUTPUT INSERTED.*
-            WHERE ReviewId = @reviewId
+            WHERE ReviewId = @reviewId;
+
+            SELECT * FROM Reviews WHERE ReviewId = @reviewId;
         `;
 
         const request = db.request()
@@ -280,7 +284,7 @@ export class ReviewsService {
     // Delete review
     async deleteReview(reviewId: string): Promise<boolean> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(reviewId)) {
             throw new Error('Invalid review ID format');
         }
@@ -292,7 +296,7 @@ export class ReviewsService {
         }
 
         const query = 'DELETE FROM Reviews WHERE ReviewId = @reviewId';
-        
+
         const result = await db.request()
             .input('reviewId', sql.UniqueIdentifier, reviewId)
             .query(query);
@@ -310,7 +314,7 @@ export class ReviewsService {
         ratingBreakdown: { [key: number]: number };
     }> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(agentId)) {
             throw new Error('Invalid agent ID format');
         }
@@ -353,7 +357,7 @@ export class ReviewsService {
         ratingBreakdown: { [key: number]: number };
     }> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(propertyId)) {
             throw new Error('Invalid property ID format');
         }

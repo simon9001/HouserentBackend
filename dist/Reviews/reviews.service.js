@@ -64,9 +64,12 @@ export class ReviewsService {
             throw new Error('You have already reviewed this ' + (data.propertyId ? 'property' : 'agent'));
         }
         const query = `
+            DECLARE @InsertedRows TABLE (ReviewId UNIQUEIDENTIFIER);
             INSERT INTO Reviews (PropertyId, ReviewerId, AgentId, ReviewType, Rating, Comment)
-            OUTPUT INSERTED.*
-            VALUES (@propertyId, @reviewerId, @agentId, @reviewType, @rating, @comment)
+            OUTPUT INSERTED.ReviewId INTO @InsertedRows
+            VALUES (@propertyId, @reviewerId, @agentId, @reviewType, @rating, @comment);
+
+            SELECT * FROM Reviews WHERE ReviewId = (SELECT TOP 1 ReviewId FROM @InsertedRows);
         `;
         const result = await db.request()
             .input('propertyId', sql.UniqueIdentifier, data.propertyId || null)
@@ -186,8 +189,9 @@ export class ReviewsService {
         const query = `
             UPDATE Reviews 
             SET ${updates.join(', ')}
-            OUTPUT INSERTED.*
-            WHERE ReviewId = @reviewId
+            WHERE ReviewId = @reviewId;
+
+            SELECT * FROM Reviews WHERE ReviewId = @reviewId;
         `;
         const request = db.request()
             .input('reviewId', sql.UniqueIdentifier, inputs.reviewId);

@@ -95,17 +95,17 @@ export class PropertiesService {
     // Create new property
     async createProperty(data: CreatePropertyInput): Promise<Property> {
         const db = await this.getDb();
-        
+
         // Validate owner exists
         const ownerCheckQuery = `
             SELECT UserId FROM Users 
             WHERE UserId = @ownerId AND IsActive = 1
         `;
-        
+
         const ownerCheck = await db.request()
             .input('ownerId', sql.UniqueIdentifier, data.ownerId)
             .query(ownerCheckQuery);
-        
+
         if (ownerCheck.recordset.length === 0) {
             throw new Error('Owner not found or inactive');
         }
@@ -133,17 +133,20 @@ export class PropertiesService {
 
         // Create property
         const query = `
+            DECLARE @InsertedRows TABLE (PropertyId UNIQUEIDENTIFIER);
             INSERT INTO Properties (
                 OwnerId, Title, Description, RentAmount, DepositAmount,
                 County, Constituency, Area, StreetAddress, Latitude, Longitude,
                 PropertyType, Bedrooms, Bathrooms, Rules
             ) 
-            OUTPUT INSERTED.*
+            OUTPUT INSERTED.PropertyId INTO @InsertedRows
             VALUES (
                 @ownerId, @title, @description, @rentAmount, @depositAmount,
                 @county, @constituency, @area, @streetAddress, @latitude, @longitude,
                 @propertyType, @bedrooms, @bathrooms, @rules
-            )
+            );
+
+            SELECT * FROM Properties WHERE PropertyId = (SELECT TOP 1 PropertyId FROM @InsertedRows);
         `;
 
         const result = await db.request()
@@ -170,7 +173,7 @@ export class PropertiesService {
     // Get property by ID
     async getPropertyById(propertyId: string): Promise<Property | null> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(propertyId)) {
             throw new Error('Invalid property ID format');
         }
@@ -222,7 +225,7 @@ export class PropertiesService {
             const countResult = await db.request()
                 .input('ownerId', sql.UniqueIdentifier, ownerId)
                 .query(countQuery);
-            
+
             const total = parseInt(countResult.recordset[0].total);
 
             const dataResult = await db.request()
@@ -244,7 +247,7 @@ export class PropertiesService {
 
     // Get all properties with filters
     async getAllProperties(
-        page: number = 1, 
+        page: number = 1,
         limit: number = 20,
         filters: PropertyFilter = {}
     ): Promise<{ properties: Property[]; total: number; page: number; totalPages: number }> {
@@ -322,7 +325,7 @@ export class PropertiesService {
 
         try {
             const request = db.request();
-            
+
             // Add filter inputs
             Object.keys(inputs).forEach(key => {
                 const value = inputs[key];
@@ -340,7 +343,7 @@ export class PropertiesService {
 
             request.input('offset', sql.Int, offset);
             request.input('limit', sql.Int, limit);
-            
+
             const dataResult = await request.query(dataQuery);
 
             return {
@@ -357,7 +360,7 @@ export class PropertiesService {
     // Update property
     async updateProperty(propertyId: string, data: UpdatePropertyInput): Promise<Property | null> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(propertyId)) {
             throw new Error('Invalid property ID format');
         }
@@ -481,8 +484,9 @@ export class PropertiesService {
         const query = `
             UPDATE Properties 
             SET ${updateFields.join(', ')} 
-            OUTPUT INSERTED.*
-            WHERE PropertyId = @propertyId
+            WHERE PropertyId = @propertyId;
+
+            SELECT * FROM Properties WHERE PropertyId = @propertyId;
         `;
 
         try {
@@ -523,13 +527,13 @@ export class PropertiesService {
     // Delete property
     async deleteProperty(propertyId: string): Promise<boolean> {
         const db = await this.getDb();
-        
+
         if (!ValidationUtils.isValidUUID(propertyId)) {
             throw new Error('Invalid property ID format');
         }
 
         const query = 'DELETE FROM Properties WHERE PropertyId = @propertyId';
-        
+
         const result = await db.request()
             .input('propertyId', sql.UniqueIdentifier, propertyId)
             .query(query);
@@ -548,31 +552,31 @@ export class PropertiesService {
         byCounty: Record<string, number>;
     }> {
         const db = await this.getDb();
-        
+
         // Create base condition
         if (ownerId) {
         }
-    
+
         // Helper function to build WHERE clause
         const buildWhereClause = (additionalCondition?: string): string => {
             let whereClause = '';
             const conditions = [];
-            
+
             if (ownerId) {
                 conditions.push('OwnerId = @ownerId');
             }
-            
+
             if (additionalCondition) {
                 conditions.push(additionalCondition);
             }
-            
+
             if (conditions.length > 0) {
                 whereClause = 'WHERE ' + conditions.join(' AND ');
             }
-            
+
             return whereClause;
         };
-    
+
         const queries = [
             `SELECT COUNT(*) as total FROM Properties ${buildWhereClause()}`,
             `SELECT COUNT(*) as available FROM Properties ${buildWhereClause('IsAvailable = 1')}`,
@@ -582,29 +586,29 @@ export class PropertiesService {
             `SELECT PropertyType, COUNT(*) as count FROM Properties ${buildWhereClause()} GROUP BY PropertyType`,
             `SELECT County, COUNT(*) as count FROM Properties ${buildWhereClause()} GROUP BY County`
         ];
-    
+
         try {
             const request = db.request();
             if (ownerId) {
                 request.input('ownerId', sql.UniqueIdentifier, ownerId);
             }
-    
+
             const results = await Promise.all(
                 queries.map(query => request.query(query))
             );
-    
+
             // Convert property type results to object
             const byType: Record<string, number> = {};
             results[5].recordset.forEach((row: any) => {
                 byType[row.PropertyType] = parseInt(row.count);
             });
-    
+
             // Convert county results to object
             const byCounty: Record<string, number> = {};
             results[6].recordset.forEach((row: any) => {
                 byCounty[row.County] = parseInt(row.count);
             });
-    
+
             return {
                 total: parseInt(results[0].recordset[0].total),
                 available: parseInt(results[1].recordset[0].available),
@@ -664,11 +668,11 @@ export class PropertiesService {
 
         try {
             const searchParam = `%${searchTerm}%`;
-            
+
             const countResult = await db.request()
                 .input('searchTerm', sql.NVarChar, searchParam)
                 .query(countQuery);
-            
+
             const total = parseInt(countResult.recordset[0].total);
 
             const dataResult = await db.request()

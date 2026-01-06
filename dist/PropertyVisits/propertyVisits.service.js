@@ -47,9 +47,12 @@ export class PropertyVisitsService {
             throw new Error('Visit date must be in the future');
         }
         const query = `
+            DECLARE @InsertedRows TABLE (VisitId UNIQUEIDENTIFIER);
             INSERT INTO PropertyVisits (PropertyId, TenantId, AgentId, VisitDate, VisitPurpose, TenantNotes, Status)
-            OUTPUT INSERTED.*
-            VALUES (@propertyId, @tenantId, @agentId, @visitDate, @visitPurpose, @tenantNotes, 'PENDING')
+            OUTPUT INSERTED.VisitId INTO @InsertedRows
+            VALUES (@propertyId, @tenantId, @agentId, @visitDate, @visitPurpose, @tenantNotes, 'PENDING');
+
+            SELECT * FROM PropertyVisits WHERE VisitId = (SELECT TOP 1 VisitId FROM @InsertedRows);
         `;
         const result = await db.request()
             .input('propertyId', sql.UniqueIdentifier, data.propertyId)
@@ -189,8 +192,9 @@ export class PropertyVisitsService {
         const query = `
             UPDATE PropertyVisits 
             SET ${updates.join(', ')}
-            OUTPUT INSERTED.*
-            WHERE VisitId = @visitId
+            WHERE VisitId = @visitId;
+
+            SELECT * FROM PropertyVisits WHERE VisitId = @visitId;
         `;
         const request = db.request()
             .input('visitId', sql.UniqueIdentifier, inputs.visitId);
