@@ -20,7 +20,7 @@ export declare const Config: {
             enableArithAbort: boolean;
         };
     };
-    AzureConfig: {
+    azureConfig: {
         user: string;
         password: string;
         server: string;

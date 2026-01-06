@@ -2,15 +2,17 @@ import sql from "mssql";
 import { env, validateEnv } from "./envConfig.js";
 // Validate environment variables on startup
 validateEnv();
-const isProduction = env.NODE_ENV === "production";
+// Reliable Azure detection (NODE_ENV is not reliable on App Service)
+const isAzure = !!process.env.WEBSITE_INSTANCE_ID;
 export const Config = {
-    port: env.PORT,
+    port: Number(env.PORT) || 3000,
+    // Local / non-Azure SQL configuration
     sqlConfig: {
         user: env.DB_USER,
         password: env.DB_PASSWORD,
         server: env.DB_SERVER,
         database: env.DB_DATABASE,
-        port: env.DB_PORT,
+        port: Number(env.DB_PORT) || 1433,
         connectionTimeout: 15000,
         requestTimeout: 15000,
         pool: {
@@ -19,18 +21,18 @@ export const Config = {
             idleTimeoutMillis: 30000,
         },
         options: {
-            encrypt: isProduction, // 🔑 key difference
-            trustServerCertificate: !isProduction,
+            encrypt: false,
+            trustServerCertificate: true,
             enableArithAbort: true,
         },
     },
-    //the updated config for azure database
-    AzureConfig: {
+    // Azure SQL configuration (encryption REQUIRED)
+    azureConfig: {
         user: env.DB_USER,
         password: env.DB_PASSWORD,
         server: env.DB_SERVER,
         database: env.DB_DATABASE,
-        port: env.DB_PORT,
+        port: Number(env.DB_PORT) || 1433,
         connectionTimeout: 15000,
         requestTimeout: 15000,
         pool: {
@@ -48,12 +50,14 @@ export const Config = {
 let connectionPool = null;
 const initializeDatabaseConnection = async () => {
     if (connectionPool && connectionPool.connected) {
-        console.log("Using existing database connection");
+        console.log("🔁 Using existing database connection pool");
         return connectionPool;
     }
     try {
-        connectionPool = await sql.connect(Config.sqlConfig);
-        console.log(`✅ Connected to ${process.env.NODE_ENV === "production" ? "Azure SQL" : "Local SQL"} Database:`, env.DB_DATABASE);
+        const dbConfig = isAzure ? Config.azureConfig : Config.sqlConfig;
+        console.log(`🔌 Initializing ${isAzure ? "Azure SQL" : "Local SQL"} connection...`);
+        connectionPool = await sql.connect(dbConfig);
+        console.log(`✅ Connected to ${isAzure ? "Azure SQL" : "Local SQL"} database:`, env.DB_DATABASE);
         return connectionPool;
     }
     catch (error) {

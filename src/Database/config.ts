@@ -4,68 +4,74 @@ import { env, validateEnv } from "./envConfig.js";
 // Validate environment variables on startup
 validateEnv();
 
-const isProduction = env.NODE_ENV === "production";
+// Reliable Azure detection (NODE_ENV is not reliable on App Service)
+const isAzure = !!process.env.WEBSITE_INSTANCE_ID;
 
 export const Config = {
-    port: env.PORT,
-    sqlConfig: {
-        user: env.DB_USER,
-        password: env.DB_PASSWORD,
-        server: env.DB_SERVER,
-        database: env.DB_DATABASE,
-        port: env.DB_PORT,
-        connectionTimeout: 15000,
-        requestTimeout: 15000,
-        pool: {
-            max: 10,
-            min: 0,
-            idleTimeoutMillis: 30000,
-        },
-        options: {
-            encrypt: isProduction,                 // 🔑 key difference
-            trustServerCertificate: !isProduction,
-            enableArithAbort: true,
-            
-        },
-    },
-//the updated config for azure database
-    AzureConfig: {
-        user: env.DB_USER,
-        password: env.DB_PASSWORD,
-        server: env.DB_SERVER,
-        database: env.DB_DATABASE,
-        port: env.DB_PORT,
-        connectionTimeout: 15000,
-        requestTimeout: 15000,
-        pool: {
-            max: 10,
-            min: 0,
-            idleTimeoutMillis: 30000,
-        },
-        options: {
-            encrypt: true,
-            trustServerCertificate: true,
-            enableArithAbort: true,
-        },
-    },
+  port: Number(env.PORT) || 3000,
 
+  // Local / non-Azure SQL configuration
+  sqlConfig: {
+    user: env.DB_USER,
+    password: env.DB_PASSWORD,
+    server: env.DB_SERVER,
+    database: env.DB_DATABASE,
+    port: Number(env.DB_PORT) || 1433,
+    connectionTimeout: 15000,
+    requestTimeout: 15000,
+    pool: {
+      max: 10,
+      min: 0,
+      idleTimeoutMillis: 30000,
+    },
+    options: {
+      encrypt: false,
+      trustServerCertificate: true,
+      enableArithAbort: true,
+    },
+  },
+
+  // Azure SQL configuration (encryption REQUIRED)
+  azureConfig: {
+    user: env.DB_USER,
+    password: env.DB_PASSWORD,
+    server: env.DB_SERVER,
+    database: env.DB_DATABASE,
+    port: Number(env.DB_PORT) || 1433,
+    connectionTimeout: 15000,
+    requestTimeout: 15000,
+    pool: {
+      max: 10,
+      min: 0,
+      idleTimeoutMillis: 30000,
+    },
+    options: {
+      encrypt: true,
+      trustServerCertificate: true,
+      enableArithAbort: true,
+    },
+  },
 };
 
 let connectionPool: sql.ConnectionPool | null = null;
 
-const initializeDatabaseConnection = async () => {
+const initializeDatabaseConnection = async (): Promise<sql.ConnectionPool> => {
   if (connectionPool && connectionPool.connected) {
-    console.log("Using existing database connection");
+    console.log("🔁 Using existing database connection pool");
     return connectionPool;
   }
 
   try {
-    connectionPool = await sql.connect(Config.sqlConfig);
+    const dbConfig = isAzure ? Config.azureConfig : Config.sqlConfig;
 
     console.log(
-      `✅ Connected to ${
-        process.env.NODE_ENV === "production" ? "Azure SQL" : "Local SQL"
-      } Database:`,
+      `🔌 Initializing ${isAzure ? "Azure SQL" : "Local SQL"} connection...`
+    );
+
+    connectionPool = await sql.connect(dbConfig);
+
+    console.log(
+      `✅ Connected to ${isAzure ? "Azure SQL" : "Local SQL"} database:`,
       env.DB_DATABASE
     );
 
@@ -78,7 +84,9 @@ const initializeDatabaseConnection = async () => {
 
 export const getConnectionPool = (): sql.ConnectionPool => {
   if (!connectionPool || !connectionPool.connected) {
-    throw new Error("Database not connected. Call initializeDatabaseConnection first.");
+    throw new Error(
+      "Database not connected. Call initializeDatabaseConnection first."
+    );
   }
   return connectionPool;
 };
