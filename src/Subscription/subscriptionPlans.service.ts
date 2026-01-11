@@ -199,30 +199,30 @@ export class SubscriptionPlansService {
     // Delete plan (soft delete)
     async deletePlan(planId: string): Promise<boolean> {
         if (!ValidationUtils.isValidUUID(planId)) throw new Error('Invalid plan ID format');
-
-        // Check active subscriptions
-        const { count, error: countError } = await supabase
+    
+        // Check active subscriptions - FIXED
+        const { data: activeSubs, error: countError } = await supabase
             .from('UserSubscriptions')
-            .select('SubscriptionId', { count: 'exact', head: true })
+            .select('SubscriptionId')
             .eq('PlanId', planId)
             .in('Status', ['TRIAL', 'ACTIVE']);
-
+    
         if (countError) throw new Error(countError.message);
-
-        if ((count || 0) > 0) {
+    
+        if ((activeSubs?.length || 0) > 0) {
             throw new Error('Cannot delete plan with active subscriptions');
         }
-
-        // Soft delete
-        const { error, count: updatedCount } = await supabase
+    
+        // Soft delete - FIXED
+        const { error, data } = await supabase
             .from('SubscriptionPlans')
             .update({ IsActive: false, IsVisible: false })
             .eq('PlanId', planId)
-            .select('PlanId', { count: 'exact' });
-
+            .select('PlanId');
+    
         if (error) throw new Error(error.message);
-
-        return (updatedCount || 0) > 0;
+    
+        return (data?.length || 0) > 0;
     }
 
     // Compare plans

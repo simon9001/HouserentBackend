@@ -1,24 +1,25 @@
 import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 
+// First, update the interface to match your schema (snake_case)
 export interface PropertyVisit {
-    VisitId: string;
-    PropertyId: string;
-    TenantId: string;
-    AgentId: string;
-    VisitDate: string; // ISO String for Supabase
-    VisitPurpose: string;
-    TenantNotes: string;
-    AgentNotes: string;
-    CheckInTime: string | null;
-    CheckOutTime: string | null;
-    Status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'NO_SHOW';
-    CreatedAt: string;
-    UpdatedAt: string;
+    visit_id: string;
+    property_id: string;
+    tenant_id: string;
+    agent_id: string;
+    visit_date: string; // ISO String for Supabase
+    visit_purpose: string;
+    tenant_notes: string;
+    agent_notes: string;
+    check_in_time: string | null;
+    check_out_time: string | null;
+    status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'NO_SHOW';
+    created_at: string;
+    updated_at: string;
     // Joins
-    PropertyTitle?: string;
-    TenantName?: string;
-    AgentName?: string;
+    property_title?: string;
+    tenant_name?: string;
+    agent_name?: string;
 }
 
 export interface CreateVisitInput {
@@ -34,47 +35,86 @@ export interface UpdateVisitInput {
     visitPurpose?: string;
     tenantNotes?: string;
     agentNotes?: string;
-    status?: PropertyVisit['Status'];
+    status?: PropertyVisit['status'];
     checkInTime?: Date;
     checkOutTime?: Date;
 }
 
 export class PropertyVisitsService {
 
-    // Create new property visit
+    // Check in - FIXED VERSION
+    async checkIn(visitId: string): Promise<boolean> {
+        if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
+
+        const { error, data } = await supabase
+            .from('property_visits')
+            .update({
+                status: 'CHECKED_IN',
+                check_in_time: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .eq('visit_id', visitId)
+            .eq('status', 'CONFIRMED')
+            .select('visit_id');
+
+        if (error) throw new Error(error.message);
+
+        // Check if any rows were updated
+        return (data?.length || 0) > 0;
+    }
+
+    // Check out - FIXED VERSION
+    async checkOut(visitId: string): Promise<boolean> {
+        if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
+
+        const { error, data } = await supabase
+            .from('property_visits')
+            .update({
+                status: 'CHECKED_OUT',
+                check_out_time: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .eq('visit_id', visitId)
+            .eq('status', 'CHECKED_IN')
+            .select('visit_id');
+
+        if (error) throw new Error(error.message);
+        
+        return (data?.length || 0) > 0;
+    }
+
+    // Create new property visit - UPDATED to snake_case
     async createVisit(data: CreateVisitInput): Promise<PropertyVisit> {
         // Validate property exists
         const { data: prop, error: propError } = await supabase
-            .from('Properties')
-            .select('PropertyId')
-            .eq('PropertyId', data.propertyId)
+            .from('properties')
+            .select('property_id')
+            .eq('property_id', data.propertyId)
             .single();
 
         if (propError || !prop) throw new Error('Property not found');
 
         // Validate tenant exists and is a tenant
         const { data: tenant, error: tenantError } = await supabase
-            .from('Users')
-            .select('UserId, Role')
-            .eq('UserId', data.tenantId)
-            .eq('IsActive', true)
+            .from('users')
+            .select('user_id, role')
+            .eq('user_id', data.tenantId)
+            .eq('is_active', true)
             .single();
 
         if (tenantError || !tenant) throw new Error('Tenant not found or inactive');
-        if (tenant.Role !== 'TENANT') throw new Error('User is not a tenant');
+        if (tenant.role !== 'TENANT') throw new Error('User is not a tenant');
 
         // Validate agent exists and is approved
         const { data: agent, error: agentError } = await supabase
-            .from('Users')
-            .select('UserId, Role, AgentStatus')
-            .eq('UserId', data.agentId)
-            .eq('IsActive', true)
+            .from('users')
+            .select('user_id, role, agent_status')
+            .eq('user_id', data.agentId)
+            .eq('is_active', true)
             .single();
 
         if (agentError || !agent) throw new Error('Agent not found or inactive');
-        // Assuming AgentStatus check is required.
-        // Supabase query case sensitive? AgentStatus usually uppercase.
-        if (agent.Role !== 'AGENT' || agent.AgentStatus !== 'APPROVED') {
+        if (agent.role !== 'AGENT' || agent.agent_status !== 'APPROVED') {
             throw new Error('Agent is not approved');
         }
 
@@ -83,18 +123,19 @@ export class PropertyVisitsService {
             throw new Error('Visit date must be in the future');
         }
 
+        const now = new Date().toISOString();
         const { data: newVisit, error } = await supabase
-            .from('PropertyVisits')
+            .from('property_visits')
             .insert({
-                PropertyId: data.propertyId,
-                TenantId: data.tenantId,
-                AgentId: data.agentId,
-                VisitDate: data.visitDate.toISOString(),
-                VisitPurpose: data.visitPurpose || null,
-                TenantNotes: data.tenantNotes || null,
-                Status: 'PENDING',
-                CreatedAt: new Date().toISOString(),
-                UpdatedAt: new Date().toISOString()
+                property_id: data.propertyId,
+                tenant_id: data.tenantId,
+                agent_id: data.agentId,
+                visit_date: data.visitDate.toISOString(),
+                visit_purpose: data.visitPurpose || null,
+                tenant_notes: data.tenantNotes || null,
+                status: 'PENDING',
+                created_at: now,
+                updated_at: now
             })
             .select()
             .single();
@@ -104,19 +145,19 @@ export class PropertyVisitsService {
         return newVisit as PropertyVisit;
     }
 
-    // Get visit by ID
+    // Get visit by ID - UPDATED to snake_case
     async getVisitById(visitId: string): Promise<PropertyVisit | null> {
         if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
 
         const { data, error } = await supabase
-            .from('PropertyVisits')
+            .from('property_visits')
             .select(`
                 *,
-                Properties:PropertyId (Title),
-                Tenant:TenantId (FullName),
-                Agent:AgentId (FullName)
+                properties:property_id (title),
+                tenant:tenant_id (full_name),
+                agent:agent_id (full_name)
             `)
-            .eq('VisitId', visitId)
+            .eq('visit_id', visitId)
             .single();
 
         if (error) {
@@ -126,163 +167,104 @@ export class PropertyVisitsService {
 
         // Map joins
         const result: any = { ...data };
-        if (data.Properties) {
-            result.PropertyTitle = data.Properties.Title;
-            delete result.Properties;
+        if (data.properties) {
+            result.property_title = data.properties.title;
+            delete result.properties;
         }
-        // Tenant/Agent are aliases for Users table relation
-        // We need to ensure aliases work in config or if relying on Relation names.
-        // Assuming 'Tenant' and 'Agent' relations are set up or we rely on User:TenantId logic.
-        // Supabase JS often needs precise relation name or standard naming.
-        // If relations are not named, we use `Users!TenantId(FullName)`.
+        if (data.tenant) {
+            result.tenant_name = data.tenant.full_name;
+            delete result.tenant;
+        }
+        if (data.agent) {
+            result.agent_name = data.agent.full_name;
+            delete result.agent;
+        }
 
-        // Re-query with specific embedding syntax that is safer:
-        // `Tenant:Users!TenantId (FullName)`, `Agent:Users!AgentId (FullName)`
-        // BUT if FK name matches User, it might auto-detect.
-        // Let's assume standard embedding: `Users!TenantId`.
-
-        return this.mapVisitJoins(data);
+        return result as PropertyVisit;
     }
 
-    // Check internal mapping helper
-    private mapVisitJoins(data: any): PropertyVisit {
-        const res: any = { ...data };
-
-        // Handle potentially different shape depending on query
-        if (res.Properties) {
-            res.PropertyTitle = res.Properties.Title;
-            delete res.Properties;
-        }
-
-        // If we used aliases in query:
-        if (res.Tenant) { // From Tenant:Users!TenantId
-            res.TenantName = res.Tenant.FullName;
-            delete res.Tenant;
-        } else if (res.Users) {
-            // If multiple users joined without alias, it becomes an array or object, complicated.
-            // I will use explicit aliases in queries below.
-        }
-
-        if (res.Agent) {
-            res.AgentName = res.Agent.FullName;
-            delete res.Agent;
-        }
-
-        return res as PropertyVisit;
-    }
-
-    // Get visits by property ID
+    // Get visits by property ID - UPDATED to snake_case
     async getVisitsByPropertyId(propertyId: string, status?: string): Promise<PropertyVisit[]> {
         if (!ValidationUtils.isValidUUID(propertyId)) throw new Error('Invalid property ID format');
 
         let query = supabase
-            .from('PropertyVisits')
+            .from('property_visits')
             .select(`
                 *,
-                Tenant:TenantId (FullName)
-            `) // Tenant name needed
-            .eq('PropertyId', propertyId)
-            .order('VisitDate', { ascending: false });
+                tenant:tenant_id (full_name)
+            `)
+            .eq('property_id', propertyId)
+            .order('visit_date', { ascending: false });
 
         if (status) {
-            query = query.eq('Status', status);
+            query = query.eq('status', status);
         }
 
         const { data, error } = await query;
         if (error) throw new Error(error.message);
 
-        // Map relations
-        // We only fetched Tenant name per requirement `u.FullName as TenantName`
         return data.map((v: any) => {
             const res = { ...v };
-            if (res.Tenant) { // Supabase returns object for foreign key alias
-                res.TenantName = res.Tenant.FullName; // Assuming Tenant is `Users`
-                delete res.Tenant;
-            } else if (res.Users) { // Fallback if alias failed
-                if (Array.isArray(res.Users)) {
-                    // Should not happen with single FK unless misconfigured
-                } else {
-                    res.TenantName = res.Users.FullName;
-                }
-                delete res.Users;
+            if (res.tenant) {
+                res.tenant_name = res.tenant.full_name;
+                delete res.tenant;
             }
             return res;
-        });
+        }) as PropertyVisit[];
     }
 
-    // Get visits by user ID (as tenant or agent)
+    // Get visits by user ID (as tenant or agent) - UPDATED to snake_case
     async getVisitsByUserId(userId: string, role: 'tenant' | 'agent' = 'tenant'): Promise<PropertyVisit[]> {
         if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        // We need PropertyTitle, and Counterpart Name.
-        // If role=tenant, fetch Agent Name.
-        // If role=agent, fetch Tenant Name.
-
-        const counterpartAlias = role === 'tenant' ? 'Agent' : 'Tenant';
-        const counterpartFk = role === 'tenant' ? 'AgentId' : 'TenantId';
-        const filterCol = role === 'tenant' ? 'TenantId' : 'AgentId';
-
-        // Construct query
-        // select = *, Properties(Title), Counterpart:CounterpartFK (FullName)
-        // Note: Supabase embedding: `Users!FK`
-        // We use alias: `Users!AgentId` -> `Agent`
-
-        // Wait, `Users!AgentId` works? `Users!PropertyVisits_AgentId_fkey` maybe needed if ambiguous.
-        // I will try simple `Users!AgentId` 
-
+        const filterCol = role === 'tenant' ? 'tenant_id' : 'agent_id';
         const embedding = role === 'tenant'
-            ? `Agent:Users!AgentId (FullName)`
-            : `Tenant:Users!TenantId (FullName)`;
+            ? `agent:agent_id (full_name)`
+            : `tenant:tenant_id (full_name)`;
 
         const { data, error } = await supabase
-            .from('PropertyVisits')
+            .from('property_visits')
             .select(`
                 *,
-                Properties:PropertyId (Title),
+                properties:property_id (title),
                 ${embedding}
             `)
             .eq(filterCol, userId)
-            .order('VisitDate', { ascending: false });
+            .order('visit_date', { ascending: false });
 
         if (error) throw new Error(error.message);
 
         return data.map((v: any) => {
             const res: any = { ...v };
-            if (res.Properties) {
-                res.PropertyTitle = res.Properties.Title;
-                delete res.Properties;
+            if (res.properties) {
+                res.property_title = res.properties.title;
+                delete res.properties;
             }
-            if (role === 'tenant' && res.Agent) {
-                res.AgentName = res.Agent.FullName;
-                delete res.Agent;
-            } else if (role === 'agent' && res.Tenant) {
-                res.TenantName = res.Tenant.FullName;
-                delete res.Tenant;
+            if (role === 'tenant' && res.agent) {
+                res.agent_name = res.agent.full_name;
+                delete res.agent;
+            } else if (role === 'agent' && res.tenant) {
+                res.tenant_name = res.tenant.full_name;
+                delete res.tenant;
             }
             return res;
-        });
+        }) as PropertyVisit[];
     }
 
-    // Update visit
+    // Update visit - UPDATED to snake_case
     async updateVisit(visitId: string, data: UpdateVisitInput): Promise<PropertyVisit> {
         if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
 
-        // Get current visit with fully qualified getter
-        // Note: We need just the status first efficiently? Or minimal fields.
-        // But `getVisitById` is fine, we need to return full object anyway potentially?
-        // Actually we need to return updated object.
-
         const { data: currentVisit, error: fetchError } = await supabase
-            .from('PropertyVisits')
-            .select('Status')
-            .eq('VisitId', visitId)
+            .from('property_visits')
+            .select('status')
+            .eq('visit_id', visitId)
             .single();
 
         if (fetchError || !currentVisit) throw new Error('Visit not found');
 
         // Validate status transitions
         if (data.status) {
-            type VisitStatus = PropertyVisit['Status'];
             const validTransitions: Record<string, string[]> = {
                 'PENDING': ['CONFIRMED', 'CANCELLED'],
                 'CONFIRMED': ['CHECKED_IN', 'CANCELLED'],
@@ -292,7 +274,7 @@ export class PropertyVisitsService {
                 'NO_SHOW': []
             };
 
-            const currentStatus = currentVisit.Status;
+            const currentStatus = currentVisit.status;
             const allowedTransitions = validTransitions[currentStatus] || [];
 
             if (!allowedTransitions.includes(data.status)) {
@@ -301,21 +283,21 @@ export class PropertyVisitsService {
         }
 
         const updates: any = {};
-        if (data.visitPurpose !== undefined) updates.VisitPurpose = data.visitPurpose;
-        if (data.tenantNotes !== undefined) updates.TenantNotes = data.tenantNotes;
-        if (data.agentNotes !== undefined) updates.AgentNotes = data.agentNotes;
-        if (data.status !== undefined) updates.Status = data.status;
-        if (data.checkInTime !== undefined) updates.CheckInTime = data.checkInTime.toISOString();
-        if (data.checkOutTime !== undefined) updates.CheckOutTime = data.checkOutTime.toISOString();
+        if (data.visitPurpose !== undefined) updates.visit_purpose = data.visitPurpose;
+        if (data.tenantNotes !== undefined) updates.tenant_notes = data.tenantNotes;
+        if (data.agentNotes !== undefined) updates.agent_notes = data.agentNotes;
+        if (data.status !== undefined) updates.status = data.status;
+        if (data.checkInTime !== undefined) updates.check_in_time = data.checkInTime.toISOString();
+        if (data.checkOutTime !== undefined) updates.check_out_time = data.checkOutTime.toISOString();
 
         if (Object.keys(updates).length === 0) throw new Error('No fields to update');
 
-        updates.UpdatedAt = new Date().toISOString();
+        updates.updated_at = new Date().toISOString();
 
         const { data: updated, error } = await supabase
-            .from('PropertyVisits')
+            .from('property_visits')
             .update(updates)
-            .eq('VisitId', visitId)
+            .eq('visit_id', visitId)
             .select()
             .single();
 
@@ -324,127 +306,75 @@ export class PropertyVisitsService {
         return updated as PropertyVisit;
     }
 
-    // Cancel visit
+    // Cancel visit - UPDATED to snake_case
     async cancelVisit(visitId: string, reason?: string): Promise<boolean> {
         if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
 
-        // We can use a raw RPC or logic. 
-        // Logic: Get current, check status, update.
-        // Supabase update with filter:
-
-        // Fetch first to get existing notes? 
-        // Logic: `AgentNotes = ISNULL(AgentNotes, '') + ' Cancelled: ' + @reason`
-        // Concat is hard in simple update.
-        // Fetch -> modify -> update.
-
         const { data: current, error: fetchError } = await supabase
-            .from('PropertyVisits')
-            .select('Status, AgentNotes')
-            .eq('VisitId', visitId)
+            .from('property_visits')
+            .select('status, agent_notes')
+            .eq('visit_id', visitId)
             .single();
 
         if (fetchError || !current) {
-            throw new Error('Visit not found'); // Or return false
+            throw new Error('Visit not found');
         }
 
-        if (!['PENDING', 'CONFIRMED'].includes(current.Status)) {
-            // Logic says `WHERE ... Status IN ...` so if not matching, rowsAffected=0.
-            // We can return false.
+        if (!['PENDING', 'CONFIRMED'].includes(current.status)) {
             return false;
         }
 
-        const newNotes = (current.AgentNotes || '') + ' Cancelled: ' + (reason || 'No reason provided');
+        const newNotes = (current.agent_notes || '') + ' Cancelled: ' + (reason || 'No reason provided');
 
         const { error } = await supabase
-            .from('PropertyVisits')
+            .from('property_visits')
             .update({
-                Status: 'CANCELLED',
-                AgentNotes: newNotes,
-                UpdatedAt: new Date().toISOString()
+                status: 'CANCELLED',
+                agent_notes: newNotes,
+                updated_at: new Date().toISOString()
             })
-            .eq('VisitId', visitId);
+            .eq('visit_id', visitId);
 
         if (error) throw new Error(error.message);
 
         return true;
     }
 
-    // Check in
-    async checkIn(visitId: string): Promise<boolean> {
-        if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
-
-        const { error, count } = await supabase
-            .from('PropertyVisits')
-            .update({
-                Status: 'CHECKED_IN',
-                CheckInTime: new Date().toISOString(),
-                UpdatedAt: new Date().toISOString()
-            })
-            .eq('VisitId', visitId)
-            .eq('Status', 'CONFIRMED')
-            .select('VisitId', { count: 'exact' }); // Get count to simulate rowsAffected
-
-        if (error) throw new Error(error.message);
-
-        // Supabase update returns updated rows if select() used.
-        // count should be 1 if updated
-        return (count || 0) > 0;
-    }
-
-    // Check out
-    async checkOut(visitId: string): Promise<boolean> {
-        if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
-
-        const { error, count } = await supabase
-            .from('PropertyVisits')
-            .update({
-                Status: 'CHECKED_OUT',
-                CheckOutTime: new Date().toISOString(),
-                UpdatedAt: new Date().toISOString()
-            })
-            .eq('VisitId', visitId)
-            .eq('Status', 'CHECKED_IN')
-            .select('VisitId', { count: 'exact' });
-
-        if (error) throw new Error(error.message);
-        return (count || 0) > 0;
-    }
-
-    // Get upcoming visits
+    // Get upcoming visits - UPDATED to snake_case
     async getUpcomingVisits(days: number = 7): Promise<PropertyVisit[]> {
         const now = new Date();
         const future = new Date();
         future.setDate(now.getDate() + days);
 
         const { data, error } = await supabase
-            .from('PropertyVisits')
+            .from('property_visits')
             .select(`
                 *,
-                Properties:PropertyId (Title),
-                Tenant:TenantId (FullName)
+                properties:property_id (title),
+                tenant:tenant_id (full_name)
             `)
-            .gte('VisitDate', now.toISOString())
-            .lte('VisitDate', future.toISOString())
-            .in('Status', ['PENDING', 'CONFIRMED'])
-            .order('VisitDate', { ascending: true });
+            .gte('visit_date', now.toISOString())
+            .lte('visit_date', future.toISOString())
+            .in('status', ['PENDING', 'CONFIRMED'])
+            .order('visit_date', { ascending: true });
 
         if (error) throw new Error(error.message);
 
         return data.map((v: any) => {
             const res = { ...v };
-            if (res.Properties) {
-                res.PropertyTitle = res.Properties.Title;
-                delete res.Properties;
+            if (res.properties) {
+                res.property_title = res.properties.title;
+                delete res.properties;
             }
-            if (res.Tenant) {
-                res.TenantName = res.Tenant.FullName;
-                delete res.Tenant;
+            if (res.tenant) {
+                res.tenant_name = res.tenant.full_name;
+                delete res.tenant;
             }
             return res;
-        });
+        }) as PropertyVisit[];
     }
 
-    // Get visit statistics
+    // Get visit statistics - FIXED VERSION
     async getVisitStatistics(agentId?: string, startDate?: Date, endDate?: Date): Promise<{
         total: number;
         confirmed: number;
@@ -454,31 +384,29 @@ export class PropertyVisitsService {
         noShow: number;
         upcoming: number;
     }> {
-        // Build base filters
-        const filters = (query: any) => {
-            if (agentId) query = query.eq('AgentId', agentId);
-            if (startDate) query = query.gte('VisitDate', startDate.toISOString());
-            if (endDate) query = query.lte('VisitDate', endDate.toISOString());
-            return query;
+        // Helper function to run count queries
+        const runCount = async (additionalFilter?: (q: any) => any) => {
+            let q = supabase.from('property_visits').select('visit_id');
+            if (agentId) q = q.eq('agent_id', agentId);
+            if (startDate) q = q.gte('visit_date', startDate.toISOString());
+            if (endDate) q = q.lte('visit_date', endDate.toISOString());
+            if (additionalFilter) q = additionalFilter(q);
+            
+            const { data, error } = await q;
+            if (error) throw new Error(error.message);
+            return data?.length || 0;
         };
 
-        const runCount = async (additionalFilter?: (q: any) => any) => {
-            let q = supabase.from('PropertyVisits').select('*', { count: 'exact', head: true });
-            q = filters(q);
-            if (additionalFilter) q = additionalFilter(q);
-            const { count, error } = await q;
-            if (error) throw new Error(error.message);
-            return count || 0;
-        };
+        const now = new Date().toISOString();
 
         const [total, confirmed, cancelled, checkedIn, checkedOut, noShow, upcoming] = await Promise.all([
             runCount(),
-            runCount(q => q.eq('Status', 'CONFIRMED')),
-            runCount(q => q.eq('Status', 'CANCELLED')),
-            runCount(q => q.eq('Status', 'CHECKED_IN')),
-            runCount(q => q.eq('Status', 'CHECKED_OUT')),
-            runCount(q => q.eq('Status', 'NO_SHOW')),
-            runCount(q => q.in('Status', ['PENDING', 'CONFIRMED']).gt('VisitDate', new Date().toISOString()))
+            runCount(q => q.eq('status', 'CONFIRMED')),
+            runCount(q => q.eq('status', 'CANCELLED')),
+            runCount(q => q.eq('status', 'CHECKED_IN')),
+            runCount(q => q.eq('status', 'CHECKED_OUT')),
+            runCount(q => q.eq('status', 'NO_SHOW')),
+            runCount(q => q.in('status', ['PENDING', 'CONFIRMED']).gt('visit_date', now))
         ]);
 
         return {
@@ -490,6 +418,84 @@ export class PropertyVisitsService {
             noShow,
             upcoming
         };
+    }
+
+    // Mark as no-show - NEW METHOD
+    async markAsNoShow(visitId: string): Promise<boolean> {
+        if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
+
+        const { error, data } = await supabase
+            .from('property_visits')
+            .update({
+                status: 'NO_SHOW',
+                updated_at: new Date().toISOString()
+            })
+            .eq('visit_id', visitId)
+            .in('status', ['CONFIRMED', 'CHECKED_IN'])
+            .select('visit_id');
+
+        if (error) throw new Error(error.message);
+        
+        return (data?.length || 0) > 0;
+    }
+
+    // Confirm visit - NEW METHOD
+    async confirmVisit(visitId: string, agentNotes?: string): Promise<boolean> {
+        if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
+
+        const updates: any = {
+            status: 'CONFIRMED',
+            updated_at: new Date().toISOString()
+        };
+        
+        if (agentNotes) {
+            updates.agent_notes = agentNotes;
+        }
+
+        const { error, data } = await supabase
+            .from('property_visits')
+            .update(updates)
+            .eq('visit_id', visitId)
+            .eq('status', 'PENDING')
+            .select('visit_id');
+
+        if (error) throw new Error(error.message);
+        
+        return (data?.length || 0) > 0;
+    }
+
+    // Get visits by date range
+    async getVisitsByDateRange(startDate: Date, endDate: Date): Promise<PropertyVisit[]> {
+        const { data, error } = await supabase
+            .from('property_visits')
+            .select(`
+                *,
+                properties:property_id (title),
+                tenant:tenant_id (full_name),
+                agent:agent_id (full_name)
+            `)
+            .gte('visit_date', startDate.toISOString())
+            .lte('visit_date', endDate.toISOString())
+            .order('visit_date', { ascending: true });
+
+        if (error) throw new Error(error.message);
+
+        return data.map((v: any) => {
+            const res: any = { ...v };
+            if (res.properties) {
+                res.property_title = res.properties.title;
+                delete res.properties;
+            }
+            if (res.tenant) {
+                res.tenant_name = res.tenant.full_name;
+                delete res.tenant;
+            }
+            if (res.agent) {
+                res.agent_name = res.agent.full_name;
+                delete res.agent;
+            }
+            return res;
+        }) as PropertyVisit[];
     }
 }
 

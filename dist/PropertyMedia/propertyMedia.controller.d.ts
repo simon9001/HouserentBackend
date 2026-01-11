@@ -3,13 +3,13 @@ export declare const createMedia: (c: Context) => Promise<(Response & import("ho
     success: true;
     message: string;
     data: {
-        MediaId: string;
-        PropertyId: string;
-        MediaType: "IMAGE" | "VIDEO" | "DOCUMENT";
-        MediaUrl: string;
-        ThumbnailUrl: string | null;
-        IsPrimary: boolean;
-        CreatedAt: string;
+        media_id: string;
+        property_id: string;
+        media_type: "IMAGE" | "VIDEO" | "DOCUMENT";
+        media_url: string;
+        thumbnail_url: string | null;
+        is_primary: boolean;
+        created_at: string;
     };
 }, 201, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -27,13 +27,13 @@ export declare const getMediaById: (c: Context) => Promise<(Response & import("h
 }, 404, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        MediaId: string;
-        PropertyId: string;
-        MediaType: "IMAGE" | "VIDEO" | "DOCUMENT";
-        MediaUrl: string;
-        ThumbnailUrl: string | null;
-        IsPrimary: boolean;
-        CreatedAt: string;
+        media_id: string;
+        property_id: string;
+        media_type: "IMAGE" | "VIDEO" | "DOCUMENT";
+        media_url: string;
+        thumbnail_url: string | null;
+        is_primary: boolean;
+        created_at: string;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -45,57 +45,60 @@ export declare const getMediaByPropertyId: (c: Context) => Promise<(Response & i
 }, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        MediaId: string;
-        PropertyId: string;
-        MediaType: "IMAGE" | "VIDEO" | "DOCUMENT";
-        MediaUrl: string;
-        ThumbnailUrl: string | null;
-        IsPrimary: boolean;
-        CreatedAt: string;
+        media_id: string;
+        property_id: string;
+        media_type: "IMAGE" | "VIDEO" | "DOCUMENT";
+        media_url: string;
+        thumbnail_url: string | null;
+        is_primary: boolean;
+        created_at: string;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: string;
 }, 500, "json">)>;
 export declare const updateMedia: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
-    success: false;
-    error: string;
-}, 500, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     message: string;
     data: {
-        MediaId: string;
-        PropertyId: string;
-        MediaType: "IMAGE" | "VIDEO" | "DOCUMENT";
-        MediaUrl: string;
-        ThumbnailUrl: string | null;
-        IsPrimary: boolean;
-        CreatedAt: string;
+        media_id: string;
+        property_id: string;
+        media_type: "IMAGE" | "VIDEO" | "DOCUMENT";
+        media_url: string;
+        thumbnail_url: string | null;
+        is_primary: boolean;
+        created_at: string;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
-}, 400, "json">)>;
+}, 400, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 500, "json">)>;
 export declare const deleteMedia: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: false;
     error: string;
-}, 500, "json">) | (Response & import("hono").TypedResponse<{
+}, 404, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
-}, 400, "json">)>;
-export declare const setPrimaryMedia: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
+}, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: string;
-}, 500, "json">) | (Response & import("hono").TypedResponse<{
+}, 500, "json">)>;
+export declare const setPrimaryMedia: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
-}, 400, "json">)>;
+}, 400, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 500, "json">)>;
 export declare const getPrimaryMedia: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: false;
     error: string;
@@ -105,13 +108,13 @@ export declare const getPrimaryMedia: (c: Context) => Promise<(Response & import
 }, 404, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        MediaId: string;
-        PropertyId: string;
-        MediaType: "IMAGE" | "VIDEO" | "DOCUMENT";
-        MediaUrl: string;
-        ThumbnailUrl: string | null;
-        IsPrimary: boolean;
-        CreatedAt: string;
+        media_id: string;
+        property_id: string;
+        media_type: "IMAGE" | "VIDEO" | "DOCUMENT";
+        media_url: string;
+        thumbnail_url: string | null;
+        is_primary: boolean;
+        created_at: string;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -124,13 +127,13 @@ export declare const createBulkMedia: (c: Context) => Promise<(Response & import
     success: true;
     message: string;
     data: {
-        MediaId: string;
-        PropertyId: string;
-        MediaType: "IMAGE" | "VIDEO" | "DOCUMENT";
-        MediaUrl: string;
-        ThumbnailUrl: string | null;
-        IsPrimary: boolean;
-        CreatedAt: string;
+        media_id: string;
+        property_id: string;
+        media_type: "IMAGE" | "VIDEO" | "DOCUMENT";
+        media_url: string;
+        thumbnail_url: string | null;
+        is_primary: boolean;
+        created_at: string;
     }[];
 }, 201, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -141,7 +144,43 @@ export declare const getMediaStatistics: (c: Context) => Promise<(Response & imp
     error: string;
 }, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
-    data: any;
+    data: {
+        totalMedia: number;
+        images: number;
+        videos: number;
+        documents: number;
+        primaryMedia: number;
+    };
+}, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 500, "json">)>;
+export declare const getMediaCount: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 400, "json">) | (Response & import("hono").TypedResponse<{
+    success: true;
+    data: {
+        count: number;
+    };
+}, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 500, "json">)>;
+export declare const getMediaByType: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 400, "json">) | (Response & import("hono").TypedResponse<{
+    success: true;
+    data: {
+        media_id: string;
+        property_id: string;
+        media_type: "IMAGE" | "VIDEO" | "DOCUMENT";
+        media_url: string;
+        thumbnail_url: string | null;
+        is_primary: boolean;
+        created_at: string;
+    }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: string;

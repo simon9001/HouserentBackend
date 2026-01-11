@@ -69,7 +69,7 @@ export class AgentVerificationService {
         }
 
         // Check if user already has a pending verification
-        const { data: existing, error: existingError } = await supabase
+        const { data: existing } = await supabase
             .from('AgentVerification')
             .select('VerificationId')
             .eq('UserId', data.userId)

@@ -37,7 +37,7 @@ export const revokeSession = async (c) => {
         if (!revoked) {
             return c.json({
                 success: false,
-                error: 'Session not found'
+                error: 'Session not found or already inactive'
             }, 404);
         }
         return c.json({
@@ -52,7 +52,7 @@ export const revokeSession = async (c) => {
         }, 400);
     }
 };
-// Revoke all sessions
+// Revoke all sessions for a user
 export const revokeAllSessions = async (c) => {
     try {
         const userId = c.req.param('userId');
@@ -72,7 +72,7 @@ export const revokeAllSessions = async (c) => {
         const revokedCount = await userSessionsService.revokeAllUserSessions(userId, excludeSessionId);
         return c.json({
             success: true,
-            message: `Revoked ${revokedCount} sessions`,
+            message: `Revoked ${revokedCount} session(s)`,
             data: { revokedCount }
         });
     }
@@ -93,7 +93,10 @@ export const getSessionStatistics = async (c) => {
                 error: 'Invalid user ID format'
             }, 400);
         }
-        const stats = await userSessionsService.getSessionStatistics(userId);
+        // Handle both cases: with and without userId
+        const stats = userId
+            ? await userSessionsService.getSessionStatistics(userId)
+            : await userSessionsService.getSessionStatistics();
         return c.json({
             success: true,
             data: stats
@@ -103,6 +106,262 @@ export const getSessionStatistics = async (c) => {
         return c.json({
             success: false,
             error: error.message || 'Failed to fetch session statistics'
+        }, 400);
+    }
+};
+// Revoke sessions by device
+export const revokeSessionsByDevice = async (c) => {
+    try {
+        const userId = c.req.param('userId');
+        const deviceId = c.req.query('deviceId');
+        if (!ValidationUtils.isValidUUID(userId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid user ID format'
+            }, 400);
+        }
+        if (!deviceId || deviceId.trim() === '') {
+            return c.json({
+                success: false,
+                error: 'Device ID is required'
+            }, 400);
+        }
+        const revokedCount = await userSessionsService.revokeSessionsByDevice(userId, deviceId);
+        return c.json({
+            success: true,
+            message: `Revoked ${revokedCount} session(s) for device ${deviceId}`,
+            data: { revokedCount }
+        });
+    }
+    catch (error) {
+        return c.json({
+            success: false,
+            error: error.message || 'Failed to revoke sessions by device'
+        }, 400);
+    }
+};
+// Get session by ID
+export const getSession = async (c) => {
+    try {
+        const sessionId = c.req.param('sessionId');
+        if (!ValidationUtils.isValidUUID(sessionId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid session ID format'
+            }, 400);
+        }
+        const session = await userSessionsService.getSessionById(sessionId);
+        if (!session) {
+            return c.json({
+                success: false,
+                error: 'Session not found'
+            }, 404);
+        }
+        return c.json({
+            success: true,
+            data: session
+        });
+    }
+    catch (error) {
+        return c.json({
+            success: false,
+            error: error.message || 'Failed to fetch session'
+        }, 400);
+    }
+};
+// Get session with user details
+export const getSessionWithUser = async (c) => {
+    try {
+        const sessionId = c.req.param('sessionId');
+        if (!ValidationUtils.isValidUUID(sessionId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid session ID format'
+            }, 400);
+        }
+        const sessionWithUser = await userSessionsService.getSessionWithUser(sessionId);
+        if (!sessionWithUser) {
+            return c.json({
+                success: false,
+                error: 'Session not found or inactive'
+            }, 404);
+        }
+        return c.json({
+            success: true,
+            data: sessionWithUser
+        });
+    }
+    catch (error) {
+        return c.json({
+            success: false,
+            error: error.message || 'Failed to fetch session with user details'
+        }, 400);
+    }
+};
+// Renew session (extend expiry)
+export const renewSession = async (c) => {
+    try {
+        const sessionId = c.req.param('sessionId');
+        const { additionalDays } = await c.req.json().catch(() => ({}));
+        if (!ValidationUtils.isValidUUID(sessionId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid session ID format'
+            }, 400);
+        }
+        const renewedSession = await userSessionsService.renewSession(sessionId, additionalDays || 30);
+        if (!renewedSession) {
+            return c.json({
+                success: false,
+                error: 'Session not found or inactive'
+            }, 404);
+        }
+        return c.json({
+            success: true,
+            message: 'Session renewed successfully',
+            data: renewedSession
+        });
+    }
+    catch (error) {
+        return c.json({
+            success: false,
+            error: error.message || 'Failed to renew session'
+        }, 400);
+    }
+};
+// Check if user has active session on device
+export const checkDeviceSession = async (c) => {
+    try {
+        const userId = c.req.param('userId');
+        const deviceId = c.req.query('deviceId');
+        if (!ValidationUtils.isValidUUID(userId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid user ID format'
+            }, 400);
+        }
+        if (!deviceId || deviceId.trim() === '') {
+            return c.json({
+                success: false,
+                error: 'Device ID is required'
+            }, 400);
+        }
+        const hasSession = await userSessionsService.hasActiveSessionOnDevice(userId, deviceId);
+        return c.json({
+            success: true,
+            data: { hasActiveSession: hasSession }
+        });
+    }
+    catch (error) {
+        return c.json({
+            success: false,
+            error: error.message || 'Failed to check device session'
+        }, 400);
+    }
+};
+// Get session by device ID
+export const getSessionByDevice = async (c) => {
+    try {
+        const userId = c.req.param('userId');
+        const deviceId = c.req.query('deviceId');
+        if (!ValidationUtils.isValidUUID(userId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid user ID format'
+            }, 400);
+        }
+        if (!deviceId || deviceId.trim() === '') {
+            return c.json({
+                success: false,
+                error: 'Device ID is required'
+            }, 400);
+        }
+        const session = await userSessionsService.getSessionByDevice(userId, deviceId);
+        if (!session) {
+            return c.json({
+                success: false,
+                error: 'No active session found for this device'
+            }, 404);
+        }
+        return c.json({
+            success: true,
+            data: session
+        });
+    }
+    catch (error) {
+        return c.json({
+            success: false,
+            error: error.message || 'Failed to fetch session by device'
+        }, 400);
+    }
+};
+// Maintenance endpoints (admin only)
+// Clean expired sessions
+export const cleanExpiredSessions = async (c) => {
+    try {
+        const cleanedCount = await userSessionsService.cleanExpiredSessions();
+        return c.json({
+            success: true,
+            message: `Cleaned ${cleanedCount} expired session(s)`,
+            data: { cleanedCount }
+        });
+    }
+    catch (error) {
+        return c.json({
+            success: false,
+            error: error.message || 'Failed to clean expired sessions'
+        }, 400);
+    }
+};
+// Clean up old inactive sessions
+export const cleanupOldSessions = async (c) => {
+    try {
+        const { daysOld } = await c.req.json().catch(() => ({}));
+        const cleanedCount = await userSessionsService.cleanupOldSessions(daysOld || 30);
+        return c.json({
+            success: true,
+            message: `Cleaned ${cleanedCount} old inactive session(s)`,
+            data: { cleanedCount }
+        });
+    }
+    catch (error) {
+        return c.json({
+            success: false,
+            error: error.message || 'Failed to clean up old sessions'
+        }, 400);
+    }
+};
+// Validate session by refresh token
+export const validateSession = async (c) => {
+    try {
+        const { refreshToken } = await c.req.json();
+        if (!refreshToken) {
+            return c.json({
+                success: false,
+                error: 'Refresh token is required'
+            }, 400);
+        }
+        const validationResult = await userSessionsService.validateSession(refreshToken);
+        if (!validationResult.isValid) {
+            return c.json({
+                success: false,
+                error: validationResult.message || 'Invalid session',
+                data: { isValid: false }
+            }, 401);
+        }
+        return c.json({
+            success: true,
+            message: 'Session is valid',
+            data: {
+                isValid: true,
+                session: validationResult.session
+            }
+        });
+    }
+    catch (error) {
+        return c.json({
+            success: false,
+            error: error.message || 'Failed to validate session'
         }, 400);
     }
 };

@@ -279,34 +279,34 @@ export declare const getSubscriptionAnalyticsService: () => Promise<Subscription
 export declare const getPlanDistributionService: () => Promise<PlanDistribution[]>;
 export declare const getSubscriptionGrowthService: (days?: number) => Promise<SubscriptionGrowth[]>;
 export declare const getUsageAnalyticsService: () => Promise<UsageAnalytics[]>;
-export declare const getChurnAnalyticsService: (days?: number) => Promise<ChurnAnalytics[]>;
+export declare const getChurnAnalyticsService: (_days?: number) => Promise<ChurnAnalytics[]>;
 export declare const getRevenueBreakdownService: () => Promise<RevenueBreakdown[]>;
 export declare const getActiveSubscriptionsService: (page?: number, limit?: number, status?: string, planId?: string) => Promise<{
     subscriptions: ActiveSubscription[];
     total: number;
 }>;
-export declare const getSubscriptionPaymentHistoryService: (subscriptionId?: string, userId?: string, limit?: number) => Promise<PaymentHistory[]>;
+export declare const getSubscriptionPaymentHistoryService: (_subscriptionId?: string, _userId?: string, _limit?: number) => Promise<PaymentHistory[]>;
 export declare const updateSubscriptionPlanService: (subscriptionId: string, planId: string, newEndDate?: Date, priceOverride?: number, notes?: string) => Promise<any>;
 export declare const cancelSubscriptionService: (subscriptionId: string, cancelImmediately?: boolean, refundAmount?: number, reason?: string) => Promise<any>;
-export declare const getSubscriptionInvoicesService: (...args: any[]) => Promise<{
+export declare const getSubscriptionInvoicesService: (..._args: any[]) => Promise<{
     invoices: never[];
     total: number;
 }>;
-export declare const getExpiringTrialsService: (...args: any[]) => Promise<never[]>;
-export declare const getExpiringSubscriptionsService: (...args: any[]) => Promise<never[]>;
-export declare const getSubscriptionPlansService: (...args: any[]) => Promise<never[]>;
-export declare const getSubscriptionEventsService: (...args: any[]) => Promise<{
+export declare const getExpiringTrialsService: (..._args: any[]) => Promise<never[]>;
+export declare const getExpiringSubscriptionsService: (..._args: any[]) => Promise<never[]>;
+export declare const getSubscriptionPlansService: (..._args: any[]) => Promise<never[]>;
+export declare const getSubscriptionEventsService: (..._args: any[]) => Promise<{
     events: never[];
     total: number;
 }>;
-export declare const getSubscriptionUsageLogsService: (...args: any[]) => Promise<{
+export declare const getSubscriptionUsageLogsService: (..._args: any[]) => Promise<{
     logs: never[];
     total: number;
 }>;
-export declare const reactivateSubscriptionService: (...args: any[]) => Promise<{}>;
-export declare const overrideSubscriptionLimitsService: (...args: any[]) => Promise<{}>;
-export declare const generateInvoiceService: (...args: any[]) => Promise<{}>;
-export declare const sendSubscriptionNotificationService: (...args: any[]) => Promise<{}>;
-export declare const getSubscriptionStatsService: (...args: any[]) => Promise<SubscriptionStats>;
-export declare const getSubscriptionUserDetailsService: (...args: any[]) => Promise<SubscriptionUserDetails>;
+export declare const reactivateSubscriptionService: (..._args: any[]) => Promise<{}>;
+export declare const overrideSubscriptionLimitsService: (..._args: any[]) => Promise<{}>;
+export declare const generateInvoiceService: (..._args: any[]) => Promise<{}>;
+export declare const sendSubscriptionNotificationService: (..._args: any[]) => Promise<{}>;
+export declare const getSubscriptionStatsService: (..._args: any[]) => Promise<SubscriptionStats>;
+export declare const getSubscriptionUserDetailsService: (..._args: any[]) => Promise<SubscriptionUserDetails>;
 //# sourceMappingURL=adminService.d.ts.map

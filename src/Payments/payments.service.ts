@@ -2,20 +2,20 @@ import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 
 export interface Payment {
-    PaymentId: string;
-    UserId: string;
-    PropertyId?: string;
-    Amount: number;
-    Currency: string;
-    PaymentProvider: string;
-    ProviderReference: string;
-    Purpose: 'ACCESS' | 'BOOST' | 'SUBSCRIPTION' | 'BOOKING' | 'DEPOSIT';
-    Status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
-    CreatedAt: Date;
-    CompletedAt?: Date;
+    payment_id: string;
+    user_id: string;
+    property_id?: string | null;
+    amount: number;
+    currency: string;
+    payment_provider: string;
+    provider_reference: string;
+    purpose: 'ACCESS' | 'BOOST' | 'SUBSCRIPTION' | 'BOOKING' | 'DEPOSIT';
+    status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
+    created_at: string;
+    completed_at?: string | null;
     // Joins
-    UserName?: string;
-    PropertyTitle?: string;
+    user_name?: string;
+    property_title?: string;
 }
 
 export interface CreatePaymentInput {
@@ -25,11 +25,11 @@ export interface CreatePaymentInput {
     currency?: string;
     paymentProvider: string;
     providerReference: string;
-    purpose: Payment['Purpose'];
+    purpose: Payment['purpose'];
 }
 
 export interface UpdatePaymentInput {
-    status?: Payment['Status'];
+    status?: Payment['status'];
     providerReference?: string;
     completedAt?: Date;
 }
@@ -45,10 +45,10 @@ export class PaymentsService {
 
         // Validate user exists
         const { data: user, error: userError } = await supabase
-            .from('Users')
-            .select('UserId')
-            .eq('UserId', data.userId)
-            .eq('IsActive', true)
+            .from('users')
+            .select('user_id')
+            .eq('user_id', data.userId)
+            .eq('is_active', true)
             .single();
 
         if (userError || !user) {
@@ -58,9 +58,9 @@ export class PaymentsService {
         // Validate property exists if provided
         if (data.propertyId) {
             const { data: prop, error: propError } = await supabase
-                .from('Properties')
-                .select('PropertyId')
-                .eq('PropertyId', data.propertyId)
+                .from('properties')
+                .select('property_id')
+                .eq('property_id', data.propertyId)
                 .single();
 
             if (propError || !prop) {
@@ -70,26 +70,28 @@ export class PaymentsService {
 
         // Check for duplicate provider reference
         const { data: duplicate } = await supabase
-            .from('Payments')
-            .select('PaymentId')
-            .eq('ProviderReference', data.providerReference)
+            .from('payments')
+            .select('payment_id')
+            .eq('provider_reference', data.providerReference)
             .single();
 
         if (duplicate) {
             throw new Error('Duplicate provider reference');
         }
 
+        const now = new Date().toISOString();
         const { data: newPayment, error } = await supabase
-            .from('Payments')
+            .from('payments')
             .insert({
-                UserId: data.userId,
-                PropertyId: data.propertyId || null,
-                Amount: data.amount,
-                Currency: data.currency || 'KES',
-                PaymentProvider: data.paymentProvider,
-                ProviderReference: data.providerReference,
-                Purpose: data.purpose,
-                Status: 'PENDING'
+                user_id: data.userId,
+                property_id: data.propertyId || null,
+                amount: data.amount,
+                currency: data.currency || 'KES',
+                payment_provider: data.paymentProvider,
+                provider_reference: data.providerReference,
+                purpose: data.purpose,
+                status: 'PENDING',
+                created_at: now
             })
             .select()
             .single();
@@ -100,35 +102,35 @@ export class PaymentsService {
     }
 
     // Get payment by ID
-    async getPaymentById(paymentId: string): Promise<Payment & { UserName?: string; PropertyTitle?: string }> {
+    async getPaymentById(paymentId: string): Promise<(Payment & { user_name?: string; property_title?: string }) | null> {
         if (!ValidationUtils.isValidUUID(paymentId)) throw new Error('Invalid payment ID format');
 
         const { data, error } = await supabase
-            .from('Payments')
+            .from('payments')
             .select(`
                 *,
-                Users:UserId (FullName),
-                Properties:PropertyId (Title)
+                users:user_id (full_name),
+                properties:property_id (title)
             `)
-            .eq('PaymentId', paymentId)
+            .eq('payment_id', paymentId)
             .single();
 
         if (error) {
-            if (error.code === 'PGRST116') return null as any;
+            if (error.code === 'PGRST116') return null;
             throw new Error(error.message);
         }
 
         const result: any = { ...data };
-        if (data.Users) {
-            result.UserName = data.Users.FullName;
-            delete result.Users;
+        if (data.users) {
+            result.user_name = data.users.full_name;
+            delete result.users;
         }
-        if (data.Properties) {
-            result.PropertyTitle = data.Properties.Title;
-            delete result.Properties;
+        if (data.properties) {
+            result.property_title = data.properties.title;
+            delete result.properties;
         }
 
-        return result;
+        return result as Payment & { user_name?: string; property_title?: string };
     }
 
     // Get payments by user ID
@@ -136,16 +138,16 @@ export class PaymentsService {
         if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
         let query = supabase
-            .from('Payments')
+            .from('payments')
             .select(`
                 *,
-                Properties:PropertyId (Title)
+                properties:property_id (title)
             `)
-            .eq('UserId', userId)
-            .order('CreatedAt', { ascending: false });
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
 
         if (status) {
-            query = query.eq('Status', status);
+            query = query.eq('status', status);
         }
 
         const { data, error } = await query;
@@ -153,12 +155,12 @@ export class PaymentsService {
 
         return data.map((p: any) => {
             const res = { ...p };
-            if (p.Properties) {
-                res.PropertyTitle = p.Properties.Title;
-                delete p.Properties;
+            if (p.properties) {
+                res.property_title = p.properties.title;
+                delete res.properties;
             }
             return res;
-        });
+        }) as Payment[];
     }
 
     // Get payments by property ID
@@ -166,27 +168,27 @@ export class PaymentsService {
         if (!ValidationUtils.isValidUUID(propertyId)) throw new Error('Invalid property ID format');
 
         const { data, error } = await supabase
-            .from('Payments')
+            .from('payments')
             .select(`
                 *,
-                Users:UserId (FullName)
+                users:user_id (full_name)
             `)
-            .eq('PropertyId', propertyId)
-            .order('CreatedAt', { ascending: false });
+            .eq('property_id', propertyId)
+            .order('created_at', { ascending: false });
 
         if (error) throw new Error(error.message);
 
         return data.map((p: any) => {
             const res = { ...p };
-            if (p.Users) {
-                res.UserName = p.Users.FullName;
-                delete p.Users;
+            if (p.users) {
+                res.user_name = p.users.full_name;
+                delete res.users;
             }
             return res;
-        });
+        }) as Payment[];
     }
 
-    // Update payment status
+    // Update payment status - FIXED
     async updatePayment(paymentId: string, data: UpdatePaymentInput): Promise<Payment> {
         if (!ValidationUtils.isValidUUID(paymentId)) throw new Error('Invalid payment ID format');
 
@@ -198,21 +200,22 @@ export class PaymentsService {
 
         const updates: any = {};
         if (data.status !== undefined) {
-            updates.Status = data.status;
+            updates.status = data.status;
 
             if (data.status === 'COMPLETED') {
-                updates.CompletedAt = new Date().toISOString(); // SYSDATETIME equivalent
-            } else if (currentPayment.Status === 'COMPLETED' && data.status !== 'COMPLETED') {
-                updates.CompletedAt = null;
+                updates.completed_at = new Date().toISOString();
+            } else if (currentPayment.status === 'COMPLETED') {
+                // If current status is COMPLETED and new status is not COMPLETED, clear completed_at
+                updates.completed_at = null;
             }
         }
 
         if (data.providerReference !== undefined) {
-            updates.ProviderReference = data.providerReference;
+            updates.provider_reference = data.providerReference;
         }
 
         if (data.completedAt !== undefined) {
-            updates.CompletedAt = data.completedAt.toISOString();
+            updates.completed_at = data.completedAt.toISOString();
         }
 
         if (Object.keys(updates).length === 0) {
@@ -220,9 +223,9 @@ export class PaymentsService {
         }
 
         const { data: updatedPayment, error } = await supabase
-            .from('Payments')
+            .from('payments')
             .update(updates)
-            .eq('PaymentId', paymentId)
+            .eq('payment_id', paymentId)
             .select()
             .single();
 
@@ -263,15 +266,12 @@ export class PaymentsService {
         pendingTransactions: number;
         failedTransactions: number;
         refundedTransactions: number;
-        recentTransactions: number; // Placeholder/Mock
     }> {
-        // Fetch relevant payments to aggregate
-        // Note: For large datasets, use RPC. For migration compatibility, we aggregate in JS.
-        let query = supabase.from('Payments').select('Amount, Status, CreatedAt');
+        let query = supabase.from('payments').select('amount, status, created_at');
 
-        if (userId) query = query.eq('UserId', userId);
-        if (startDate) query = query.gte('CreatedAt', startDate.toISOString());
-        if (endDate) query = query.lte('CreatedAt', endDate.toISOString());
+        if (userId) query = query.eq('user_id', userId);
+        if (startDate) query = query.gte('created_at', startDate.toISOString());
+        if (endDate) query = query.lte('created_at', endDate.toISOString());
 
         const { data: payments, error } = await query;
         if (error) throw new Error(error.message);
@@ -286,17 +286,16 @@ export class PaymentsService {
             completedTransactions: 0,
             pendingTransactions: 0,
             failedTransactions: 0,
-            refundedTransactions: 0,
-            recentTransactions: 0
+            refundedTransactions: 0
         };
 
         if (payments) {
             stats.totalTransactions = payments.length;
             payments.forEach((p: any) => {
-                const amount = Number(p.Amount) || 0;
+                const amount = Number(p.amount) || 0;
                 stats.totalAmount += amount;
 
-                switch (p.Status) {
+                switch (p.status) {
                     case 'COMPLETED':
                         stats.completedAmount += amount;
                         stats.completedTransactions++;
@@ -323,25 +322,25 @@ export class PaymentsService {
     // Get recent payments
     async getRecentPayments(limit: number = 10): Promise<Payment[]> {
         const { data, error } = await supabase
-            .from('Payments')
+            .from('payments')
             .select(`
                 *,
-                Users:UserId (FullName),
-                Properties:PropertyId (Title)
+                users:user_id (full_name),
+                properties:property_id (title)
             `)
-            .order('CreatedAt', { ascending: false })
+            .order('created_at', { ascending: false })
             .limit(limit);
 
         if (error) throw new Error(error.message);
 
         return data.map((p: any) => {
             const res = { ...p };
-            if (p.Users) res.UserName = p.Users.FullName;
-            if (p.Properties) res.PropertyTitle = p.Properties.Title;
-            delete p.Users;
-            delete p.Properties;
+            if (p.users) res.user_name = p.users.full_name;
+            if (p.properties) res.property_title = p.properties.title;
+            delete res.users;
+            delete res.properties;
             return res;
-        });
+        }) as Payment[];
     }
 
     // Search payments
@@ -350,84 +349,169 @@ export class PaymentsService {
             throw new Error('Search term must be at least 2 characters');
         }
 
-        // Search logic: ProviderReference OR User FullName OR Property Title
-        // Note: Cross-table OR search in Supabase is complex. 
-        // We can search ProviderReference primarily, or try to filter if we fetch more.
-
         let query = supabase
-            .from('Payments')
+            .from('payments')
             .select(`
                 *,
-                Users:UserId (FullName),
-                Properties:PropertyId (Title)
+                users:user_id (full_name),
+                properties:property_id (title)
             `);
 
-        // Construct filter
-        // We will filter first by explicit UserID if present
         if (userId) {
-            query = query.eq('UserId', userId);
+            query = query.eq('user_id', userId);
         }
 
-        // Apply search
-        // We can use .or() for local columns. Searching foreign columns 'Users.FullName' via .or() is not standard.
-        // We will search ProviderReference here, and maybe rely on client filtering for Name/Title if needed?
-        // Or we use 'textSearch' if configured. 
-        // Original MSSQL was: ProviderReference LIKE OR UserName LIKE OR Title LIKE.
-        // We'll prioritize ProviderReference search for now as it's the main ID. 
-        // We can also try `.ilike('ProviderReference', \`%\${searchTerm}%\`)`
+        query = query.ilike('provider_reference', `%${searchTerm}%`);
 
-        query = query.ilike('ProviderReference', `%${searchTerm}%`);
-
-        const { data, error } = await query.order('CreatedAt', { ascending: false });
+        const { data, error } = await query.order('created_at', { ascending: false });
 
         if (error) throw new Error(error.message);
 
         return data.map((p: any) => {
             const res = { ...p };
-            if (p.Users) res.UserName = p.Users.FullName;
-            if (p.Properties) res.PropertyTitle = p.Properties.Title;
-            delete p.Users;
-            delete p.Properties;
+            if (p.users) res.user_name = p.users.full_name;
+            if (p.properties) res.property_title = p.properties.title;
+            delete res.users;
+            delete res.properties;
             return res;
-        });
+        }) as Payment[];
+    }
+
+    // Get payments by purpose
+    async getPaymentsByPurpose(purpose: Payment['purpose'], status?: Payment['status']): Promise<Payment[]> {
+        let query = supabase
+            .from('payments')
+            .select(`
+                *,
+                users:user_id (full_name),
+                properties:property_id (title)
+            `)
+            .eq('purpose', purpose)
+            .order('created_at', { ascending: false });
+
+        if (status) {
+            query = query.eq('status', status);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw new Error(error.message);
+
+        return data.map((p: any) => {
+            const res = { ...p };
+            if (p.users) res.user_name = p.users.full_name;
+            if (p.properties) res.property_title = p.properties.title;
+            delete res.users;
+            delete res.properties;
+            return res;
+        }) as Payment[];
+    }
+
+    // Get total revenue
+    async getTotalRevenue(): Promise<number> {
+        const { data, error } = await supabase
+            .from('payments')
+            .select('amount, status')
+            .eq('status', 'COMPLETED');
+
+        if (error) throw new Error(error.message);
+
+        return data?.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0) || 0;
     }
 
     // Helper method to handle payment completion logic
     private async handlePaymentCompletion(payment: Payment): Promise<void> {
-        switch (payment.Purpose) {
+        switch (payment.purpose) {
             case 'BOOST':
                 // Boost the property
-                if (payment.PropertyId) {
+                if (payment.property_id) {
                     const boostDays = 30;
                     const expirationDate = new Date();
                     expirationDate.setDate(expirationDate.getDate() + boostDays);
 
                     await supabase
-                        .from('Properties')
+                        .from('properties')
                         .update({
-                            IsBoosted: true,
-                            BoostExpiry: expirationDate.toISOString()
+                            is_boosted: true,
+                            boost_expiry: expirationDate.toISOString()
                         })
-                        .eq('PropertyId', payment.PropertyId);
+                        .eq('property_id', payment.property_id);
                 }
                 break;
 
             case 'ACCESS':
-                // Placeholder: Add premium access logic
+                // Handle premium access
+                console.log('Payment for access completed:', payment.payment_id);
                 break;
 
             case 'BOOKING':
-                // Placeholder: Confirm booking logic
+                // Handle booking confirmation
+                console.log('Payment for booking completed:', payment.payment_id);
                 break;
 
             case 'DEPOSIT':
-                // Placeholder: Record deposit logic
+                // Handle deposit recording
+                console.log('Payment for deposit completed:', payment.payment_id);
                 break;
 
             case 'SUBSCRIPTION':
-                // Placeholder: Update subscription logic
+                // Handle subscription update
+                console.log('Payment for subscription completed:', payment.payment_id);
                 break;
         }
+    }
+
+    // Get monthly revenue report
+    async getMonthlyRevenueReport(year: number, month: number): Promise<{
+        month: string;
+        totalRevenue: number;
+        transactions: number;
+        dailyBreakdown: Array<{ day: number; revenue: number; transactions: number }>;
+    }> {
+        const startDate = new Date(year, month - 1, 1);
+        const endDate = new Date(year, month, 0);
+
+        const { data: payments, error } = await supabase
+            .from('payments')
+            .select('amount, created_at')
+            .eq('status', 'COMPLETED')
+            .gte('created_at', startDate.toISOString())
+            .lte('created_at', endDate.toISOString());
+
+        if (error) throw new Error(error.message);
+
+        const dailyBreakdown: Record<number, { revenue: number; transactions: number }> = {};
+
+        let totalRevenue = 0;
+        const transactions = payments?.length || 0;
+
+        payments?.forEach(payment => {
+            const amount = Number(payment.amount) || 0;
+            totalRevenue += amount;
+
+            const createdDate = new Date(payment.created_at);
+            const day = createdDate.getDate();
+
+            if (!dailyBreakdown[day]) {
+                dailyBreakdown[day] = { revenue: 0, transactions: 0 };
+            }
+
+            dailyBreakdown[day].revenue += amount;
+            dailyBreakdown[day].transactions += 1;
+        });
+
+        const breakdownArray = Object.entries(dailyBreakdown).map(([day, data]) => ({
+            day: parseInt(day),
+            revenue: data.revenue,
+            transactions: data.transactions
+        })).sort((a, b) => a.day - b.day);
+
+        return {
+            month: `${year}-${month.toString().padStart(2, '0')}`,
+            totalRevenue,
+            transactions,
+            dailyBreakdown: breakdownArray
+        };
     }
 }
 

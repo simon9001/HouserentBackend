@@ -1,1 +1,1 @@
-{"version":3,"file":"userSessions.routes.d.ts","sourceRoot":"","sources":["../../src/UserSessions/userSessions.routes.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,EAAE,MAAM,MAAM,CAAC;AAI5B,QAAA,MAAM,kBAAkB,4EAAa,CAAC;AAQtC,eAAe,kBAAkB,CAAC"}
+{"version":3,"file":"userSessions.routes.d.ts","sourceRoot":"","sources":["../../src/UserSessions/userSessions.routes.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,EAAE,MAAM,MAAM,CAAC;AAI5B,QAAA,MAAM,kBAAkB,4EAAa,CAAC;AAqBtC,eAAe,kBAAkB,CAAC"}

@@ -6,8 +6,6 @@ import { EmailUtils } from '../utils/email.js';
 import { SecurityUtils } from '../utils/security.js';
 import { UserValidators } from '../utils/validators.js';
 import { usersService, User } from '../Users/userService.js';
-import { env } from '../Database/envConfig.js';
-
 export interface LoginInput {
     identifier: string; // Can be username, email, or phone
     password: string;

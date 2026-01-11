@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import { propertyMediaService, CreateMediaInput, UpdateMediaInput } from './propertyMedia.service.js';
+import { propertyMediaService } from './propertyMedia.service.js';
 import { ValidationUtils } from '../utils/validators.js';
 
 // Create new property media
@@ -28,16 +28,17 @@ export const createMedia = async (c: Context) => {
 
         // Validate media type
         const validMediaTypes = ['IMAGE', 'VIDEO', 'DOCUMENT'];
-        if (!validMediaTypes.includes(body.mediaType.toUpperCase())) {
+        const mediaType = body.mediaType.toUpperCase();
+        if (!validMediaTypes.includes(mediaType)) {
             return c.json({
                 success: false,
                 error: 'Invalid media type. Must be one of: IMAGE, VIDEO, DOCUMENT'
             }, 400);
         }
 
-        const mediaData: CreateMediaInput = {
+        const mediaData = {
             propertyId: body.propertyId,
-            mediaType: body.mediaType.toUpperCase() as 'IMAGE' | 'VIDEO' | 'DOCUMENT',
+            mediaType: mediaType as 'IMAGE' | 'VIDEO' | 'DOCUMENT',
             mediaUrl: body.mediaUrl,
             thumbnailUrl: body.thumbnailUrl,
             isPrimary: body.isPrimary || false
@@ -148,16 +149,17 @@ export const updateMedia = async (c: Context) => {
         // Validate media type if provided
         if (body.mediaType) {
             const validMediaTypes = ['IMAGE', 'VIDEO', 'DOCUMENT'];
-            if (!validMediaTypes.includes(body.mediaType.toUpperCase())) {
+            const mediaType = body.mediaType.toUpperCase();
+            if (!validMediaTypes.includes(mediaType)) {
                 return c.json({
                     success: false,
                     error: 'Invalid media type'
                 }, 400);
             }
-            body.mediaType = body.mediaType.toUpperCase();
+            body.mediaType = mediaType;
         }
 
-        const updateData: UpdateMediaInput = {
+        const updateData = {
             mediaType: body.mediaType,
             mediaUrl: body.mediaUrl,
             thumbnailUrl: body.thumbnailUrl,
@@ -165,13 +167,6 @@ export const updateMedia = async (c: Context) => {
         };
 
         const updatedMedia = await propertyMediaService.updateMedia(mediaId, updateData);
-
-        if (!updatedMedia) {
-            return c.json({
-                success: false,
-                error: 'Failed to update media'
-            }, 500);
-        }
 
         return c.json({
             success: true,
@@ -214,7 +209,7 @@ export const deleteMedia = async (c: Context) => {
             return c.json({
                 success: false,
                 error: 'Failed to delete media'
-            }, 500);
+            }, 404);
         }
 
         return c.json({
@@ -239,10 +234,11 @@ export const deleteMedia = async (c: Context) => {
     }
 };
 
-// Set media as primary
+// Set media as primary - FIXED
 export const setPrimaryMedia = async (c: Context) => {
     try {
         const mediaId = c.req.param('mediaId');
+        const propertyId = c.req.query('propertyId');
 
         if (!ValidationUtils.isValidUUID(mediaId)) {
             return c.json({
@@ -251,19 +247,18 @@ export const setPrimaryMedia = async (c: Context) => {
             }, 400);
         }
 
-        const updatedMedia = await propertyMediaService.setPrimaryMedia(mediaId);
-
-        if (!updatedMedia) {
+        if (!propertyId || !ValidationUtils.isValidUUID(propertyId)) {
             return c.json({
                 success: false,
-                error: 'Failed to set media as primary'
-            }, 500);
+                error: 'Valid propertyId query parameter is required'
+            }, 400);
         }
+
+        await propertyMediaService.setPrimaryMedia(mediaId, propertyId);
 
         return c.json({
             success: true,
-            message: 'Media set as primary successfully',
-            data: updatedMedia
+            message: 'Media set as primary successfully'
         });
 
     } catch (error: any) {
@@ -347,14 +342,15 @@ export const createBulkMedia = async (c: Context) => {
                 }, 400);
             }
 
-            if (!validMediaTypes.includes(media.mediaType.toUpperCase())) {
+            const mediaType = media.mediaType.toUpperCase();
+            if (!validMediaTypes.includes(mediaType)) {
                 return c.json({
                     success: false,
                     error: 'Invalid media type'
                 }, 400);
             }
 
-            media.mediaType = media.mediaType.toUpperCase();
+            media.mediaType = mediaType;
         }
 
         const createdMedia = await propertyMediaService.createBulkMedia(body.media);
@@ -398,6 +394,74 @@ export const getMediaStatistics = async (c: Context) => {
         return c.json({
             success: false,
             error: 'Failed to fetch statistics'
+        }, 500);
+    }
+};
+
+// Get media count for property
+export const getMediaCount = async (c: Context) => {
+    try {
+        const propertyId = c.req.param('propertyId');
+
+        if (!ValidationUtils.isValidUUID(propertyId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid property ID format'
+            }, 400);
+        }
+
+        const count = await propertyMediaService.getMediaCountByPropertyId(propertyId);
+
+        return c.json({
+            success: true,
+            data: { count }
+        });
+
+    } catch (error: any) {
+        console.error('Error fetching media count:', error.message);
+        return c.json({
+            success: false,
+            error: 'Failed to fetch media count'
+        }, 500);
+    }
+};
+
+// Get media by type
+export const getMediaByType = async (c: Context) => {
+    try {
+        const propertyId = c.req.param('propertyId');
+        const mediaType = c.req.query('type')?.toUpperCase();
+
+        if (!ValidationUtils.isValidUUID(propertyId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid property ID format'
+            }, 400);
+        }
+
+        const validMediaTypes = ['IMAGE', 'VIDEO', 'DOCUMENT'];
+        if (!mediaType || !validMediaTypes.includes(mediaType)) {
+            return c.json({
+                success: false,
+                error: 'Valid media type is required: IMAGE, VIDEO, or DOCUMENT'
+            }, 400);
+        }
+
+        const media = await propertyMediaService.getMediaByType(
+            propertyId, 
+            mediaType as 'IMAGE' | 'VIDEO' | 'DOCUMENT'
+        );
+
+        return c.json({
+            success: true,
+            data: media
+        });
+
+    } catch (error: any) {
+        console.error('Error fetching media by type:', error.message);
+        return c.json({
+            success: false,
+            error: 'Failed to fetch media'
         }, 500);
     }
 };

@@ -787,7 +787,7 @@ export const getUsageAnalyticsService = async (): Promise<UsageAnalytics[]> => {
     return [];
 }
 
-export const getChurnAnalyticsService = async (days: number = 30): Promise<ChurnAnalytics[]> => {
+export const getChurnAnalyticsService = async (_days: number = 30): Promise<ChurnAnalytics[]> => {
     return [];
 }
 
@@ -860,9 +860,9 @@ export const getActiveSubscriptionsService = async (
 
 // Get Subscription Payment History
 export const getSubscriptionPaymentHistoryService = async (
-    subscriptionId?: string,
-    userId?: string,
-    limit: number = 20
+    _subscriptionId?: string,
+    _userId?: string,
+    _limit: number = 20
 ): Promise<PaymentHistory[]> => {
     return [];
 }
@@ -973,17 +973,17 @@ export const cancelSubscriptionService = async (
 // Reactivate, Override, GenerateInvoice, Notification follow similar patterns.
 // Exports of other services needed to avoid breaking imports
 // Exports of other services needed to avoid breaking imports
-export const getSubscriptionInvoicesService = async (...args: any[]) => ({ invoices: [], total: 0 }); // Placeholder
-export const getExpiringTrialsService = async (...args: any[]) => [];
-export const getExpiringSubscriptionsService = async (...args: any[]) => [];
-export const getSubscriptionPlansService = async (...args: any[]) => [];
-export const getSubscriptionEventsService = async (...args: any[]) => ({ events: [], total: 0 });
-export const getSubscriptionUsageLogsService = async (...args: any[]) => ({ logs: [], total: 0 });
-export const reactivateSubscriptionService = async (...args: any[]) => ({});
-export const overrideSubscriptionLimitsService = async (...args: any[]) => ({});
-export const generateInvoiceService = async (...args: any[]) => ({});
-export const sendSubscriptionNotificationService = async (...args: any[]) => ({});
-export const getSubscriptionStatsService = async (...args: any[]): Promise<SubscriptionStats> => ({
+export const getSubscriptionInvoicesService = async (..._args: any[]) => ({ invoices: [], total: 0 }); // Placeholder
+export const getExpiringTrialsService = async (..._args: any[]) => [];
+export const getExpiringSubscriptionsService = async (..._args: any[]) => [];
+export const getSubscriptionPlansService = async (..._args: any[]) => [];
+export const getSubscriptionEventsService = async (..._args: any[]) => ({ events: [], total: 0 });
+export const getSubscriptionUsageLogsService = async (..._args: any[]) => ({ logs: [], total: 0 });
+export const reactivateSubscriptionService = async (..._args: any[]) => ({});
+export const overrideSubscriptionLimitsService = async (..._args: any[]) => ({});
+export const generateInvoiceService = async (..._args: any[]) => ({});
+export const sendSubscriptionNotificationService = async (..._args: any[]) => ({});
+export const getSubscriptionStatsService = async (..._args: any[]): Promise<SubscriptionStats> => ({
     totalSubscriptions: 0,
     activeSubscriptions: 0,
     trialSubscriptions: 0,
@@ -998,7 +998,7 @@ export const getSubscriptionStatsService = async (...args: any[]): Promise<Subsc
     usageRate: 0,
     failedPaymentsToday: 0
 });
-export const getSubscriptionUserDetailsService = async (...args: any[]): Promise<SubscriptionUserDetails> => ({
+export const getSubscriptionUserDetailsService = async (..._args: any[]): Promise<SubscriptionUserDetails> => ({
     userId: '',
     userName: '',
     userEmail: '',

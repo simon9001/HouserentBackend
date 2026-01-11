@@ -2,7 +2,6 @@ import { serve } from "@hono/node-server";
 import { prometheus } from "@hono/prometheus";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
-import initializeDatabaseConnection from "./Database/config.js";
 import { limiter } from "./middleware/ratelimmiter.js";
 import { cors } from 'hono/cors';
 import adminRoutes from './admin/adminRoutes.js';
@@ -23,7 +22,6 @@ import statusRoutes from "./Status/status.routes.js";
 import savedPropertiesRoutes from "./SavedProperties/savedProperties.routes.js";
 import messageRoutes from "./Messages/message.routes.js";
 const app = new Hono();
-const initDatabaseConnection = initializeDatabaseConnection;
 // ✅ Enable CORS for your React frontend
 app.use('*', cors({
     origin: [

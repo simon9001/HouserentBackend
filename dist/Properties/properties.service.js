@@ -309,7 +309,6 @@ export class PropertiesService {
         // I will stick to the sample-based approach for 'byType'/'byCounty' if strict accuracy not critical,
         // BUT for 'total', 'available' etc, we can do independent count queries to be accurate.
         // Accurate totals:
-        const queries = [];
         let qTotal = supabase.from('Properties').select('*', { count: 'exact', head: true });
         if (ownerId)
             qTotal = qTotal.eq('OwnerId', ownerId);

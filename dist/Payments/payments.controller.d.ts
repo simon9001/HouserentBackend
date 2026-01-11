@@ -3,19 +3,19 @@ export declare const createPayment: (c: Context) => Promise<(Response & import("
     success: true;
     message: string;
     data: {
-        PaymentId: string;
-        UserId: string;
-        PropertyId?: string | undefined;
-        Amount: number;
-        Currency: string;
-        PaymentProvider: string;
-        ProviderReference: string;
-        Purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
-        Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
-        CreatedAt: string;
-        CompletedAt?: string | undefined;
-        UserName?: string | undefined;
-        PropertyTitle?: string | undefined;
+        payment_id: string;
+        user_id: string;
+        property_id?: string | null | undefined;
+        amount: number;
+        currency: string;
+        payment_provider: string;
+        provider_reference: string;
+        purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
+        status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+        created_at: string;
+        completed_at?: string | null | undefined;
+        user_name?: string | undefined;
+        property_title?: string | undefined;
     };
 }, 201, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -27,19 +27,19 @@ export declare const getPaymentById: (c: Context) => Promise<(Response & import(
 }, 404, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        PaymentId: string;
-        UserId: string;
-        PropertyId?: string | undefined;
-        Amount: number;
-        Currency: string;
-        PaymentProvider: string;
-        ProviderReference: string;
-        Purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
-        Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
-        CreatedAt: string;
-        CompletedAt?: string | undefined;
-        UserName?: string | undefined;
-        PropertyTitle?: string | undefined;
+        payment_id: string;
+        user_id: string;
+        property_id?: string | null | undefined;
+        amount: number;
+        currency: string;
+        payment_provider: string;
+        provider_reference: string;
+        purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
+        status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+        created_at: string;
+        completed_at?: string | null | undefined;
+        user_name?: string | undefined;
+        property_title?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -48,19 +48,19 @@ export declare const getPaymentById: (c: Context) => Promise<(Response & import(
 export declare const getPaymentsByUserId: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        PaymentId: string;
-        UserId: string;
-        PropertyId?: string | undefined;
-        Amount: number;
-        Currency: string;
-        PaymentProvider: string;
-        ProviderReference: string;
-        Purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
-        Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
-        CreatedAt: string;
-        CompletedAt?: string | undefined;
-        UserName?: string | undefined;
-        PropertyTitle?: string | undefined;
+        payment_id: string;
+        user_id: string;
+        property_id?: string | null | undefined;
+        amount: number;
+        currency: string;
+        payment_provider: string;
+        provider_reference: string;
+        purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
+        status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+        created_at: string;
+        completed_at?: string | null | undefined;
+        user_name?: string | undefined;
+        property_title?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -69,19 +69,19 @@ export declare const getPaymentsByUserId: (c: Context) => Promise<(Response & im
 export declare const getPaymentsByPropertyId: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        PaymentId: string;
-        UserId: string;
-        PropertyId?: string | undefined;
-        Amount: number;
-        Currency: string;
-        PaymentProvider: string;
-        ProviderReference: string;
-        Purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
-        Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
-        CreatedAt: string;
-        CompletedAt?: string | undefined;
-        UserName?: string | undefined;
-        PropertyTitle?: string | undefined;
+        payment_id: string;
+        user_id: string;
+        property_id?: string | null | undefined;
+        amount: number;
+        currency: string;
+        payment_provider: string;
+        provider_reference: string;
+        purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
+        status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+        created_at: string;
+        completed_at?: string | null | undefined;
+        user_name?: string | undefined;
+        property_title?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -91,19 +91,19 @@ export declare const updatePayment: (c: Context) => Promise<(Response & import("
     success: true;
     message: string;
     data: {
-        PaymentId: string;
-        UserId: string;
-        PropertyId?: string | undefined;
-        Amount: number;
-        Currency: string;
-        PaymentProvider: string;
-        ProviderReference: string;
-        Purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
-        Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
-        CreatedAt: string;
-        CompletedAt?: string | undefined;
-        UserName?: string | undefined;
-        PropertyTitle?: string | undefined;
+        payment_id: string;
+        user_id: string;
+        property_id?: string | null | undefined;
+        amount: number;
+        currency: string;
+        payment_provider: string;
+        provider_reference: string;
+        purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
+        status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+        created_at: string;
+        completed_at?: string | null | undefined;
+        user_name?: string | undefined;
+        property_title?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -113,19 +113,19 @@ export declare const completePayment: (c: Context) => Promise<(Response & import
     success: true;
     message: string;
     data: {
-        PaymentId: string;
-        UserId: string;
-        PropertyId?: string | undefined;
-        Amount: number;
-        Currency: string;
-        PaymentProvider: string;
-        ProviderReference: string;
-        Purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
-        Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
-        CreatedAt: string;
-        CompletedAt?: string | undefined;
-        UserName?: string | undefined;
-        PropertyTitle?: string | undefined;
+        payment_id: string;
+        user_id: string;
+        property_id?: string | null | undefined;
+        amount: number;
+        currency: string;
+        payment_provider: string;
+        provider_reference: string;
+        purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
+        status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+        created_at: string;
+        completed_at?: string | null | undefined;
+        user_name?: string | undefined;
+        property_title?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -135,19 +135,19 @@ export declare const failPayment: (c: Context) => Promise<(Response & import("ho
     success: true;
     message: string;
     data: {
-        PaymentId: string;
-        UserId: string;
-        PropertyId?: string | undefined;
-        Amount: number;
-        Currency: string;
-        PaymentProvider: string;
-        ProviderReference: string;
-        Purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
-        Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
-        CreatedAt: string;
-        CompletedAt?: string | undefined;
-        UserName?: string | undefined;
-        PropertyTitle?: string | undefined;
+        payment_id: string;
+        user_id: string;
+        property_id?: string | null | undefined;
+        amount: number;
+        currency: string;
+        payment_provider: string;
+        provider_reference: string;
+        purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
+        status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+        created_at: string;
+        completed_at?: string | null | undefined;
+        user_name?: string | undefined;
+        property_title?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -157,19 +157,19 @@ export declare const refundPayment: (c: Context) => Promise<(Response & import("
     success: true;
     message: string;
     data: {
-        PaymentId: string;
-        UserId: string;
-        PropertyId?: string | undefined;
-        Amount: number;
-        Currency: string;
-        PaymentProvider: string;
-        ProviderReference: string;
-        Purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
-        Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
-        CreatedAt: string;
-        CompletedAt?: string | undefined;
-        UserName?: string | undefined;
-        PropertyTitle?: string | undefined;
+        payment_id: string;
+        user_id: string;
+        property_id?: string | null | undefined;
+        amount: number;
+        currency: string;
+        payment_provider: string;
+        provider_reference: string;
+        purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
+        status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+        created_at: string;
+        completed_at?: string | null | undefined;
+        user_name?: string | undefined;
+        property_title?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -188,7 +188,6 @@ export declare const getPaymentStatistics: (c: Context) => Promise<(Response & i
         pendingTransactions: number;
         failedTransactions: number;
         refundedTransactions: number;
-        recentTransactions: number;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -197,19 +196,19 @@ export declare const getPaymentStatistics: (c: Context) => Promise<(Response & i
 export declare const getRecentPayments: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        PaymentId: string;
-        UserId: string;
-        PropertyId?: string | undefined;
-        Amount: number;
-        Currency: string;
-        PaymentProvider: string;
-        ProviderReference: string;
-        Purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
-        Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
-        CreatedAt: string;
-        CompletedAt?: string | undefined;
-        UserName?: string | undefined;
-        PropertyTitle?: string | undefined;
+        payment_id: string;
+        user_id: string;
+        property_id?: string | null | undefined;
+        amount: number;
+        currency: string;
+        payment_provider: string;
+        provider_reference: string;
+        purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
+        status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+        created_at: string;
+        completed_at?: string | null | undefined;
+        user_name?: string | undefined;
+        property_title?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -218,19 +217,19 @@ export declare const getRecentPayments: (c: Context) => Promise<(Response & impo
 export declare const searchPayments: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        PaymentId: string;
-        UserId: string;
-        PropertyId?: string | undefined;
-        Amount: number;
-        Currency: string;
-        PaymentProvider: string;
-        ProviderReference: string;
-        Purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
-        Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
-        CreatedAt: string;
-        CompletedAt?: string | undefined;
-        UserName?: string | undefined;
-        PropertyTitle?: string | undefined;
+        payment_id: string;
+        user_id: string;
+        property_id?: string | null | undefined;
+        amount: number;
+        currency: string;
+        payment_provider: string;
+        provider_reference: string;
+        purpose: "ACCESS" | "BOOST" | "SUBSCRIPTION" | "BOOKING" | "DEPOSIT";
+        status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+        created_at: string;
+        completed_at?: string | null | undefined;
+        user_name?: string | undefined;
+        property_title?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;

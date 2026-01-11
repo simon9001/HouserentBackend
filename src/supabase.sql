@@ -1899,5 +1899,3 @@ LEFT JOIN area_security_ratings asr ON p.area = asr.area_name;
 COMMENT ON DATABASE postgres IS 'Rent Me A Keja - Helping Kenyans find 
 
 
-
-////@Ke-254%Sw"kejayame

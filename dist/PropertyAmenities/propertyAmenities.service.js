@@ -58,7 +58,7 @@ export class PropertyAmenitiesService {
         return this.bulkCreateAmenities(data);
     }
     // Get amenity by ID
-    async getAmenityById(amenityId, ...args) {
+    async getAmenityById(amenityId) {
         const { data, error } = await supabase.from('PropertyAmenities').select('*').eq('AmenityId', amenityId).single();
         if (error)
             throw new Error(error.message);
@@ -72,7 +72,7 @@ export class PropertyAmenitiesService {
         return data;
     }
     // Search amenities
-    async searchAmenities(query, ...args) {
+    async searchAmenities(query, ..._args) {
         const { data, error } = await supabase.from('PropertyAmenities').select('*').ilike('AmenityName', `%${query}%`);
         if (error)
             throw new Error(error.message);
@@ -163,7 +163,7 @@ export class PropertyAmenitiesService {
             .slice(0, limit);
     }
     // Alias for controller compatibility
-    async getAmenitiesStatistics(...args) {
+    async getAmenitiesStatistics(..._args) {
         return this.getCommonAmenities();
     }
 }

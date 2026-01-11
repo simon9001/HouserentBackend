@@ -87,7 +87,7 @@ export class PropertyAmenitiesService {
     }
 
     // Get amenity by ID
-    async getAmenityById(amenityId: string, ...args: any[]): Promise<PropertyAmenity> {
+    async getAmenityById(amenityId: string): Promise<PropertyAmenity> {
         const { data, error } = await supabase.from('PropertyAmenities').select('*').eq('AmenityId', amenityId).single();
         if (error) throw new Error(error.message);
         return data as PropertyAmenity;
@@ -101,7 +101,7 @@ export class PropertyAmenitiesService {
     }
 
     // Search amenities
-    async searchAmenities(query: string, ...args: any[]): Promise<PropertyAmenity[]> {
+    async searchAmenities(query: string, ..._args: any[]): Promise<PropertyAmenity[]> {
         const { data, error } = await supabase.from('PropertyAmenities').select('*').ilike('AmenityName', `%${query}%`);
         if (error) throw new Error(error.message);
         return data as PropertyAmenity[];
@@ -204,7 +204,7 @@ export class PropertyAmenitiesService {
     }
 
     // Alias for controller compatibility
-    async getAmenitiesStatistics(...args: any[]): Promise<any> {
+    async getAmenitiesStatistics(..._args: any[]): Promise<any> {
         return this.getCommonAmenities();
     }
 }

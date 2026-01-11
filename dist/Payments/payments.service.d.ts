@@ -1,17 +1,17 @@
 export interface Payment {
-    PaymentId: string;
-    UserId: string;
-    PropertyId?: string;
-    Amount: number;
-    Currency: string;
-    PaymentProvider: string;
-    ProviderReference: string;
-    Purpose: 'ACCESS' | 'BOOST' | 'SUBSCRIPTION' | 'BOOKING' | 'DEPOSIT';
-    Status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
-    CreatedAt: Date;
-    CompletedAt?: Date;
-    UserName?: string;
-    PropertyTitle?: string;
+    payment_id: string;
+    user_id: string;
+    property_id?: string | null;
+    amount: number;
+    currency: string;
+    payment_provider: string;
+    provider_reference: string;
+    purpose: 'ACCESS' | 'BOOST' | 'SUBSCRIPTION' | 'BOOKING' | 'DEPOSIT';
+    status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
+    created_at: string;
+    completed_at?: string | null;
+    user_name?: string;
+    property_title?: string;
 }
 export interface CreatePaymentInput {
     userId: string;
@@ -20,19 +20,19 @@ export interface CreatePaymentInput {
     currency?: string;
     paymentProvider: string;
     providerReference: string;
-    purpose: Payment['Purpose'];
+    purpose: Payment['purpose'];
 }
 export interface UpdatePaymentInput {
-    status?: Payment['Status'];
+    status?: Payment['status'];
     providerReference?: string;
     completedAt?: Date;
 }
 export declare class PaymentsService {
     createPayment(data: CreatePaymentInput): Promise<Payment>;
-    getPaymentById(paymentId: string): Promise<Payment & {
-        UserName?: string;
-        PropertyTitle?: string;
-    }>;
+    getPaymentById(paymentId: string): Promise<(Payment & {
+        user_name?: string;
+        property_title?: string;
+    }) | null>;
     getPaymentsByUserId(userId: string, status?: string): Promise<Payment[]>;
     getPaymentsByPropertyId(propertyId: string): Promise<Payment[]>;
     updatePayment(paymentId: string, data: UpdatePaymentInput): Promise<Payment>;
@@ -50,11 +50,22 @@ export declare class PaymentsService {
         pendingTransactions: number;
         failedTransactions: number;
         refundedTransactions: number;
-        recentTransactions: number;
     }>;
     getRecentPayments(limit?: number): Promise<Payment[]>;
     searchPayments(searchTerm: string, userId?: string): Promise<Payment[]>;
+    getPaymentsByPurpose(purpose: Payment['purpose'], status?: Payment['status']): Promise<Payment[]>;
+    getTotalRevenue(): Promise<number>;
     private handlePaymentCompletion;
+    getMonthlyRevenueReport(year: number, month: number): Promise<{
+        month: string;
+        totalRevenue: number;
+        transactions: number;
+        dailyBreakdown: Array<{
+            day: number;
+            revenue: number;
+            transactions: number;
+        }>;
+    }>;
 }
 export declare const paymentsService: PaymentsService;
 //# sourceMappingURL=payments.service.d.ts.map

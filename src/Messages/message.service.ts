@@ -66,7 +66,7 @@ export class MessageService {
         }
 
         // Check for existing conversation
-        const { data: existing, error: fetchError } = await supabase
+        const { data: existing } = await supabase
             .from('Conversations')
             .select('ConversationId')
             .eq('PropertyId', propertyId)
