@@ -1,95 +1,101 @@
-import sql from 'mssql';
-import { getConnectionPool } from '../Database/config.js';
+import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 export class SavedPropertiesService {
-    async getDb() {
-        return getConnectionPool();
-    }
     async saveProperty(userId, propertyId) {
-        const db = await this.getDb();
         if (!ValidationUtils.isValidUUID(userId) || !ValidationUtils.isValidUUID(propertyId)) {
             throw new Error('Invalid ID format');
         }
-        const query = `
-            IF NOT EXISTS (SELECT 1 FROM SavedProperties WHERE UserId = @userId AND PropertyId = @propertyId)
-            BEGIN
-                INSERT INTO SavedProperties (UserId, PropertyId)
-                VALUES (@userId, @propertyId)
-            END
-        `;
-        try {
-            const result = await db.request()
-                .input('userId', sql.UniqueIdentifier, userId)
-                .input('propertyId', sql.UniqueIdentifier, propertyId)
-                .query(query);
-            return result.rowsAffected[0] > 0;
+        // Check if already saved
+        const { data: existing, error: checkError } = await supabase
+            .from('SavedProperties')
+            .select('SavedId')
+            .eq('UserId', userId)
+            .eq('PropertyId', propertyId)
+            .single();
+        if (checkError && checkError.code !== 'PGRST116')
+            throw new Error(checkError.message);
+        if (existing) {
+            return false; // Already saved
         }
-        catch (error) {
-            throw error;
-        }
+        const { error } = await supabase
+            .from('SavedProperties')
+            .insert({
+            UserId: userId,
+            PropertyId: propertyId,
+            CreatedAt: new Date().toISOString()
+        });
+        if (error)
+            throw new Error(error.message);
+        return true;
     }
     async unsaveProperty(userId, propertyId) {
-        const db = await this.getDb();
         if (!ValidationUtils.isValidUUID(userId) || !ValidationUtils.isValidUUID(propertyId)) {
             throw new Error('Invalid ID format');
         }
-        const query = `
-            DELETE FROM SavedProperties 
-            WHERE UserId = @userId AND PropertyId = @propertyId
-        `;
-        try {
-            const result = await db.request()
-                .input('userId', sql.UniqueIdentifier, userId)
-                .input('propertyId', sql.UniqueIdentifier, propertyId)
-                .query(query);
-            return result.rowsAffected[0] > 0;
-        }
-        catch (error) {
-            throw error;
-        }
+        const { error, count } = await supabase
+            .from('SavedProperties')
+            .delete({ count: 'exact' })
+            .eq('UserId', userId)
+            .eq('PropertyId', propertyId);
+        if (error)
+            throw new Error(error.message);
+        return (count || 0) > 0;
     }
     async getSavedPropertiesByUserId(userId) {
-        const db = await this.getDb();
-        if (!ValidationUtils.isValidUUID(userId)) {
+        if (!ValidationUtils.isValidUUID(userId))
             throw new Error('Invalid user ID format');
-        }
-        const query = `
-            SELECT s.*, p.Title, p.Description, p.RentAmount, p.County, p.Area, p.PropertyType,
-                   (SELECT TOP 1 MediaUrl FROM PropertyMedia WHERE PropertyId = p.PropertyId AND IsPrimary = 1) as PrimaryImageUrl
-            FROM SavedProperties s
-            INNER JOIN Properties p ON s.PropertyId = p.PropertyId
-            WHERE s.UserId = @userId
-            ORDER BY s.CreatedAt DESC
-        `;
-        try {
-            const result = await db.request()
-                .input('userId', sql.UniqueIdentifier, userId)
-                .query(query);
-            return result.recordset;
-        }
-        catch (error) {
-            throw error;
-        }
+        // We need: SavedProperties -> Properties -> PropertyMedia (limit 1)
+        // Query: *, Properties!inner (*, PropertyMedia(MediaUrl))
+        const { data, error } = await supabase
+            .from('SavedProperties')
+            .select(`
+                *,
+                Properties:PropertyId!inner (
+                    Title, Description, RentAmount, County, Area, PropertyType,
+                    PropertyMedia (MediaUrl, IsPrimary)
+                )
+            `)
+            .eq('UserId', userId)
+            .order('CreatedAt', { ascending: false });
+        if (error)
+            throw new Error(error.message);
+        return data.map((item) => {
+            const prop = item.Properties;
+            let primaryImage = null;
+            if (prop && prop.PropertyMedia && Array.isArray(prop.PropertyMedia)) {
+                // Find primary or take first
+                const primary = prop.PropertyMedia.find((m) => m.IsPrimary) || prop.PropertyMedia[0];
+                if (primary)
+                    primaryImage = primary.MediaUrl;
+            }
+            return {
+                SavedId: item.SavedId,
+                UserId: item.UserId,
+                PropertyId: item.PropertyId,
+                CreatedAt: item.CreatedAt,
+                Title: prop?.Title,
+                Description: prop?.Description,
+                RentAmount: prop?.RentAmount,
+                County: prop?.County,
+                Area: prop?.Area,
+                PropertyType: prop?.PropertyType,
+                PrimaryImageUrl: primaryImage
+            };
+        });
     }
     async isPropertySaved(userId, propertyId) {
-        const db = await this.getDb();
         if (!ValidationUtils.isValidUUID(userId) || !ValidationUtils.isValidUUID(propertyId)) {
             return false;
         }
-        const query = `
-            SELECT 1 FROM SavedProperties 
-            WHERE UserId = @userId AND PropertyId = @propertyId
-        `;
-        try {
-            const result = await db.request()
-                .input('userId', sql.UniqueIdentifier, userId)
-                .input('propertyId', sql.UniqueIdentifier, propertyId)
-                .query(query);
-            return result.recordset.length > 0;
-        }
-        catch (error) {
+        const { data, error } = await supabase
+            .from('SavedProperties')
+            .select('SavedId')
+            .eq('UserId', userId)
+            .eq('PropertyId', propertyId)
+            .single();
+        if (error || !data)
             return false;
-        }
+        return true;
     }
 }
 export const savedPropertiesService = new SavedPropertiesService();

@@ -6,10 +6,19 @@ import { AuthContext } from './agentRoutes.js';
 // Create new agent verification
 export const createVerification = async (c: AuthContext) => {
     try {
+        const user = c.get('user');
+
+        if (!user) {
+            return c.json({
+                success: false,
+                error: 'Authentication required'
+            }, 401);
+        }
+
         const body = await c.req.json();
 
         // Validate required fields
-        const requiredFields = ['userId', 'nationalId', 'selfieUrl', 'idFrontUrl'];
+        const requiredFields = ['nationalId', 'selfieUrl', 'idFrontUrl'];
         const missingFields = requiredFields.filter(field => !body[field]);
 
         if (missingFields.length > 0) {
@@ -19,16 +28,8 @@ export const createVerification = async (c: AuthContext) => {
             }, 400);
         }
 
-        // Validate UUID
-        if (!ValidationUtils.isValidUUID(body.userId)) {
-            return c.json({
-                success: false,
-                error: 'Invalid user ID format'
-            }, 400);
-        }
-
         const verificationData: CreateVerificationInput = {
-            userId: body.userId,
+            userId: user.userId,
             nationalId: body.nationalId,
             selfieUrl: body.selfieUrl,
             idFrontUrl: body.idFrontUrl,
@@ -46,8 +47,8 @@ export const createVerification = async (c: AuthContext) => {
 
     } catch (error: any) {
         console.error('Error creating agent verification:', error.message);
-        
-        if (error.message.includes('not found') || 
+
+        if (error.message.includes('not found') ||
             error.message.includes('already exists') ||
             error.message.includes('not an agent')) {
             return c.json({
@@ -113,10 +114,11 @@ export const getVerificationByUserId = async (c: AuthContext) => {
         const verification = await agentVerificationService.getVerificationByUserId(userId);
 
         if (!verification) {
+            // Return null data instead of 404 to prevent console errors when checking status
             return c.json({
-                success: false,
-                error: 'No verification found for this user'
-            }, 404);
+                success: true,
+                data: null
+            });
         }
 
         return c.json({
@@ -233,8 +235,8 @@ export const updateVerification = async (c: AuthContext) => {
         });
 
         const updatedVerification = await agentVerificationService.updateVerification(
-            verificationId, 
-            updateData, 
+            verificationId,
+            updateData,
             user.userId
         );
 
@@ -254,7 +256,7 @@ export const updateVerification = async (c: AuthContext) => {
     } catch (error: any) {
         console.error('Error updating verification:', error.message);
         console.error('Error stack:', error.stack);
-        
+
         if (error.message.includes('Invalid') || error.message.includes('not found')) {
             return c.json({
                 success: false,
@@ -311,7 +313,7 @@ export const approveVerification = async (c: AuthContext) => {
 
     } catch (error: any) {
         console.error('Error approving verification:', error.message);
-        
+
         if (error.message.includes('Invalid') || error.message.includes('not found')) {
             return c.json({
                 success: false,
@@ -368,7 +370,7 @@ export const rejectVerification = async (c: AuthContext) => {
 
     } catch (error: any) {
         console.error('Error rejecting verification:', error.message);
-        
+
         if (error.message.includes('Invalid') || error.message.includes('not found')) {
             return c.json({
                 success: false,
@@ -417,7 +419,7 @@ export const bulkApproveVerifications = async (c: AuthContext) => {
 
     } catch (error: any) {
         console.error('Error bulk approving verifications:', error.message);
-        
+
         if (error.message.includes('Invalid') || error.message.includes('not found')) {
             return c.json({
                 success: false,
@@ -466,7 +468,7 @@ export const bulkRejectVerifications = async (c: AuthContext) => {
 
     } catch (error: any) {
         console.error('Error bulk rejecting verifications:', error.message);
-        
+
         if (error.message.includes('Invalid') || error.message.includes('not found')) {
             return c.json({
                 success: false,
@@ -528,7 +530,7 @@ export const deleteVerification = async (c: AuthContext) => {
 
     } catch (error: any) {
         console.error('Error deleting verification:', error.message);
-        
+
         if (error.message.includes('Invalid') || error.message.includes('not found')) {
             return c.json({
                 success: false,
@@ -546,7 +548,7 @@ export const deleteVerification = async (c: AuthContext) => {
 // Test authentication
 export const testAuth = async (c: AuthContext) => {
     const user = c.get('user');
-    
+
     if (!user) {
         return c.json({
             success: false,

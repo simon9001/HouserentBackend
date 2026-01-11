@@ -14,6 +14,8 @@ export declare const createPayment: (c: Context) => Promise<(Response & import("
         Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
         CreatedAt: string;
         CompletedAt?: string | undefined;
+        UserName?: string | undefined;
+        PropertyTitle?: string | undefined;
     };
 }, 201, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -57,6 +59,8 @@ export declare const getPaymentsByUserId: (c: Context) => Promise<(Response & im
         Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
         CreatedAt: string;
         CompletedAt?: string | undefined;
+        UserName?: string | undefined;
+        PropertyTitle?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -76,6 +80,8 @@ export declare const getPaymentsByPropertyId: (c: Context) => Promise<(Response 
         Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
         CreatedAt: string;
         CompletedAt?: string | undefined;
+        UserName?: string | undefined;
+        PropertyTitle?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -96,6 +102,8 @@ export declare const updatePayment: (c: Context) => Promise<(Response & import("
         Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
         CreatedAt: string;
         CompletedAt?: string | undefined;
+        UserName?: string | undefined;
+        PropertyTitle?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -116,6 +124,8 @@ export declare const completePayment: (c: Context) => Promise<(Response & import
         Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
         CreatedAt: string;
         CompletedAt?: string | undefined;
+        UserName?: string | undefined;
+        PropertyTitle?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -136,6 +146,8 @@ export declare const failPayment: (c: Context) => Promise<(Response & import("ho
         Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
         CreatedAt: string;
         CompletedAt?: string | undefined;
+        UserName?: string | undefined;
+        PropertyTitle?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -156,6 +168,8 @@ export declare const refundPayment: (c: Context) => Promise<(Response & import("
         Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
         CreatedAt: string;
         CompletedAt?: string | undefined;
+        UserName?: string | undefined;
+        PropertyTitle?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -174,6 +188,7 @@ export declare const getPaymentStatistics: (c: Context) => Promise<(Response & i
         pendingTransactions: number;
         failedTransactions: number;
         refundedTransactions: number;
+        recentTransactions: number;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -193,6 +208,8 @@ export declare const getRecentPayments: (c: Context) => Promise<(Response & impo
         Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
         CreatedAt: string;
         CompletedAt?: string | undefined;
+        UserName?: string | undefined;
+        PropertyTitle?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -212,6 +229,8 @@ export declare const searchPayments: (c: Context) => Promise<(Response & import(
         Status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
         CreatedAt: string;
         CompletedAt?: string | undefined;
+        UserName?: string | undefined;
+        PropertyTitle?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;

@@ -1,5 +1,4 @@
-import sql from 'mssql';
-import { getConnectionPool } from '../Database/config.js';
+import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 import { subscriptionPlansService } from './subscriptionPlans.service.js';
 
@@ -11,24 +10,24 @@ export interface UserSubscription {
     Price: number;
     Currency: string;
     BillingCycle: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY';
-    StartDate: Date;
-    EndDate: Date;
-    TrialEndDate?: Date;
+    StartDate: string;
+    EndDate: string;
+    TrialEndDate?: string;
     CancelAtPeriodEnd: boolean;
-    CancelledDate?: Date;
+    CancelledDate?: string;
     Status: 'TRIAL' | 'ACTIVE' | 'CANCELLED' | 'EXPIRED' | 'PAST_DUE' | 'SUSPENDED';
     AutoRenew: boolean;
     RenewalAttempts: number;
-    LastRenewalAttempt?: Date;
+    LastRenewalAttempt?: string;
     PropertiesUsed: number;
     VisitsUsedThisMonth: number;
     MediaUsedThisMonth: number;
     AmenitiesUsedThisMonth: number;
     BoostsUsedThisMonth: number;
-    LastUsageReset: Date;
-    NextUsageReset: Date;
-    CreatedAt: Date;
-    UpdatedAt: Date;
+    LastUsageReset: string;
+    NextUsageReset: string;
+    CreatedAt: string;
+    UpdatedAt: string;
 }
 
 // Extended interface with plan properties for joined queries
@@ -77,68 +76,50 @@ export interface UsageCheckResult {
 }
 
 export class UserSubscriptionsService {
-    private db: sql.ConnectionPool | null = null;
-
-    constructor() {
-        // Lazy initialization
-    }
-
-    private async getDb(): Promise<sql.ConnectionPool> {
-        if (!this.db) {
-            this.db = getConnectionPool();
-        }
-        return this.db;
-    }
 
     // Create new subscription
     async createSubscription(data: CreateSubscriptionInput): Promise<UserSubscription> {
-        const db = await this.getDb();
-        
         // Validate user exists
-        const userCheck = await db.request()
-            .input('userId', sql.UniqueIdentifier, data.userId)
-            .query('SELECT UserId FROM Users WHERE UserId = @userId AND IsActive = 1');
-        
-        if (userCheck.recordset.length === 0) {
-            throw new Error('User not found or inactive');
-        }
+        const { data: user, error: userError } = await supabase
+            .from('Users')
+            .select('UserId')
+            .eq('UserId', data.userId)
+            .eq('IsActive', true)
+            .single();
+
+        if (userError || !user) throw new Error('User not found or inactive');
 
         // Validate plan exists and is active
-        const planCheck = await db.request()
-            .input('planId', sql.UniqueIdentifier, data.planId)
-            .query('SELECT * FROM SubscriptionPlans WHERE PlanId = @planId AND IsActive = 1');
-        
-        if (planCheck.recordset.length === 0) {
-            throw new Error('Subscription plan not found or inactive');
-        }
+        const { data: plan, error: planError } = await supabase
+            .from('SubscriptionPlans')
+            .select('*')
+            .eq('PlanId', data.planId)
+            .eq('IsActive', true)
+            .single();
 
-        const plan = planCheck.recordset[0];
-        
+        if (planError || !plan) throw new Error('Subscription plan not found or inactive');
+
         // Check for existing active subscription
-        const existingSubscription = await db.request()
-            .input('userId', sql.UniqueIdentifier, data.userId)
-            .query(`
-                SELECT SubscriptionId 
-                FROM UserSubscriptions 
-                WHERE UserId = @userId 
-                AND Status IN ('TRIAL', 'ACTIVE')
-                AND EndDate > SYSDATETIME()
-            `);
-        
-        if (existingSubscription.recordset.length > 0) {
-            throw new Error('User already has an active subscription');
-        }
+        const { data: existingSubscription } = await supabase
+            .from('UserSubscriptions')
+            .select('SubscriptionId')
+            .eq('UserId', data.userId)
+            .in('Status', ['TRIAL', 'ACTIVE'])
+            .gt('EndDate', new Date().toISOString())
+            .single();
+
+        if (existingSubscription) throw new Error('User already has an active subscription');
 
         // Calculate dates
         const startDate = data.startDate || new Date();
         const trialDays = data.trialDays !== undefined ? data.trialDays : plan.TrialDays;
-        const trialEndDate = trialDays > 0 ? 
+        const trialEndDate = trialDays > 0 ?
             new Date(startDate.getTime() + trialDays * 24 * 60 * 60 * 1000) : null;
-        
+
         // Calculate end date based on billing cycle
         let endDate = new Date(startDate);
         const billingCycle = data.billingCycle || plan.BillingCycle || 'MONTHLY';
-        
+
         switch (billingCycle) {
             case 'DAILY':
                 endDate.setDate(endDate.getDate() + 1);
@@ -163,39 +144,33 @@ export class UserSubscriptionsService {
             status = 'TRIAL';
         }
 
-        const query = `
-            INSERT INTO UserSubscriptions (
-                UserId, PlanId, PaymentId, Price, Currency, BillingCycle,
-                StartDate, EndDate, TrialEndDate, Status, AutoRenew,
-                LastUsageReset, NextUsageReset
-            )
-            OUTPUT INSERTED.*
-            VALUES (
-                @userId, @planId, @paymentId, @price, @currency, @billingCycle,
-                @startDate, @endDate, @trialEndDate, @status, @autoRenew,
-                @lastUsageReset, @nextUsageReset
-            )
-        `;
+        const { data: newSub, error } = await supabase
+            .from('UserSubscriptions')
+            .insert({
+                UserId: data.userId,
+                PlanId: data.planId,
+                PaymentId: data.paymentId || null,
+                Price: data.price !== undefined ? data.price : plan.BasePrice,
+                Currency: data.currency || plan.Currency || 'KES',
+                BillingCycle: billingCycle,
+                StartDate: startDate.toISOString(),
+                EndDate: endDate.toISOString(),
+                TrialEndDate: trialEndDate ? trialEndDate.toISOString() : null,
+                Status: status,
+                AutoRenew: data.autoRenew !== undefined ? data.autoRenew : true,
+                LastUsageReset: startDate.toISOString(),
+                NextUsageReset: new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                CreatedAt: new Date().toISOString(),
+                UpdatedAt: new Date().toISOString()
+            })
+            .select()
+            .single();
 
-        const result = await db.request()
-            .input('userId', sql.UniqueIdentifier, data.userId)
-            .input('planId', sql.UniqueIdentifier, data.planId)
-            .input('paymentId', sql.UniqueIdentifier, data.paymentId || null)
-            .input('price', sql.Decimal(10, 2), data.price !== undefined ? data.price : plan.BasePrice)
-            .input('currency', sql.NVarChar(10), data.currency || plan.Currency || 'KES')
-            .input('billingCycle', sql.NVarChar(20), billingCycle)
-            .input('startDate', sql.DateTime, startDate)
-            .input('endDate', sql.DateTime, endDate)
-            .input('trialEndDate', sql.DateTime, trialEndDate)
-            .input('status', sql.NVarChar(20), status)
-            .input('autoRenew', sql.Bit, data.autoRenew !== undefined ? (data.autoRenew ? 1 : 0) : 1)
-            .input('lastUsageReset', sql.DateTime, startDate)
-            .input('nextUsageReset', sql.DateTime, new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000))
-            .query(query);
+        if (error) throw new Error(error.message);
 
         // Create subscription event
         await this.createSubscriptionEvent(
-            result.recordset[0].SubscriptionId,
+            newSub.SubscriptionId,
             data.userId,
             'SUBSCRIPTION_CREATED',
             {
@@ -206,178 +181,148 @@ export class UserSubscriptionsService {
             }
         );
 
-        return result.recordset[0];
+        return newSub as UserSubscription;
     }
 
     // Get subscription by ID
     async getSubscriptionById(subscriptionId: string): Promise<UserSubscriptionWithPlan | null> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(subscriptionId)) {
-            throw new Error('Invalid subscription ID format');
+        if (!ValidationUtils.isValidUUID(subscriptionId)) throw new Error('Invalid subscription ID format');
+
+        const { data, error } = await supabase
+            .from('UserSubscriptions')
+            .select(`
+                *,
+                SubscriptionPlans:PlanId (*)
+            `)
+            .eq('SubscriptionId', subscriptionId)
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw new Error(error.message);
         }
 
-        const query = `
-            SELECT 
-                us.*,
-                sp.DisplayName as PlanName,
-                sp.MaxProperties,
-                sp.MaxVisitsPerMonth,
-                sp.MaxMediaPerProperty,
-                sp.MaxAmenitiesPerProperty,
-                sp.AllowBoost,
-                sp.MaxBoostsPerMonth,
-                sp.AllowPremiumSupport,
-                sp.AllowAdvancedAnalytics,
-                sp.AllowBulkOperations
-            FROM UserSubscriptions us
-            INNER JOIN SubscriptionPlans sp ON us.PlanId = sp.PlanId
-            WHERE us.SubscriptionId = @subscriptionId
-        `;
+        const plan = data.SubscriptionPlans;
+        const result: any = { ...data };
+        delete result.SubscriptionPlans;
 
-        const result = await db.request()
-            .input('subscriptionId', sql.UniqueIdentifier, subscriptionId)
-            .query(query);
+        if (plan) {
+            result.PlanName = plan.DisplayName;
+            result.DisplayName = plan.DisplayName;
+            result.MaxProperties = plan.MaxProperties;
+            result.MaxVisitsPerMonth = plan.MaxVisitsPerMonth;
+            result.MaxMediaPerProperty = plan.MaxMediaPerProperty;
+            result.MaxAmenitiesPerProperty = plan.MaxAmenitiesPerProperty;
+            result.AllowBoost = plan.AllowBoost;
+            result.MaxBoostsPerMonth = plan.MaxBoostsPerMonth;
+            result.AllowPremiumSupport = plan.AllowPremiumSupport;
+            result.AllowAdvancedAnalytics = plan.AllowAdvancedAnalytics;
+            result.AllowBulkOperations = plan.AllowBulkOperations;
+        }
 
-        return result.recordset[0] || null;
+        return result as UserSubscriptionWithPlan;
     }
 
     // Get active subscription for user
     async getActiveSubscription(userId: string): Promise<UserSubscriptionWithPlan | null> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
+
+        const { data, error } = await supabase
+            .from('UserSubscriptions')
+            .select(`
+                *,
+                SubscriptionPlans:PlanId (*)
+            `)
+            .eq('UserId', userId)
+            .in('Status', ['TRIAL', 'ACTIVE'])
+            .gt('EndDate', new Date().toISOString())
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            return null;
         }
 
-        const query = `
-            SELECT 
-                us.*,
-                sp.DisplayName as PlanName,
-                sp.MaxProperties,
-                sp.MaxVisitsPerMonth,
-                sp.MaxMediaPerProperty,
-                sp.MaxAmenitiesPerProperty,
-                sp.AllowBoost,
-                sp.MaxBoostsPerMonth,
-                sp.AllowPremiumSupport,
-                sp.AllowAdvancedAnalytics,
-                sp.AllowBulkOperations
-            FROM UserSubscriptions us
-            INNER JOIN SubscriptionPlans sp ON us.PlanId = sp.PlanId
-            WHERE us.UserId = @userId
-            AND us.Status IN ('TRIAL', 'ACTIVE')
-            AND us.EndDate > SYSDATETIME()
-        `;
+        const plan = data.SubscriptionPlans;
+        const result: any = { ...data };
+        delete result.SubscriptionPlans;
 
-        const result = await db.request()
-            .input('userId', sql.UniqueIdentifier, userId)
-            .query(query);
+        if (plan) {
+            result.PlanName = plan.DisplayName;
+            result.DisplayName = plan.DisplayName;
+            result.MaxProperties = plan.MaxProperties;
+            result.MaxVisitsPerMonth = plan.MaxVisitsPerMonth;
+            result.MaxMediaPerProperty = plan.MaxMediaPerProperty;
+            result.MaxAmenitiesPerProperty = plan.MaxAmenitiesPerProperty;
+            result.AllowBoost = plan.AllowBoost;
+            result.MaxBoostsPerMonth = plan.MaxBoostsPerMonth;
+            result.AllowPremiumSupport = plan.AllowPremiumSupport;
+            result.AllowAdvancedAnalytics = plan.AllowAdvancedAnalytics;
+            result.AllowBulkOperations = plan.AllowBulkOperations;
+        }
 
-        return result.recordset[0] || null;
+        return result as UserSubscriptionWithPlan;
     }
 
     // Get all subscriptions for user
     async getUserSubscriptions(userId: string, includeExpired: boolean = false): Promise<UserSubscription[]> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
-        }
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        let whereClause = 'WHERE UserId = @userId';
+        let query = supabase
+            .from('UserSubscriptions')
+            .select('*')
+            .eq('UserId', userId)
+            .order('CreatedAt', { ascending: false });
+
         if (!includeExpired) {
-            whereClause += ' AND EndDate > SYSDATETIME()';
+            query = query.gt('EndDate', new Date().toISOString());
         }
 
-        const query = `
-            SELECT * FROM UserSubscriptions
-            ${whereClause}
-            ORDER BY CreatedAt DESC
-        `;
+        const { data, error } = await query;
+        if (error) throw new Error(error.message);
 
-        const result = await db.request()
-            .input('userId', sql.UniqueIdentifier, userId)
-            .query(query);
-
-        return result.recordset;
+        return data as UserSubscription[];
     }
 
     // Update subscription
     async updateSubscription(subscriptionId: string, data: UpdateSubscriptionInput): Promise<UserSubscription> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(subscriptionId)) {
-            throw new Error('Invalid subscription ID format');
-        }
+        if (!ValidationUtils.isValidUUID(subscriptionId)) throw new Error('Invalid subscription ID format');
 
         // Get current subscription
         const currentSubscription = await this.getSubscriptionById(subscriptionId);
-        if (!currentSubscription) {
-            throw new Error('Subscription not found');
-        }
+        if (!currentSubscription) throw new Error('Subscription not found');
 
-        // Build dynamic update query
-        const updates: string[] = [];
-        const inputs: any = { subscriptionId };
-
+        const updates: any = {};
         if (data.status !== undefined) {
-            updates.push('Status = @status');
-            inputs.status = data.status;
-
+            updates.Status = data.status;
             // If cancelling, set cancelled date
             if (data.status === 'CANCELLED' && currentSubscription.Status !== 'CANCELLED') {
-                updates.push('CancelledDate = SYSDATETIME()');
+                updates.CancelledDate = new Date().toISOString();
             }
         }
-        if (data.autoRenew !== undefined) {
-            updates.push('AutoRenew = @autoRenew');
-            inputs.autoRenew = data.autoRenew ? 1 : 0;
-        }
-        if (data.cancelAtPeriodEnd !== undefined) {
-            updates.push('CancelAtPeriodEnd = @cancelAtPeriodEnd');
-            inputs.cancelAtPeriodEnd = data.cancelAtPeriodEnd ? 1 : 0;
-        }
-        if (data.paymentId !== undefined) {
-            updates.push('PaymentId = @paymentId');
-            inputs.paymentId = data.paymentId;
-        }
+        if (data.autoRenew !== undefined) updates.AutoRenew = data.autoRenew;
+        if (data.cancelAtPeriodEnd !== undefined) updates.CancelAtPeriodEnd = data.cancelAtPeriodEnd;
+        if (data.paymentId !== undefined) updates.PaymentId = data.paymentId;
 
-        if (updates.length === 0) {
-            throw new Error('No fields to update');
-        }
+        if (Object.keys(updates).length === 0) throw new Error('No fields to update');
 
-        const query = `
-            UPDATE UserSubscriptions 
-            SET ${updates.join(', ')}
-            OUTPUT INSERTED.*
-            WHERE SubscriptionId = @subscriptionId
-        `;
+        updates.UpdatedAt = new Date().toISOString();
 
-        const request = db.request()
-            .input('subscriptionId', sql.UniqueIdentifier, inputs.subscriptionId);
+        const { data: updated, error } = await supabase
+            .from('UserSubscriptions')
+            .update(updates)
+            .eq('SubscriptionId', subscriptionId)
+            .select()
+            .single();
 
-        // Add inputs dynamically
-        Object.keys(inputs).forEach(key => {
-            if (key !== 'subscriptionId') {
-                let sqlType: any = sql.NVarChar;
-                if (key === 'autoRenew' || key === 'cancelAtPeriodEnd') {
-                    sqlType = sql.Bit;
-                } else if (key === 'paymentId') {
-                    sqlType = sql.UniqueIdentifier;
-                }
-                request.input(key, sqlType, inputs[key]);
-            }
-        });
-
-        const result = await request.query(query);
+        if (error) throw new Error(error.message);
 
         // Create subscription event if status changed
         if (data.status && data.status !== currentSubscription.Status) {
             await this.createSubscriptionEvent(
                 subscriptionId,
                 currentSubscription.UserId,
-                `SUBSCRIPTION_${data.status.toUpperCase()}` as any,
+                `SUBSCRIPTION_${data.status.toUpperCase()}`,
                 {
                     previousStatus: currentSubscription.Status,
                     newStatus: data.status,
@@ -386,107 +331,68 @@ export class UserSubscriptionsService {
             );
         }
 
-        return result.recordset[0];
+        return updated as UserSubscription;
     }
 
     // Cancel subscription
     async cancelSubscription(subscriptionId: string, cancelAtPeriodEnd: boolean = false): Promise<UserSubscription> {
-        
-        if (!ValidationUtils.isValidUUID(subscriptionId)) {
-            throw new Error('Invalid subscription ID format');
-        }
+        if (!ValidationUtils.isValidUUID(subscriptionId)) throw new Error('Invalid subscription ID format');
 
-        // Get current subscription
         const currentSubscription = await this.getSubscriptionById(subscriptionId);
-        if (!currentSubscription) {
-            throw new Error('Subscription not found');
-        }
+        if (!currentSubscription) throw new Error('Subscription not found');
 
-        if (currentSubscription.Status === 'CANCELLED') {
-            throw new Error('Subscription is already cancelled');
-        }
-
-        if (currentSubscription.Status === 'EXPIRED') {
-            throw new Error('Subscription is already expired');
-        }
+        if (currentSubscription.Status === 'CANCELLED') throw new Error('Subscription is already cancelled');
+        if (currentSubscription.Status === 'EXPIRED') throw new Error('Subscription is already expired');
 
         if (cancelAtPeriodEnd) {
-            // Cancel at period end
             return this.updateSubscription(subscriptionId, { cancelAtPeriodEnd: true });
         } else {
-            // Cancel immediately
             return this.updateSubscription(subscriptionId, { status: 'CANCELLED' });
         }
     }
 
     // Renew subscription
     async renewSubscription(subscriptionId: string, paymentId?: string): Promise<UserSubscription> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(subscriptionId)) {
-            throw new Error('Invalid subscription ID format');
-        }
+        if (!ValidationUtils.isValidUUID(subscriptionId)) throw new Error('Invalid subscription ID format');
 
-        // Get current subscription
         const currentSubscription = await this.getSubscriptionById(subscriptionId);
-        if (!currentSubscription) {
-            throw new Error('Subscription not found');
-        }
+        if (!currentSubscription) throw new Error('Subscription not found');
 
-        // Check if subscription can be renewed
         if (currentSubscription.Status === 'CANCELLED' && !currentSubscription.CancelAtPeriodEnd) {
             throw new Error('Cancelled subscription cannot be renewed');
         }
+        if (currentSubscription.Status === 'EXPIRED') throw new Error('Expired subscription cannot be renewed');
 
-        if (currentSubscription.Status === 'EXPIRED') {
-            throw new Error('Expired subscription cannot be renewed');
-        }
+        const currentEndDate = new Date(currentSubscription.EndDate);
+        const newStartDate = currentEndDate > new Date() ? currentEndDate : new Date();
 
-        // Calculate new dates
-        const newStartDate = currentSubscription.EndDate > new Date() ? 
-            currentSubscription.EndDate : new Date();
-        
         let newEndDate = new Date(newStartDate);
         switch (currentSubscription.BillingCycle) {
-            case 'DAILY':
-                newEndDate.setDate(newEndDate.getDate() + 1);
-                break;
-            case 'WEEKLY':
-                newEndDate.setDate(newEndDate.getDate() + 7);
-                break;
-            case 'MONTHLY':
-                newEndDate.setMonth(newEndDate.getMonth() + 1);
-                break;
-            case 'QUARTERLY':
-                newEndDate.setMonth(newEndDate.getMonth() + 3);
-                break;
-            case 'ANNUALLY':
-                newEndDate.setFullYear(newEndDate.getFullYear() + 1);
-                break;
+            case 'DAILY': newEndDate.setDate(newEndDate.getDate() + 1); break;
+            case 'WEEKLY': newEndDate.setDate(newEndDate.getDate() + 7); break;
+            case 'MONTHLY': newEndDate.setMonth(newEndDate.getMonth() + 1); break;
+            case 'QUARTERLY': newEndDate.setMonth(newEndDate.getMonth() + 3); break;
+            case 'ANNUALLY': newEndDate.setFullYear(newEndDate.getFullYear() + 1); break;
         }
 
-        const query = `
-            UPDATE UserSubscriptions 
-            SET 
-                StartDate = @newStartDate,
-                EndDate = @newEndDate,
-                Status = 'ACTIVE',
-                CancelAtPeriodEnd = 0,
-                CancelledDate = NULL,
-                RenewalAttempts = RenewalAttempts + 1,
-                LastRenewalAttempt = SYSDATETIME(),
-                PaymentId = @paymentId,
-                UpdatedAt = SYSDATETIME()
-            OUTPUT INSERTED.*
-            WHERE SubscriptionId = @subscriptionId
-        `;
+        const { data: updated, error } = await supabase
+            .from('UserSubscriptions')
+            .update({
+                StartDate: newStartDate.toISOString(),
+                EndDate: newEndDate.toISOString(),
+                Status: 'ACTIVE',
+                CancelAtPeriodEnd: false,
+                CancelledDate: null,
+                RenewalAttempts: (currentSubscription.RenewalAttempts || 0) + 1,
+                LastRenewalAttempt: new Date().toISOString(),
+                PaymentId: paymentId || null,
+                UpdatedAt: new Date().toISOString()
+            })
+            .eq('SubscriptionId', subscriptionId)
+            .select()
+            .single();
 
-        const result = await db.request()
-            .input('subscriptionId', sql.UniqueIdentifier, subscriptionId)
-            .input('newStartDate', sql.DateTime, newStartDate)
-            .input('newEndDate', sql.DateTime, newEndDate)
-            .input('paymentId', sql.UniqueIdentifier, paymentId || null)
-            .query(query);
+        if (error) throw new Error(error.message);
 
         // Create subscription event
         await this.createSubscriptionEvent(
@@ -500,33 +406,27 @@ export class UserSubscriptionsService {
             }
         );
 
-        return result.recordset[0];
+        return updated as UserSubscription;
     }
 
-    // Check usage limit - UPDATED to handle free plan
+    // Check usage limit
     async checkUsageLimit(userId: string, feature: string, requiredCount: number = 1): Promise<UsageCheckResult> {
-        
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
-        }
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        // Try to get active subscription first
         const subscription = await this.getActiveSubscription(userId);
-        
+
         if (!subscription) {
-            // No active subscription, use free plan
             return this.checkFreePlanUsage(userId, feature, requiredCount);
         }
 
-        // Get feature-specific limits from subscription plan
         const maxLimit = this.getFeatureLimit(feature, subscription);
         const currentUsage = this.getFeatureUsage(feature, subscription);
         const hasAccess = this.checkFeatureAccess(feature, subscription);
-        
+
         const remaining = maxLimit - currentUsage;
         const isGated = remaining < requiredCount;
-        const gateType = isGated ? 'HARD' : 
-                        (remaining <= (maxLimit * 0.2) ? 'SOFT' : undefined);
+        const gateType = isGated ? 'HARD' :
+            (remaining <= (maxLimit * 0.2) ? 'SOFT' : undefined);
 
         return {
             hasAccess,
@@ -542,11 +442,9 @@ export class UserSubscriptionsService {
 
     // Check usage for free plan users
     private async checkFreePlanUsage(userId: string, feature: string, requiredCount: number): Promise<UsageCheckResult> {
-        // Get free plan
         const freePlan = await subscriptionPlansService.getFreePlan();
-        
+
         if (!freePlan) {
-            // Fallback to hardcoded defaults
             return {
                 hasAccess: this.checkFeatureAccessFallback(feature),
                 isGated: false,
@@ -559,15 +457,14 @@ export class UserSubscriptionsService {
             };
         }
 
-        // Get current usage for free plan users
         const currentUsage = await this.getFreePlanUsage(userId, feature);
         const maxLimit = this.getFeatureLimit(feature, freePlan);
         const hasAccess = this.checkFeatureAccess(feature, freePlan);
-        
+
         const remaining = maxLimit - currentUsage;
         const isGated = remaining < requiredCount;
-        const gateType = isGated ? 'HARD' : 
-                        (remaining <= (maxLimit * 0.2) ? 'SOFT' : undefined);
+        const gateType = isGated ? 'HARD' :
+            (remaining <= (maxLimit * 0.2) ? 'SOFT' : undefined);
 
         return {
             hasAccess,
@@ -583,121 +480,107 @@ export class UserSubscriptionsService {
 
     // Get current usage for free plan users
     private async getFreePlanUsage(userId: string, feature: string): Promise<number> {
-        const db = await this.getDb();
-        
-        let usageQuery = '';
+        let count = 0;
+
         switch (feature) {
-            case 'PROPERTY_CREATE':
-                usageQuery = 'SELECT COUNT(*) as count FROM Properties WHERE OwnerId = @userId';
+            case 'PROPERTY_CREATE': {
+                const { count: c, error } = await supabase
+                    .from('Properties')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('OwnerId', userId);
+                if (!error) count = c || 0;
                 break;
-            case 'VISIT_SCHEDULE':
-                usageQuery = `
-                    SELECT COUNT(*) as count FROM PropertyVisits 
-                    WHERE TenantId = @userId 
-                    AND MONTH(VisitDate) = MONTH(SYSDATETIME())
-                    AND YEAR(VisitDate) = YEAR(SYSDATETIME())
-                `;
+            }
+            case 'VISIT_SCHEDULE': {
+                const now = new Date();
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+                const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+
+                const { count: c, error } = await supabase
+                    .from('PropertyVisits')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('TenantId', userId)
+                    .gte('VisitDate', startOfMonth)
+                    .lte('VisitDate', endOfMonth);
+                if (!error) count = c || 0;
                 break;
-            case 'BOOST_PROPERTY':
-                usageQuery = `
-                    SELECT COUNT(*) as count FROM Properties 
-                    WHERE OwnerId = @userId 
-                    AND IsBoosted = 1
-                    AND MONTH(CreatedAt) = MONTH(SYSDATETIME())
-                    AND YEAR(CreatedAt) = YEAR(SYSDATETIME())
-                `;
+            }
+            case 'BOOST_PROPERTY': {
+                const now = new Date();
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+                const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+
+                const { count: c, error } = await supabase
+                    .from('Properties')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('OwnerId', userId)
+                    .eq('IsBoosted', true)
+                    .gte('CreatedAt', startOfMonth)
+                    .lte('CreatedAt', endOfMonth);
+                if (!error) count = c || 0;
                 break;
+            }
             default:
-                return 0;
+                count = 0;
         }
-
-        const result = await db.request()
-            .input('userId', sql.UniqueIdentifier, userId)
-            .query(usageQuery);
-
-        return parseInt(result.recordset[0].count) || 0;
+        return count;
     }
 
     // Get feature limit from subscription plan
     private getFeatureLimit(feature: string, subscription: any): number {
         switch (feature) {
-            case 'PROPERTY_CREATE':
-                return subscription.MaxProperties || 0;
-            case 'VISIT_SCHEDULE':
-                return subscription.MaxVisitsPerMonth || 0;
-            case 'BOOST_PROPERTY':
-                return subscription.MaxBoostsPerMonth || 0;
-            case 'MEDIA_UPLOAD':
-                return subscription.MaxMediaPerProperty || 0;
-            case 'AMENITY_ADD':
-                return subscription.MaxAmenitiesPerProperty || 0;
-            default:
-                return 0;
+            case 'PROPERTY_CREATE': return subscription.MaxProperties || 0;
+            case 'VISIT_SCHEDULE': return subscription.MaxVisitsPerMonth || 0;
+            case 'BOOST_PROPERTY': return subscription.MaxBoostsPerMonth || 0;
+            case 'MEDIA_UPLOAD': return subscription.MaxMediaPerProperty || 0;
+            case 'AMENITY_ADD': return subscription.MaxAmenitiesPerProperty || 0;
+            default: return 0;
         }
     }
 
     // Get feature usage from subscription
     private getFeatureUsage(feature: string, subscription: any): number {
         switch (feature) {
-            case 'PROPERTY_CREATE':
-                return subscription.PropertiesUsed || 0;
-            case 'VISIT_SCHEDULE':
-                return subscription.VisitsUsedThisMonth || 0;
-            case 'BOOST_PROPERTY':
-                return subscription.BoostsUsedThisMonth || 0;
-            case 'MEDIA_UPLOAD':
-                return subscription.MediaUsedThisMonth || 0;
-            case 'AMENITY_ADD':
-                return subscription.AmenitiesUsedThisMonth || 0;
-            default:
-                return 0;
+            case 'PROPERTY_CREATE': return subscription.PropertiesUsed || 0;
+            case 'VISIT_SCHEDULE': return subscription.VisitsUsedThisMonth || 0;
+            case 'BOOST_PROPERTY': return subscription.BoostsUsedThisMonth || 0;
+            case 'MEDIA_UPLOAD': return subscription.MediaUsedThisMonth || 0;
+            case 'AMENITY_ADD': return subscription.AmenitiesUsedThisMonth || 0;
+            default: return 0;
         }
     }
 
     // Check feature access from subscription plan
     private checkFeatureAccess(feature: string, subscription: any): boolean {
         switch (feature) {
-            case 'BOOST_PROPERTY':
-                return subscription.AllowBoost === true;
-            case 'PREMIUM_SUPPORT':
-                return subscription.AllowPremiumSupport === true;
-            case 'ADVANCED_ANALYTICS':
-                return subscription.AllowAdvancedAnalytics === true;
-            case 'BULK_OPERATIONS':
-                return subscription.AllowBulkOperations === true;
-            default:
-                return true; // Default to allowed for basic features
+            case 'BOOST_PROPERTY': return subscription.AllowBoost === true;
+            case 'PREMIUM_SUPPORT': return subscription.AllowPremiumSupport === true;
+            case 'ADVANCED_ANALYTICS': return subscription.AllowAdvancedAnalytics === true;
+            case 'BULK_OPERATIONS': return subscription.AllowBulkOperations === true;
+            default: return true;
         }
     }
 
-    // Fallback for feature access when plan not found
     private checkFeatureAccessFallback(feature: string): boolean {
         switch (feature) {
             case 'BOOST_PROPERTY':
             case 'PREMIUM_SUPPORT':
             case 'ADVANCED_ANALYTICS':
             case 'BULK_OPERATIONS':
-                return false; // Premium features not available in free plan
+                return false;
             default:
-                return true; // Basic features allowed
+                return true;
         }
     }
 
-    // Fallback for feature limits when plan not found
     private getFeatureLimitFallback(feature: string): number {
         switch (feature) {
-            case 'PROPERTY_CREATE':
-                return 3; // Default free property limit
-            case 'VISIT_SCHEDULE':
-                return 5; // Default free visits per month
-            case 'BOOST_PROPERTY':
-                return 0; // No boosts in free plan
-            case 'MEDIA_UPLOAD':
-                return 5; // Default free media per property
-            case 'AMENITY_ADD':
-                return 10; // Default free amenities per property
-            default:
-                return 0;
+            case 'PROPERTY_CREATE': return 3;
+            case 'VISIT_SCHEDULE': return 5;
+            case 'BOOST_PROPERTY': return 0;
+            case 'MEDIA_UPLOAD': return 5;
+            case 'AMENITY_ADD': return 10;
+            default: return 0;
         }
     }
 
@@ -714,88 +597,65 @@ export class UserSubscriptionsService {
         userAgent?: string,
         metadata?: any
     ): Promise<void> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
-        }
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        // First check the limit
         const usageCheck = await this.checkUsageLimit(userId, feature, count);
-        
-        // If gated and not overridden, don't proceed
+
         if (usageCheck.isGated && !override) {
             throw new Error(`Usage limit reached for ${feature}. ${usageCheck.remaining} remaining.`);
         }
 
-        // Get subscription to update counters
         const subscription = await this.getActiveSubscription(userId);
-        
+
         if (subscription) {
-            // Update usage counters in subscription
             await this.updateSubscriptionUsage(subscription.SubscriptionId, feature, count);
         }
 
-        // Log the usage
-        await db.request()
-            .input('SubscriptionId', sql.UniqueIdentifier, subscription?.SubscriptionId || null)
-            .input('UserId', sql.UniqueIdentifier, userId)
-            .input('Feature', sql.NVarChar(50), feature)
-            .input('ResourceId', sql.UniqueIdentifier, resourceId || null)
-            .input('Action', sql.NVarChar(50), action)
-            .input('UsageCount', sql.Int, count)
-            .input('WasGated', sql.Bit, usageCheck.isGated ? 1 : 0)
-            .input('GateType', sql.NVarChar(20), usageCheck.gateType || null)
-            .input('OverrideReason', sql.NVarChar(200), overrideReason || null)
-            .input('IpAddress', sql.NVarChar(45), ipAddress || null)
-            .input('UserAgent', sql.NVarChar(500), userAgent || null)
-            .input('Metadata', sql.NVarChar, metadata ? JSON.stringify(metadata) : null)
-            .query(`
-                INSERT INTO SubscriptionUsageLogs (
-                    SubscriptionId, UserId, Feature, ResourceId, Action, 
-                    UsageCount, WasGated, GateType, OverrideReason,
-                    IpAddress, UserAgent, Metadata
-                ) VALUES (
-                    @SubscriptionId, @UserId, @Feature, @ResourceId, @Action,
-                    @UsageCount, @WasGated, @GateType, @OverrideReason,
-                    @IpAddress, @UserAgent, @Metadata
-                )
-            `);
+        const { error } = await supabase
+            .from('SubscriptionUsageLogs')
+            .insert({
+                SubscriptionId: subscription?.SubscriptionId || null,
+                UserId: userId,
+                Feature: feature,
+                ResourceId: resourceId || null,
+                Action: action,
+                UsageCount: count,
+                WasGated: usageCheck.isGated,
+                GateType: usageCheck.gateType || null,
+                OverrideReason: overrideReason || null,
+                IpAddress: ipAddress || null,
+                UserAgent: userAgent || null,
+                Metadata: metadata ? JSON.stringify(metadata) : null,
+                UsageDate: new Date().toISOString()
+            });
+
+        if (error) console.error('Error logging usage:', error);
     }
 
-    // Update subscription usage counters
     private async updateSubscriptionUsage(subscriptionId: string, feature: string, count: number): Promise<void> {
-        const db = await this.getDb();
-        
-        let updateField = '';
+        const { data: current, error: fetchError } = await supabase
+            .from('UserSubscriptions')
+            .select('*')
+            .eq('SubscriptionId', subscriptionId)
+            .single();
+
+        if (fetchError || !current) return;
+
+        const updates: any = { UpdatedAt: new Date().toISOString() };
+
         switch (feature) {
-            case 'PROPERTY_CREATE':
-                updateField = 'PropertiesUsed = PropertiesUsed + @count';
-                break;
-            case 'VISIT_SCHEDULE':
-                updateField = 'VisitsUsedThisMonth = VisitsUsedThisMonth + @count';
-                break;
-            case 'BOOST_PROPERTY':
-                updateField = 'BoostsUsedThisMonth = BoostsUsedThisMonth + @count';
-                break;
-            case 'MEDIA_UPLOAD':
-                updateField = 'MediaUsedThisMonth = MediaUsedThisMonth + @count';
-                break;
-            case 'AMENITY_ADD':
-                updateField = 'AmenitiesUsedThisMonth = AmenitiesUsedThisMonth + @count';
-                break;
-            default:
-                return;
+            case 'PROPERTY_CREATE': updates.PropertiesUsed = (current.PropertiesUsed || 0) + count; break;
+            case 'VISIT_SCHEDULE': updates.VisitsUsedThisMonth = (current.VisitsUsedThisMonth || 0) + count; break;
+            case 'BOOST_PROPERTY': updates.BoostsUsedThisMonth = (current.BoostsUsedThisMonth || 0) + count; break;
+            case 'MEDIA_UPLOAD': updates.MediaUsedThisMonth = (current.MediaUsedThisMonth || 0) + count; break;
+            case 'AMENITY_ADD': updates.AmenitiesUsedThisMonth = (current.AmenitiesUsedThisMonth || 0) + count; break;
+            default: return;
         }
 
-        await db.request()
-            .input('subscriptionId', sql.UniqueIdentifier, subscriptionId)
-            .input('count', sql.Int, count)
-            .query(`
-                UPDATE UserSubscriptions 
-                SET ${updateField}, UpdatedAt = SYSDATETIME()
-                WHERE SubscriptionId = @subscriptionId
-            `);
+        await supabase
+            .from('UserSubscriptions')
+            .update(updates)
+            .eq('SubscriptionId', subscriptionId);
     }
 
     // Get usage statistics
@@ -805,41 +665,20 @@ export class UserSubscriptionsService {
         byDay: Record<string, number>;
         gatedActions: number;
     }> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
-        }
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        let whereClause = 'WHERE UserId = @userId';
-        if (startDate) {
-            whereClause += ' AND UsageDate >= @startDate';
-        }
-        if (endDate) {
-            whereClause += ' AND UsageDate <= @endDate';
-        }
+        let query = supabase
+            .from('SubscriptionUsageLogs')
+            .select('Feature, UsageCount, WasGated, UsageDate')
+            .eq('UserId', userId)
+            .order('UsageDate', { ascending: false });
 
-        const query = `
-            SELECT 
-                Feature,
-                UsageDate,
-                SUM(UsageCount) as DailyUsage,
-                SUM(CASE WHEN WasGated = 1 THEN 1 ELSE 0 END) as GatedCount
-            FROM SubscriptionUsageLogs
-            ${whereClause}
-            GROUP BY Feature, UsageDate
-            ORDER BY UsageDate DESC, Feature ASC
-        `;
+        if (startDate) query = query.gte('UsageDate', startDate.toISOString());
+        if (endDate) query = query.lte('UsageDate', endDate.toISOString());
 
-        const request = db.request()
-            .input('userId', sql.UniqueIdentifier, userId);
-        
-        if (startDate) request.input('startDate', sql.Date, startDate);
-        if (endDate) request.input('endDate', sql.Date, endDate);
+        const { data, error } = await query;
+        if (error) throw new Error(error.message);
 
-        const result = await request.query(query);
-
-        // Aggregate results
         const statistics = {
             totalUsage: 0,
             byFeature: {} as Record<string, number>,
@@ -847,12 +686,12 @@ export class UserSubscriptionsService {
             gatedActions: 0
         };
 
-        result.recordset.forEach(row => {
-            statistics.totalUsage += row.DailyUsage;
-            statistics.byFeature[row.Feature] = (statistics.byFeature[row.Feature] || 0) + row.DailyUsage;
-            statistics.byDay[row.UsageDate.toISOString().split('T')[0]] = 
-                (statistics.byDay[row.UsageDate.toISOString().split('T')[0]] || 0) + row.DailyUsage;
-            statistics.gatedActions += row.GatedCount;
+        data.forEach((row: any) => {
+            statistics.totalUsage += row.UsageCount;
+            statistics.byFeature[row.Feature] = (statistics.byFeature[row.Feature] || 0) + row.UsageCount;
+            const dateKey = new Date(row.UsageDate).toISOString().split('T')[0];
+            statistics.byDay[dateKey] = (statistics.byDay[dateKey] || 0) + row.UsageCount;
+            if (row.WasGated) statistics.gatedActions += 1;
         });
 
         return statistics;
@@ -860,78 +699,82 @@ export class UserSubscriptionsService {
 
     // Reset monthly usage (admin only)
     async resetMonthlyUsage(): Promise<number> {
-        const db = await this.getDb();
-
-        const result = await db.request()
-            .execute('sp_ResetMonthlyUsage');
-
-        return result.rowsAffected[0];
+        console.warn('resetMonthlyUsage is not fully implemented in client-side migration. Use a database function.');
+        return 0;
     }
 
     // Get subscriptions expiring soon
     async getExpiringSubscriptions(days: number = 7): Promise<UserSubscriptionWithPlan[]> {
-        const db = await this.getDb();
+        const endDateLimit = new Date();
+        endDateLimit.setDate(endDateLimit.getDate() + days);
 
-        const query = `
-            SELECT 
-                us.*,
-                sp.DisplayName as PlanName,
-                sp.MaxProperties,
-                sp.MaxVisitsPerMonth,
-                sp.MaxMediaPerProperty,
-                sp.MaxAmenitiesPerProperty,
-                sp.AllowBoost,
-                sp.MaxBoostsPerMonth,
-                sp.AllowPremiumSupport,
-                sp.AllowAdvancedAnalytics,
-                sp.AllowBulkOperations,
-                u.Email as UserEmail
-            FROM UserSubscriptions us
-            INNER JOIN SubscriptionPlans sp ON us.PlanId = sp.PlanId
-            INNER JOIN Users u ON us.UserId = u.UserId
-            WHERE us.Status IN ('TRIAL', 'ACTIVE')
-            AND us.EndDate BETWEEN SYSDATETIME() AND DATEADD(DAY, @days, SYSDATETIME())
-            ORDER BY us.EndDate ASC
-        `;
+        const { data, error } = await supabase
+            .from('UserSubscriptions')
+            .select(`
+                *,
+                SubscriptionPlans:PlanId (*),
+                Users:UserId (Email)
+            `)
+            .in('Status', ['TRIAL', 'ACTIVE'])
+            .gt('EndDate', new Date().toISOString())
+            .lte('EndDate', endDateLimit.toISOString())
+            .order('EndDate', { ascending: true });
 
-        const result = await db.request()
-            .input('days', sql.Int, days)
-            .query(query);
+        if (error) throw new Error(error.message);
 
-        return result.recordset;
+        return data.map((sub: any) => {
+            const plan = sub.SubscriptionPlans;
+            const user = sub.Users;
+            const res: any = { ...sub };
+            delete res.SubscriptionPlans;
+            delete res.Users;
+
+            if (plan) {
+                res.PlanName = plan.DisplayName;
+                res.DisplayName = plan.DisplayName;
+            }
+            if (user) {
+                res.UserEmail = user.Email;
+            }
+            return res;
+        });
     }
 
     // Get trial subscriptions ending soon
     async getTrialEndingSubscriptions(days: number = 3): Promise<UserSubscriptionWithPlan[]> {
-        const db = await this.getDb();
+        const endDateLimit = new Date();
+        endDateLimit.setDate(endDateLimit.getDate() + days);
 
-        const query = `
-            SELECT 
-                us.*,
-                sp.DisplayName as PlanName,
-                sp.MaxProperties,
-                sp.MaxVisitsPerMonth,
-                sp.MaxMediaPerProperty,
-                sp.MaxAmenitiesPerProperty,
-                sp.AllowBoost,
-                sp.MaxBoostsPerMonth,
-                sp.AllowPremiumSupport,
-                sp.AllowAdvancedAnalytics,
-                sp.AllowBulkOperations,
-                u.Email as UserEmail
-            FROM UserSubscriptions us
-            INNER JOIN SubscriptionPlans sp ON us.PlanId = sp.PlanId
-            INNER JOIN Users u ON us.UserId = u.UserId
-            WHERE us.Status = 'TRIAL'
-            AND us.TrialEndDate BETWEEN SYSDATETIME() AND DATEADD(DAY, @days, SYSDATETIME())
-            ORDER BY us.TrialEndDate ASC
-        `;
+        const { data, error } = await supabase
+            .from('UserSubscriptions')
+            .select(`
+                *,
+                SubscriptionPlans:PlanId (*),
+                Users:UserId (Email)
+            `)
+            .eq('Status', 'TRIAL')
+            .gt('TrialEndDate', new Date().toISOString())
+            .lte('TrialEndDate', endDateLimit.toISOString())
+            .order('TrialEndDate', { ascending: true });
 
-        const result = await db.request()
-            .input('days', sql.Int, days)
-            .query(query);
+        if (error) throw new Error(error.message);
 
-        return result.recordset;
+        return data.map((sub: any) => {
+            const plan = sub.SubscriptionPlans;
+            const user = sub.Users;
+            const res: any = { ...sub };
+            delete res.SubscriptionPlans;
+            delete res.Users;
+
+            if (plan) {
+                res.PlanName = plan.DisplayName;
+                res.DisplayName = plan.DisplayName;
+            }
+            if (user) {
+                res.UserEmail = user.Email;
+            }
+            return res;
+        });
     }
 
     // Helper method to create subscription events
@@ -941,17 +784,15 @@ export class UserSubscriptionsService {
         eventType: string,
         eventData: any
     ): Promise<void> {
-        const db = await this.getDb();
-
-        await db.request()
-            .input('EventType', sql.NVarChar(50), eventType)
-            .input('SubscriptionId', sql.UniqueIdentifier, subscriptionId)
-            .input('UserId', sql.UniqueIdentifier, userId)
-            .input('EventData', sql.NVarChar, JSON.stringify(eventData))
-            .query(`
-                INSERT INTO SubscriptionEvents (EventType, SubscriptionId, UserId, EventData)
-                VALUES (@EventType, @SubscriptionId, @UserId, @EventData)
-            `);
+        await supabase
+            .from('SubscriptionEvents')
+            .insert({
+                EventType: eventType,
+                SubscriptionId: subscriptionId,
+                UserId: userId,
+                EventData: JSON.stringify(eventData),
+                CreatedAt: new Date().toISOString()
+            });
     }
 
     // Get subscription summary for dashboard
@@ -970,14 +811,16 @@ export class UserSubscriptionsService {
             allowAdvancedAnalytics: boolean;
             allowBulkOperations: boolean;
         };
-        nextReset: Date;
+        nextReset: string;
     }> {
         const subscription = await this.getActiveSubscription(userId);
-        
+
         if (!subscription) {
             // Return free plan summary
             const freePlan = await subscriptionPlansService.getFreePlan();
-            
+            const nextResetDate = new Date();
+            nextResetDate.setDate(nextResetDate.getDate() + 30);
+
             return {
                 subscription: null,
                 usage: {
@@ -993,37 +836,37 @@ export class UserSubscriptionsService {
                     allowAdvancedAnalytics: freePlan?.AllowAdvancedAnalytics || false,
                     allowBulkOperations: freePlan?.AllowBulkOperations || false
                 },
-                nextReset: new Date(new Date().setDate(new Date().getDate() + 30)) // Next month
+                nextReset: nextResetDate.toISOString()
             };
         }
 
         return {
             subscription,
             usage: {
-                properties: { 
-                    used: subscription.PropertiesUsed, 
-                    limit: subscription.MaxProperties || 0, 
-                    remaining: Math.max(0, (subscription.MaxProperties || 0) - subscription.PropertiesUsed) 
+                properties: {
+                    used: subscription.PropertiesUsed,
+                    limit: subscription.MaxProperties || 0,
+                    remaining: Math.max(0, (subscription.MaxProperties || 0) - subscription.PropertiesUsed)
                 },
-                visits: { 
-                    used: subscription.VisitsUsedThisMonth, 
-                    limit: subscription.MaxVisitsPerMonth || 0, 
-                    remaining: Math.max(0, (subscription.MaxVisitsPerMonth || 0) - subscription.VisitsUsedThisMonth) 
+                visits: {
+                    used: subscription.VisitsUsedThisMonth,
+                    limit: subscription.MaxVisitsPerMonth || 0,
+                    remaining: Math.max(0, (subscription.MaxVisitsPerMonth || 0) - subscription.VisitsUsedThisMonth)
                 },
-                boosts: { 
-                    used: subscription.BoostsUsedThisMonth, 
-                    limit: subscription.MaxBoostsPerMonth || 0, 
-                    remaining: Math.max(0, (subscription.MaxBoostsPerMonth || 0) - subscription.BoostsUsedThisMonth) 
+                boosts: {
+                    used: subscription.BoostsUsedThisMonth,
+                    limit: subscription.MaxBoostsPerMonth || 0,
+                    remaining: Math.max(0, (subscription.MaxBoostsPerMonth || 0) - subscription.BoostsUsedThisMonth)
                 },
-                media: { 
-                    used: subscription.MediaUsedThisMonth, 
-                    limit: subscription.MaxMediaPerProperty || 0, 
-                    remaining: Math.max(0, (subscription.MaxMediaPerProperty || 0) - subscription.MediaUsedThisMonth) 
+                media: {
+                    used: subscription.MediaUsedThisMonth,
+                    limit: subscription.MaxMediaPerProperty || 0,
+                    remaining: Math.max(0, (subscription.MaxMediaPerProperty || 0) - subscription.MediaUsedThisMonth)
                 },
-                amenities: { 
-                    used: subscription.AmenitiesUsedThisMonth, 
-                    limit: subscription.MaxAmenitiesPerProperty || 0, 
-                    remaining: Math.max(0, (subscription.MaxAmenitiesPerProperty || 0) - subscription.AmenitiesUsedThisMonth) 
+                amenities: {
+                    used: subscription.AmenitiesUsedThisMonth,
+                    limit: subscription.MaxAmenitiesPerProperty || 0,
+                    remaining: Math.max(0, (subscription.MaxAmenitiesPerProperty || 0) - subscription.AmenitiesUsedThisMonth)
                 }
             },
             features: {

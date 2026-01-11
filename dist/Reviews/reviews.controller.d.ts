@@ -12,6 +12,9 @@ export declare const createReview: (c: Context) => Promise<(Response & import("h
         Comment: string;
         CreatedAt: string;
         UpdatedAt: string;
+        ReviewerName?: string | undefined;
+        AgentName?: string | undefined;
+        PropertyTitle?: string | undefined;
     };
 }, 201, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -52,6 +55,9 @@ export declare const getReviewsByAgentId: (c: Context) => Promise<(Response & im
         Comment: string;
         CreatedAt: string;
         UpdatedAt: string;
+        ReviewerName?: string | undefined;
+        AgentName?: string | undefined;
+        PropertyTitle?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -69,6 +75,9 @@ export declare const getReviewsByPropertyId: (c: Context) => Promise<(Response &
         Comment: string;
         CreatedAt: string;
         UpdatedAt: string;
+        ReviewerName?: string | undefined;
+        AgentName?: string | undefined;
+        PropertyTitle?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -87,6 +96,9 @@ export declare const updateReview: (c: Context) => Promise<(Response & import("h
         Comment: string;
         CreatedAt: string;
         UpdatedAt: string;
+        ReviewerName?: string | undefined;
+        AgentName?: string | undefined;
+        PropertyTitle?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -140,6 +152,9 @@ export declare const getRecentReviews: (c: Context) => Promise<(Response & impor
         Comment: string;
         CreatedAt: string;
         UpdatedAt: string;
+        ReviewerName?: string | undefined;
+        AgentName?: string | undefined;
+        PropertyTitle?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;

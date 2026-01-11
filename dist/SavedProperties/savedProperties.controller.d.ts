@@ -29,8 +29,12 @@ export declare const getSavedPropertiesByUserId: (c: Context) => Promise<(Respon
         County?: string | undefined;
         Area?: string | undefined;
         PropertyType?: string | undefined;
+        PrimaryImageUrl?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
+    error: any;
+}, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: string;
 }, 500, "json">)>;

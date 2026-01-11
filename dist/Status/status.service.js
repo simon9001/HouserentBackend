@@ -1,53 +1,63 @@
-import sql from "mssql";
-import { getConnectionPool } from "../Database/config.js";
+import { supabase } from '../Database/config.js';
+import { ValidationUtils } from '../utils/validators.js';
 export class StatusService {
     async createStatus(statusData) {
-        const pool = getConnectionPool();
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
-        const result = await pool.request()
-            .input("UserId", sql.UniqueIdentifier, statusData.UserId)
-            .input("MediaUrl", sql.NVarChar, statusData.MediaUrl)
-            .input("TextContent", sql.NVarChar, statusData.TextContent)
-            .input("BackgroundColor", sql.NVarChar, statusData.BackgroundColor)
-            .input("Type", sql.NVarChar, statusData.Type)
-            .input("ExpiresAt", sql.DateTime2, expiresAt)
-            .query(`
-                INSERT INTO UserStatus (UserId, MediaUrl, TextContent, BackgroundColor, Type, ExpiresAt)
-                OUTPUT INSERTED.*
-                VALUES (@UserId, @MediaUrl, @TextContent, @BackgroundColor, @Type, @ExpiresAt)
-            `);
-        return result.recordset[0];
+        if (!ValidationUtils.isValidUUID(statusData.UserId))
+            throw new Error('Invalid User ID');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
+        const { data, error } = await supabase
+            .from('UserStatus')
+            .insert({
+            UserId: statusData.UserId,
+            MediaUrl: statusData.MediaUrl,
+            TextContent: statusData.TextContent,
+            BackgroundColor: statusData.BackgroundColor,
+            Type: statusData.Type,
+            ExpiresAt: expiresAt,
+            CreatedAt: new Date().toISOString(),
+            IsActive: true
+        })
+            .select()
+            .single();
+        if (error)
+            throw new Error(error.message);
+        return data;
     }
     async getActiveStatuses() {
-        const pool = getConnectionPool();
         // Fetch active statuses that haven't expired
-        // Grouping by User could be done here or in frontend
-        const result = await pool.request()
-            .query(`
-                SELECT 
-                    s.*,
-                    u.Username,
-                    u.FullName,
-                    u.Role
-                    -- Add User Avatar URL if available in Users table or related table
-                FROM UserStatus s
-                INNER JOIN Users u ON s.UserId = u.UserId
-                WHERE s.IsActive = 1 
-                AND s.ExpiresAt > SYSDATETIME()
-                ORDER BY s.CreatedAt DESC
-            `);
-        return result.recordset;
+        const { data, error } = await supabase
+            .from('UserStatus')
+            .select(`
+                *,
+                Users:UserId (Username, FullName, Role)
+            `)
+            .eq('IsActive', true)
+            .gt('ExpiresAt', new Date().toISOString())
+            .order('CreatedAt', { ascending: false });
+        if (error)
+            throw new Error(error.message);
+        return data.map((item) => {
+            const res = { ...item };
+            if (res.Users) {
+                res.Username = res.Users.Username;
+                res.FullName = res.Users.FullName;
+                res.Role = res.Users.Role;
+                delete res.Users;
+            }
+            return res;
+        });
     }
     async deleteStatus(statusId, userId) {
-        const pool = getConnectionPool();
-        await pool.request()
-            .input("StatusId", sql.UniqueIdentifier, statusId)
-            .input("UserId", sql.UniqueIdentifier, userId)
-            .query(`
-                UPDATE UserStatus 
-                SET IsActive = 0 
-                WHERE StatusId = @StatusId AND UserId = @UserId
-            `);
+        if (!ValidationUtils.isValidUUID(statusId) || !ValidationUtils.isValidUUID(userId)) {
+            throw new Error('Invalid ID format');
+        }
+        const { error } = await supabase
+            .from('UserStatus')
+            .update({ IsActive: false })
+            .eq('StatusId', statusId)
+            .eq('UserId', userId);
+        if (error)
+            throw new Error(error.message);
     }
 }
 //# sourceMappingURL=status.service.js.map

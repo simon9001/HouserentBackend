@@ -1,0 +1,59 @@
+
+> kajayangu-backend@1.0.0 build
+> tsc
+
+src/admin/adminController.ts(34,5): error TS2724: '"./adminService.js"' has no exported member named 'getSubscriptionPaymentHistoryService'. Did you mean 'getSubscriptionPlansService'?
+src/admin/adminController.ts(116,38): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(117,45): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(490,77): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(510,91): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(553,61): error TS2554: Expected 0 arguments, but got 4.
+src/admin/adminController.ts(585,59): error TS2554: Expected 0 arguments, but got 4.
+src/admin/adminController.ts(620,13): error TS2554: Expected 0 arguments, but got 6.
+src/admin/adminController.ts(738,13): error TS2554: Expected 0 arguments, but got 5.
+src/admin/adminController.ts(783,13): error TS2554: Expected 0 arguments, but got 8.
+src/admin/adminController.ts(828,13): error TS2554: Expected 0 arguments, but got 5.
+src/admin/adminController.ts(870,13): error TS2554: Expected 0 arguments, but got 5.
+src/admin/adminController.ts(925,13): error TS2554: Expected 0 arguments, but got 2.
+src/admin/adminController.ts(997,38): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(998,45): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(1092,44): error TS2554: Expected 0 arguments, but got 2.
+src/admin/adminController.ts(1093,45): error TS2554: Expected 0 arguments, but got 2.
+src/admin/adminController.ts(1138,38): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(1139,45): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(1140,42): error TS2554: Expected 0 arguments, but got 4.
+src/admin/adminService.ts(168,5): error TS2300: Duplicate identifier 'allowAdvancedAnalytics'.
+src/admin/adminService.ts(169,5): error TS2300: Duplicate identifier 'allowAdvancedAnalytics'.
+src/admin/adminService.ts(696,15): error TS6133: 'avgRevenuePerUser' is declared but its value is never read.
+src/admin/adminService.ts(705,13): error TS2552: Cannot find name 'averageRevenuePerUser'. Did you mean 'avgRevenuePerUser'?
+src/admin/adminService.ts(791,48): error TS6133: 'days' is declared but its value is never read.
+src/AgentVerification/agentService.ts(72,40): error TS6133: 'existingError' is declared but its value is never read.
+src/Auth/auth.service.ts(9,1): error TS6133: 'env' is declared but its value is never read.
+src/index.ts(92,1): error TS2349: This expression is not callable.
+  Type 'SupabaseClient<any, "public", "public", any, any>' has no call signatures.
+src/index.ts(104,11): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/Messages/message.service.ts(69,40): error TS6133: 'fetchError' is declared but its value is never read.
+src/Payments/payments.service.ts(205,65): error TS2367: This comparison appears to be unintentional because the types '"PENDING" | "FAILED" | "REFUNDED"' and '"COMPLETED"' have no overlap.
+src/Properties/properties.service.ts(417,15): error TS6133: 'queries' is declared but its value is never read.
+src/PropertyAmenities/propertyAmenities.controller.ts(65,56): error TS2339: Property 'getAmenityById' does not exist on type 'PropertyAmenitiesService'.
+src/PropertyAmenities/propertyAmenities.controller.ts(132,63): error TS2339: Property 'updateAmenity' does not exist on type 'PropertyAmenitiesService'.
+src/PropertyAmenities/propertyAmenities.controller.ts(225,65): error TS2339: Property 'createBulkAmenities' does not exist on type 'PropertyAmenitiesService'.
+src/PropertyAmenities/propertyAmenities.controller.ts(311,58): error TS2339: Property 'searchAmenities' does not exist on type 'PropertyAmenitiesService'.
+src/PropertyAmenities/propertyAmenities.controller.ts(340,54): error TS2339: Property 'getAmenitiesStatistics' does not exist on type 'PropertyAmenitiesService'.
+src/PropertyMedia/propertyMedia.controller.ts(2,50): error TS2724: '"./propertyMedia.service.js"' has no exported member named 'UpdateMediaInput'. Did you mean 'CreateMediaInput'?
+src/PropertyMedia/propertyMedia.controller.ts(46,50): error TS2339: Property 'createMedia' does not exist on type 'PropertyMediaService'.
+src/PropertyMedia/propertyMedia.controller.ts(84,50): error TS2339: Property 'getMediaById' does not exist on type 'PropertyMediaService'.
+src/PropertyMedia/propertyMedia.controller.ts(167,57): error TS2339: Property 'updateMedia' does not exist on type 'PropertyMediaService'.
+src/PropertyMedia/propertyMedia.controller.ts(254,57): error TS2554: Expected 2 arguments, but got 1.
+src/PropertyMedia/propertyMedia.controller.ts(256,14): error TS1345: An expression of type 'void' cannot be tested for truthiness.
+src/PropertyMedia/propertyMedia.controller.ts(298,57): error TS2551: Property 'getPrimaryMedia' does not exist on type 'PropertyMediaService'. Did you mean 'setPrimaryMedia'?
+src/PropertyMedia/propertyMedia.controller.ts(360,57): error TS2339: Property 'createBulkMedia' does not exist on type 'PropertyMediaService'.
+src/PropertyMedia/propertyMedia.controller.ts(389,50): error TS2339: Property 'getMediaStatistics' does not exist on type 'PropertyMediaService'.
+src/PropertyVisits/propertyVisits.service.ts(221,15): error TS6133: 'counterpartAlias' is declared but its value is never read.
+src/PropertyVisits/propertyVisits.service.ts(222,15): error TS6133: 'counterpartFk' is declared but its value is never read.
+src/PropertyVisits/propertyVisits.service.ts(285,18): error TS6196: 'VisitStatus' is declared but never used.
+src/PropertyVisits/propertyVisits.service.ts(385,32): error TS2554: Expected 0-1 arguments, but got 2.
+src/PropertyVisits/propertyVisits.service.ts(407,32): error TS2554: Expected 0-1 arguments, but got 2.
+src/Subscription/subscriptionPlans.service.ts(221,31): error TS2554: Expected 0-1 arguments, but got 2.
+src/UserSessions/userSessions.service.ts(140,34): error TS2554: Expected 0-1 arguments, but got 2.
+src/UserSessions/userSessions.service.ts(159,66): error TS2554: Expected 0-1 arguments, but got 2.

@@ -1,0 +1,52 @@
+
+> kajayangu-backend@1.0.0 build
+> tsc
+
+src/admin/adminController.ts(116,38): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(117,45): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(490,77): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(510,91): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(553,61): error TS2554: Expected 0 arguments, but got 4.
+src/admin/adminController.ts(585,59): error TS2554: Expected 0 arguments, but got 4.
+src/admin/adminController.ts(620,13): error TS2554: Expected 0 arguments, but got 6.
+src/admin/adminController.ts(738,13): error TS2554: Expected 0 arguments, but got 5.
+src/admin/adminController.ts(783,13): error TS2554: Expected 0 arguments, but got 8.
+src/admin/adminController.ts(828,13): error TS2554: Expected 0 arguments, but got 5.
+src/admin/adminController.ts(870,13): error TS2554: Expected 0 arguments, but got 5.
+src/admin/adminController.ts(925,13): error TS2554: Expected 0 arguments, but got 2.
+src/admin/adminController.ts(956,15): error TS2740: Type '{ payments: PaymentHistory[]; total: number; }' is missing the following properties from type 'PaymentHistory[]': length, pop, push, concat, and 29 more.
+src/admin/adminController.ts(957,13): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'number | undefined'.
+  Type 'string' is not assignable to type 'number'.
+src/admin/adminController.ts(997,38): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(998,45): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(1092,44): error TS2554: Expected 0 arguments, but got 2.
+src/admin/adminController.ts(1093,45): error TS2554: Expected 0 arguments, but got 2.
+src/admin/adminController.ts(1138,38): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(1139,45): error TS2554: Expected 0 arguments, but got 1.
+src/admin/adminController.ts(1140,42): error TS2554: Expected 0 arguments, but got 4.
+src/admin/adminService.ts(695,15): error TS6133: 'avgRevenuePerUser' is declared but its value is never read.
+src/admin/adminService.ts(704,13): error TS2552: Cannot find name 'averageRevenuePerUser'. Did you mean 'avgRevenuePerUser'?
+src/admin/adminService.ts(790,48): error TS6133: 'days' is declared but its value is never read.
+src/admin/adminService.ts(863,5): error TS6133: 'page' is declared but its value is never read.
+src/admin/adminService.ts(864,5): error TS6133: 'limit' is declared but its value is never read.
+src/admin/adminService.ts(865,5): error TS6133: 'userId' is declared but its value is never read.
+src/AgentVerification/agentService.ts(72,40): error TS6133: 'existingError' is declared but its value is never read.
+src/Auth/auth.service.ts(9,1): error TS6133: 'env' is declared but its value is never read.
+src/index.ts(29,7): error TS6133: 'initDatabaseConnection' is declared but its value is never read.
+src/Messages/message.service.ts(69,40): error TS6133: 'fetchError' is declared but its value is never read.
+src/Payments/payments.service.ts(205,65): error TS2367: This comparison appears to be unintentional because the types '"PENDING" | "FAILED" | "REFUNDED"' and '"COMPLETED"' have no overlap.
+src/Properties/properties.service.ts(417,15): error TS6133: 'queries' is declared but its value is never read.
+src/PropertyAmenities/propertyAmenities.controller.ts(313,13): error TS2554: Expected 1 arguments, but got 2.
+src/PropertyAmenities/propertyAmenities.controller.ts(340,77): error TS2554: Expected 0 arguments, but got 1.
+src/PropertyMedia/propertyMedia.controller.ts(254,57): error TS2554: Expected 2 arguments, but got 1.
+src/PropertyMedia/propertyMedia.controller.ts(256,14): error TS1345: An expression of type 'void' cannot be tested for truthiness.
+src/PropertyMedia/propertyMedia.controller.ts(360,57): error TS2554: Expected 2 arguments, but got 1.
+src/PropertyMedia/propertyMedia.controller.ts(389,69): error TS2554: Expected 0 arguments, but got 1.
+src/PropertyVisits/propertyVisits.service.ts(221,15): error TS6133: 'counterpartAlias' is declared but its value is never read.
+src/PropertyVisits/propertyVisits.service.ts(222,15): error TS6133: 'counterpartFk' is declared but its value is never read.
+src/PropertyVisits/propertyVisits.service.ts(285,18): error TS6196: 'VisitStatus' is declared but never used.
+src/PropertyVisits/propertyVisits.service.ts(385,32): error TS2554: Expected 0-1 arguments, but got 2.
+src/PropertyVisits/propertyVisits.service.ts(407,32): error TS2554: Expected 0-1 arguments, but got 2.
+src/Subscription/subscriptionPlans.service.ts(221,31): error TS2554: Expected 0-1 arguments, but got 2.
+src/UserSessions/userSessions.service.ts(140,34): error TS2554: Expected 0-1 arguments, but got 2.
+src/UserSessions/userSessions.service.ts(159,66): error TS2554: Expected 0-1 arguments, but got 2.

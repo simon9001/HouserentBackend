@@ -1,5 +1,4 @@
-import sql from 'mssql';
-import { getConnectionPool } from '../Database/config.js';
+import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 
 export interface PropertyVisit {
@@ -7,15 +6,19 @@ export interface PropertyVisit {
     PropertyId: string;
     TenantId: string;
     AgentId: string;
-    VisitDate: Date;
+    VisitDate: string; // ISO String for Supabase
     VisitPurpose: string;
     TenantNotes: string;
     AgentNotes: string;
-    CheckInTime: Date;
-    CheckOutTime: Date;
+    CheckInTime: string | null;
+    CheckOutTime: string | null;
     Status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'NO_SHOW';
-    CreatedAt: Date;
-    UpdatedAt: Date;
+    CreatedAt: string;
+    UpdatedAt: string;
+    // Joins
+    PropertyTitle?: string;
+    TenantName?: string;
+    AgentName?: string;
 }
 
 export interface CreateVisitInput {
@@ -37,53 +40,41 @@ export interface UpdateVisitInput {
 }
 
 export class PropertyVisitsService {
-    private db: sql.ConnectionPool | null = null;
-
-    constructor() {
-        // Lazy initialization
-    }
-
-    private async getDb(): Promise<sql.ConnectionPool> {
-        if (!this.db) {
-            this.db = getConnectionPool();
-        }
-        return this.db;
-    }
 
     // Create new property visit
     async createVisit(data: CreateVisitInput): Promise<PropertyVisit> {
-        const db = await this.getDb();
-
         // Validate property exists
-        const propertyCheck = await db.request()
-            .input('propertyId', sql.UniqueIdentifier, data.propertyId)
-            .query('SELECT PropertyId FROM Properties WHERE PropertyId = @propertyId');
+        const { data: prop, error: propError } = await supabase
+            .from('Properties')
+            .select('PropertyId')
+            .eq('PropertyId', data.propertyId)
+            .single();
 
-        if (propertyCheck.recordset.length === 0) {
-            throw new Error('Property not found');
-        }
+        if (propError || !prop) throw new Error('Property not found');
 
         // Validate tenant exists and is a tenant
-        const tenantCheck = await db.request()
-            .input('tenantId', sql.UniqueIdentifier, data.tenantId)
-            .query('SELECT UserId, Role FROM Users WHERE UserId = @tenantId AND IsActive = 1');
+        const { data: tenant, error: tenantError } = await supabase
+            .from('Users')
+            .select('UserId, Role')
+            .eq('UserId', data.tenantId)
+            .eq('IsActive', true)
+            .single();
 
-        if (tenantCheck.recordset.length === 0) {
-            throw new Error('Tenant not found or inactive');
-        }
-        if (tenantCheck.recordset[0].Role !== 'TENANT') {
-            throw new Error('User is not a tenant');
-        }
+        if (tenantError || !tenant) throw new Error('Tenant not found or inactive');
+        if (tenant.Role !== 'TENANT') throw new Error('User is not a tenant');
 
         // Validate agent exists and is approved
-        const agentCheck = await db.request()
-            .input('agentId', sql.UniqueIdentifier, data.agentId)
-            .query('SELECT UserId, Role, AgentStatus FROM Users WHERE UserId = @agentId AND IsActive = 1');
+        const { data: agent, error: agentError } = await supabase
+            .from('Users')
+            .select('UserId, Role, AgentStatus')
+            .eq('UserId', data.agentId)
+            .eq('IsActive', true)
+            .single();
 
-        if (agentCheck.recordset.length === 0) {
-            throw new Error('Agent not found or inactive');
-        }
-        if (agentCheck.recordset[0].Role !== 'AGENT' || agentCheck.recordset[0].AgentStatus !== 'APPROVED') {
+        if (agentError || !agent) throw new Error('Agent not found or inactive');
+        // Assuming AgentStatus check is required.
+        // Supabase query case sensitive? AgentStatus usually uppercase.
+        if (agent.Role !== 'AGENT' || agent.AgentStatus !== 'APPROVED') {
             throw new Error('Agent is not approved');
         }
 
@@ -92,134 +83,207 @@ export class PropertyVisitsService {
             throw new Error('Visit date must be in the future');
         }
 
-        const query = `
-            DECLARE @InsertedRows TABLE (VisitId UNIQUEIDENTIFIER);
-            INSERT INTO PropertyVisits (PropertyId, TenantId, AgentId, VisitDate, VisitPurpose, TenantNotes, Status)
-            OUTPUT INSERTED.VisitId INTO @InsertedRows
-            VALUES (@propertyId, @tenantId, @agentId, @visitDate, @visitPurpose, @tenantNotes, 'PENDING');
+        const { data: newVisit, error } = await supabase
+            .from('PropertyVisits')
+            .insert({
+                PropertyId: data.propertyId,
+                TenantId: data.tenantId,
+                AgentId: data.agentId,
+                VisitDate: data.visitDate.toISOString(),
+                VisitPurpose: data.visitPurpose || null,
+                TenantNotes: data.tenantNotes || null,
+                Status: 'PENDING',
+                CreatedAt: new Date().toISOString(),
+                UpdatedAt: new Date().toISOString()
+            })
+            .select()
+            .single();
 
-            SELECT * FROM PropertyVisits WHERE VisitId = (SELECT TOP 1 VisitId FROM @InsertedRows);
-        `;
+        if (error) throw new Error(error.message);
 
-        const result = await db.request()
-            .input('propertyId', sql.UniqueIdentifier, data.propertyId)
-            .input('tenantId', sql.UniqueIdentifier, data.tenantId)
-            .input('agentId', sql.UniqueIdentifier, data.agentId)
-            .input('visitDate', sql.DateTime, data.visitDate)
-            .input('visitPurpose', sql.NVarChar(200), data.visitPurpose || null)
-            .input('tenantNotes', sql.NVarChar(500), data.tenantNotes || null)
-            .query(query);
-
-        return result.recordset[0];
+        return newVisit as PropertyVisit;
     }
 
     // Get visit by ID
-    async getVisitById(visitId: string): Promise<PropertyVisit & { PropertyTitle?: string; TenantName?: string; AgentName?: string }> {
-        const db = await this.getDb();
+    async getVisitById(visitId: string): Promise<PropertyVisit | null> {
+        if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
 
-        if (!ValidationUtils.isValidUUID(visitId)) {
-            throw new Error('Invalid visit ID format');
+        const { data, error } = await supabase
+            .from('PropertyVisits')
+            .select(`
+                *,
+                Properties:PropertyId (Title),
+                Tenant:TenantId (FullName),
+                Agent:AgentId (FullName)
+            `)
+            .eq('VisitId', visitId)
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw new Error(error.message);
         }
 
-        const query = `
-            SELECT 
-                pv.*,
-                p.Title as PropertyTitle,
-                ut.FullName as TenantName,
-                ua.FullName as AgentName
-            FROM PropertyVisits pv
-            INNER JOIN Properties p ON pv.PropertyId = p.PropertyId
-            INNER JOIN Users ut ON pv.TenantId = ut.UserId
-            INNER JOIN Users ua ON pv.AgentId = ua.UserId
-            WHERE pv.VisitId = @visitId
-        `;
+        // Map joins
+        const result: any = { ...data };
+        if (data.Properties) {
+            result.PropertyTitle = data.Properties.Title;
+            delete result.Properties;
+        }
+        // Tenant/Agent are aliases for Users table relation
+        // We need to ensure aliases work in config or if relying on Relation names.
+        // Assuming 'Tenant' and 'Agent' relations are set up or we rely on User:TenantId logic.
+        // Supabase JS often needs precise relation name or standard naming.
+        // If relations are not named, we use `Users!TenantId(FullName)`.
 
-        const result = await db.request()
-            .input('visitId', sql.UniqueIdentifier, visitId)
-            .query(query);
+        // Re-query with specific embedding syntax that is safer:
+        // `Tenant:Users!TenantId (FullName)`, `Agent:Users!AgentId (FullName)`
+        // BUT if FK name matches User, it might auto-detect.
+        // Let's assume standard embedding: `Users!TenantId`.
 
-        return result.recordset[0] || null;
+        return this.mapVisitJoins(data);
+    }
+
+    // Check internal mapping helper
+    private mapVisitJoins(data: any): PropertyVisit {
+        const res: any = { ...data };
+
+        // Handle potentially different shape depending on query
+        if (res.Properties) {
+            res.PropertyTitle = res.Properties.Title;
+            delete res.Properties;
+        }
+
+        // If we used aliases in query:
+        if (res.Tenant) { // From Tenant:Users!TenantId
+            res.TenantName = res.Tenant.FullName;
+            delete res.Tenant;
+        } else if (res.Users) {
+            // If multiple users joined without alias, it becomes an array or object, complicated.
+            // I will use explicit aliases in queries below.
+        }
+
+        if (res.Agent) {
+            res.AgentName = res.Agent.FullName;
+            delete res.Agent;
+        }
+
+        return res as PropertyVisit;
     }
 
     // Get visits by property ID
     async getVisitsByPropertyId(propertyId: string, status?: string): Promise<PropertyVisit[]> {
-        const db = await this.getDb();
+        if (!ValidationUtils.isValidUUID(propertyId)) throw new Error('Invalid property ID format');
 
-        if (!ValidationUtils.isValidUUID(propertyId)) {
-            throw new Error('Invalid property ID format');
-        }
-
-        let whereClause = 'WHERE pv.PropertyId = @propertyId';
-        if (status) {
-            whereClause += ' AND pv.Status = @status';
-        }
-
-        const query = `
-            SELECT pv.*, u.FullName as TenantName
-            FROM PropertyVisits pv
-            INNER JOIN Users u ON pv.TenantId = u.UserId
-            ${whereClause}
-            ORDER BY pv.VisitDate DESC
-        `;
-
-        const request = db.request()
-            .input('propertyId', sql.UniqueIdentifier, propertyId);
+        let query = supabase
+            .from('PropertyVisits')
+            .select(`
+                *,
+                Tenant:TenantId (FullName)
+            `) // Tenant name needed
+            .eq('PropertyId', propertyId)
+            .order('VisitDate', { ascending: false });
 
         if (status) {
-            request.input('status', sql.NVarChar(20), status);
+            query = query.eq('Status', status);
         }
 
-        const result = await request.query(query);
-        return result.recordset;
+        const { data, error } = await query;
+        if (error) throw new Error(error.message);
+
+        // Map relations
+        // We only fetched Tenant name per requirement `u.FullName as TenantName`
+        return data.map((v: any) => {
+            const res = { ...v };
+            if (res.Tenant) { // Supabase returns object for foreign key alias
+                res.TenantName = res.Tenant.FullName; // Assuming Tenant is `Users`
+                delete res.Tenant;
+            } else if (res.Users) { // Fallback if alias failed
+                if (Array.isArray(res.Users)) {
+                    // Should not happen with single FK unless misconfigured
+                } else {
+                    res.TenantName = res.Users.FullName;
+                }
+                delete res.Users;
+            }
+            return res;
+        });
     }
 
     // Get visits by user ID (as tenant or agent)
     async getVisitsByUserId(userId: string, role: 'tenant' | 'agent' = 'tenant'): Promise<PropertyVisit[]> {
-        const db = await this.getDb();
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
-        }
+        // We need PropertyTitle, and Counterpart Name.
+        // If role=tenant, fetch Agent Name.
+        // If role=agent, fetch Tenant Name.
 
-        const column = role === 'tenant' ? 'TenantId' : 'AgentId';
+        const counterpartAlias = role === 'tenant' ? 'Agent' : 'Tenant';
+        const counterpartFk = role === 'tenant' ? 'AgentId' : 'TenantId';
+        const filterCol = role === 'tenant' ? 'TenantId' : 'AgentId';
 
-        const query = `
-            SELECT pv.*, p.Title as PropertyTitle, u.FullName as ${role === 'tenant' ? 'AgentName' : 'TenantName'}
-            FROM PropertyVisits pv
-            INNER JOIN Properties p ON pv.PropertyId = p.PropertyId
-            INNER JOIN Users u ON pv.${column === 'TenantId' ? 'AgentId' : 'TenantId'} = u.UserId
-            WHERE pv.${column} = @userId
-            ORDER BY pv.VisitDate DESC
-        `;
+        // Construct query
+        // select = *, Properties(Title), Counterpart:CounterpartFK (FullName)
+        // Note: Supabase embedding: `Users!FK`
+        // We use alias: `Users!AgentId` -> `Agent`
 
-        const result = await db.request()
-            .input('userId', sql.UniqueIdentifier, userId)
-            .query(query);
+        // Wait, `Users!AgentId` works? `Users!PropertyVisits_AgentId_fkey` maybe needed if ambiguous.
+        // I will try simple `Users!AgentId` 
 
-        return result.recordset;
+        const embedding = role === 'tenant'
+            ? `Agent:Users!AgentId (FullName)`
+            : `Tenant:Users!TenantId (FullName)`;
+
+        const { data, error } = await supabase
+            .from('PropertyVisits')
+            .select(`
+                *,
+                Properties:PropertyId (Title),
+                ${embedding}
+            `)
+            .eq(filterCol, userId)
+            .order('VisitDate', { ascending: false });
+
+        if (error) throw new Error(error.message);
+
+        return data.map((v: any) => {
+            const res: any = { ...v };
+            if (res.Properties) {
+                res.PropertyTitle = res.Properties.Title;
+                delete res.Properties;
+            }
+            if (role === 'tenant' && res.Agent) {
+                res.AgentName = res.Agent.FullName;
+                delete res.Agent;
+            } else if (role === 'agent' && res.Tenant) {
+                res.TenantName = res.Tenant.FullName;
+                delete res.Tenant;
+            }
+            return res;
+        });
     }
 
-    // Update visit - FIXED VERSION
+    // Update visit
     async updateVisit(visitId: string, data: UpdateVisitInput): Promise<PropertyVisit> {
-        const db = await this.getDb();
+        if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
 
-        if (!ValidationUtils.isValidUUID(visitId)) {
-            throw new Error('Invalid visit ID format');
-        }
+        // Get current visit with fully qualified getter
+        // Note: We need just the status first efficiently? Or minimal fields.
+        // But `getVisitById` is fine, we need to return full object anyway potentially?
+        // Actually we need to return updated object.
 
-        // Get current visit
-        const currentVisit = await this.getVisitById(visitId);
-        if (!currentVisit) {
-            throw new Error('Visit not found');
-        }
+        const { data: currentVisit, error: fetchError } = await supabase
+            .from('PropertyVisits')
+            .select('Status')
+            .eq('VisitId', visitId)
+            .single();
 
-        // Validate status transitions - FIXED TYPE ISSUE
+        if (fetchError || !currentVisit) throw new Error('Visit not found');
+
+        // Validate status transitions
         if (data.status) {
-            // Define validTransitions with explicit type
             type VisitStatus = PropertyVisit['Status'];
-            type StatusTransitions = Record<VisitStatus, VisitStatus[]>;
-
-            const validTransitions: StatusTransitions = {
+            const validTransitions: Record<string, string[]> = {
                 'PENDING': ['CONFIRMED', 'CANCELLED'],
                 'CONFIRMED': ['CHECKED_IN', 'CANCELLED'],
                 'CHECKED_IN': ['CHECKED_OUT', 'NO_SHOW'],
@@ -229,163 +293,155 @@ export class PropertyVisitsService {
             };
 
             const currentStatus = currentVisit.Status;
-            const allowedTransitions = validTransitions[currentStatus];
+            const allowedTransitions = validTransitions[currentStatus] || [];
 
             if (!allowedTransitions.includes(data.status)) {
                 throw new Error(`Invalid status transition from ${currentStatus} to ${data.status}`);
             }
         }
 
-        // Build dynamic update query
-        const updates: string[] = [];
-        const inputs: any = { visitId };
+        const updates: any = {};
+        if (data.visitPurpose !== undefined) updates.VisitPurpose = data.visitPurpose;
+        if (data.tenantNotes !== undefined) updates.TenantNotes = data.tenantNotes;
+        if (data.agentNotes !== undefined) updates.AgentNotes = data.agentNotes;
+        if (data.status !== undefined) updates.Status = data.status;
+        if (data.checkInTime !== undefined) updates.CheckInTime = data.checkInTime.toISOString();
+        if (data.checkOutTime !== undefined) updates.CheckOutTime = data.checkOutTime.toISOString();
 
-        if (data.visitPurpose !== undefined) {
-            updates.push('VisitPurpose = @visitPurpose');
-            inputs.visitPurpose = data.visitPurpose;
-        }
-        if (data.tenantNotes !== undefined) {
-            updates.push('TenantNotes = @tenantNotes');
-            inputs.tenantNotes = data.tenantNotes;
-        }
-        if (data.agentNotes !== undefined) {
-            updates.push('AgentNotes = @agentNotes');
-            inputs.agentNotes = data.agentNotes;
-        }
-        if (data.status !== undefined) {
-            updates.push('Status = @status');
-            inputs.status = data.status;
-        }
-        if (data.checkInTime !== undefined) {
-            updates.push('CheckInTime = @checkInTime');
-            inputs.checkInTime = data.checkInTime;
-        }
-        if (data.checkOutTime !== undefined) {
-            updates.push('CheckOutTime = @checkOutTime');
-            inputs.checkOutTime = data.checkOutTime;
-        }
+        if (Object.keys(updates).length === 0) throw new Error('No fields to update');
 
-        if (updates.length === 0) {
-            throw new Error('No fields to update');
-        }
+        updates.UpdatedAt = new Date().toISOString();
 
-        const query = `
-            UPDATE PropertyVisits 
-            SET ${updates.join(', ')}
-            WHERE VisitId = @visitId;
+        const { data: updated, error } = await supabase
+            .from('PropertyVisits')
+            .update(updates)
+            .eq('VisitId', visitId)
+            .select()
+            .single();
 
-            SELECT * FROM PropertyVisits WHERE VisitId = @visitId;
-        `;
+        if (error) throw new Error(error.message);
 
-        const request = db.request()
-            .input('visitId', sql.UniqueIdentifier, inputs.visitId);
-
-        // Add inputs dynamically with proper SQL types
-        Object.keys(inputs).forEach(key => {
-            if (key !== 'visitId') {
-                let sqlType: any = sql.NVarChar;
-
-                if (key === 'checkInTime' || key === 'checkOutTime') {
-                    sqlType = sql.DateTime;
-                } else if (key === 'visitPurpose') {
-                    sqlType = sql.NVarChar(200);
-                } else if (key === 'tenantNotes' || key === 'agentNotes') {
-                    sqlType = sql.NVarChar(500);
-                } else if (key === 'status') {
-                    sqlType = sql.NVarChar(20);
-                }
-
-                request.input(key, sqlType, inputs[key]);
-            }
-        });
-
-        const result = await request.query(query);
-        return result.recordset[0];
+        return updated as PropertyVisit;
     }
 
     // Cancel visit
     async cancelVisit(visitId: string, reason?: string): Promise<boolean> {
-        const db = await this.getDb();
+        if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
 
-        if (!ValidationUtils.isValidUUID(visitId)) {
-            throw new Error('Invalid visit ID format');
+        // We can use a raw RPC or logic. 
+        // Logic: Get current, check status, update.
+        // Supabase update with filter:
+
+        // Fetch first to get existing notes? 
+        // Logic: `AgentNotes = ISNULL(AgentNotes, '') + ' Cancelled: ' + @reason`
+        // Concat is hard in simple update.
+        // Fetch -> modify -> update.
+
+        const { data: current, error: fetchError } = await supabase
+            .from('PropertyVisits')
+            .select('Status, AgentNotes')
+            .eq('VisitId', visitId)
+            .single();
+
+        if (fetchError || !current) {
+            throw new Error('Visit not found'); // Or return false
         }
 
-        const query = `
-            UPDATE PropertyVisits 
-            SET Status = 'CANCELLED', AgentNotes = ISNULL(AgentNotes, '') + ' Cancelled: ' + @reason
-            WHERE VisitId = @visitId AND Status IN ('PENDING', 'CONFIRMED')
-        `;
+        if (!['PENDING', 'CONFIRMED'].includes(current.Status)) {
+            // Logic says `WHERE ... Status IN ...` so if not matching, rowsAffected=0.
+            // We can return false.
+            return false;
+        }
 
-        const result = await db.request()
-            .input('visitId', sql.UniqueIdentifier, visitId)
-            .input('reason', sql.NVarChar(500), reason || 'No reason provided')
-            .query(query);
+        const newNotes = (current.AgentNotes || '') + ' Cancelled: ' + (reason || 'No reason provided');
 
-        return result.rowsAffected[0] > 0;
+        const { error } = await supabase
+            .from('PropertyVisits')
+            .update({
+                Status: 'CANCELLED',
+                AgentNotes: newNotes,
+                UpdatedAt: new Date().toISOString()
+            })
+            .eq('VisitId', visitId);
+
+        if (error) throw new Error(error.message);
+
+        return true;
     }
 
-    // Check in to visit
+    // Check in
     async checkIn(visitId: string): Promise<boolean> {
-        const db = await this.getDb();
+        if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
 
-        if (!ValidationUtils.isValidUUID(visitId)) {
-            throw new Error('Invalid visit ID format');
-        }
+        const { error, count } = await supabase
+            .from('PropertyVisits')
+            .update({
+                Status: 'CHECKED_IN',
+                CheckInTime: new Date().toISOString(),
+                UpdatedAt: new Date().toISOString()
+            })
+            .eq('VisitId', visitId)
+            .eq('Status', 'CONFIRMED')
+            .select('VisitId', { count: 'exact' }); // Get count to simulate rowsAffected
 
-        const query = `
-            UPDATE PropertyVisits 
-            SET Status = 'CHECKED_IN', CheckInTime = SYSDATETIME()
-            WHERE VisitId = @visitId AND Status = 'CONFIRMED'
-        `;
+        if (error) throw new Error(error.message);
 
-        const result = await db.request()
-            .input('visitId', sql.UniqueIdentifier, visitId)
-            .query(query);
-
-        return result.rowsAffected[0] > 0;
+        // Supabase update returns updated rows if select() used.
+        // count should be 1 if updated
+        return (count || 0) > 0;
     }
 
-    // Check out from visit
+    // Check out
     async checkOut(visitId: string): Promise<boolean> {
-        const db = await this.getDb();
+        if (!ValidationUtils.isValidUUID(visitId)) throw new Error('Invalid visit ID format');
 
-        if (!ValidationUtils.isValidUUID(visitId)) {
-            throw new Error('Invalid visit ID format');
-        }
+        const { error, count } = await supabase
+            .from('PropertyVisits')
+            .update({
+                Status: 'CHECKED_OUT',
+                CheckOutTime: new Date().toISOString(),
+                UpdatedAt: new Date().toISOString()
+            })
+            .eq('VisitId', visitId)
+            .eq('Status', 'CHECKED_IN')
+            .select('VisitId', { count: 'exact' });
 
-        const query = `
-            UPDATE PropertyVisits 
-            SET Status = 'CHECKED_OUT', CheckOutTime = SYSDATETIME()
-            WHERE VisitId = @visitId AND Status = 'CHECKED_IN'
-        `;
-
-        const result = await db.request()
-            .input('visitId', sql.UniqueIdentifier, visitId)
-            .query(query);
-
-        return result.rowsAffected[0] > 0;
+        if (error) throw new Error(error.message);
+        return (count || 0) > 0;
     }
 
     // Get upcoming visits
     async getUpcomingVisits(days: number = 7): Promise<PropertyVisit[]> {
-        const db = await this.getDb();
+        const now = new Date();
+        const future = new Date();
+        future.setDate(now.getDate() + days);
 
-        const query = `
-            SELECT pv.*, p.Title as PropertyTitle, u.FullName as TenantName
-            FROM PropertyVisits pv
-            INNER JOIN Properties p ON pv.PropertyId = p.PropertyId
-            INNER JOIN Users u ON pv.TenantId = u.UserId
-            WHERE pv.VisitDate BETWEEN SYSDATETIME() AND DATEADD(DAY, @days, SYSDATETIME())
-            AND pv.Status IN ('PENDING', 'CONFIRMED')
-            ORDER BY pv.VisitDate ASC
-        `;
+        const { data, error } = await supabase
+            .from('PropertyVisits')
+            .select(`
+                *,
+                Properties:PropertyId (Title),
+                Tenant:TenantId (FullName)
+            `)
+            .gte('VisitDate', now.toISOString())
+            .lte('VisitDate', future.toISOString())
+            .in('Status', ['PENDING', 'CONFIRMED'])
+            .order('VisitDate', { ascending: true });
 
-        const result = await db.request()
-            .input('days', sql.Int, days)
-            .query(query);
+        if (error) throw new Error(error.message);
 
-        return result.recordset;
+        return data.map((v: any) => {
+            const res = { ...v };
+            if (res.Properties) {
+                res.PropertyTitle = res.Properties.Title;
+                delete res.Properties;
+            }
+            if (res.Tenant) {
+                res.TenantName = res.Tenant.FullName;
+                delete res.Tenant;
+            }
+            return res;
+        });
     }
 
     // Get visit statistics
@@ -398,39 +454,42 @@ export class PropertyVisitsService {
         noShow: number;
         upcoming: number;
     }> {
-        const db = await this.getDb();
+        // Build base filters
+        const filters = (query: any) => {
+            if (agentId) query = query.eq('AgentId', agentId);
+            if (startDate) query = query.gte('VisitDate', startDate.toISOString());
+            if (endDate) query = query.lte('VisitDate', endDate.toISOString());
+            return query;
+        };
 
-        let whereClause = 'WHERE 1=1';
-        if (agentId) {
-            whereClause += ' AND AgentId = @agentId';
-        }
-        if (startDate) {
-            whereClause += ' AND VisitDate >= @startDate';
-        }
-        if (endDate) {
-            whereClause += ' AND VisitDate <= @endDate';
-        }
+        const runCount = async (additionalFilter?: (q: any) => any) => {
+            let q = supabase.from('PropertyVisits').select('*', { count: 'exact', head: true });
+            q = filters(q);
+            if (additionalFilter) q = additionalFilter(q);
+            const { count, error } = await q;
+            if (error) throw new Error(error.message);
+            return count || 0;
+        };
 
-        const query = `
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN Status = 'CONFIRMED' THEN 1 ELSE 0 END) as confirmed,
-                SUM(CASE WHEN Status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelled,
-                SUM(CASE WHEN Status = 'CHECKED_IN' THEN 1 ELSE 0 END) as checkedIn,
-                SUM(CASE WHEN Status = 'CHECKED_OUT' THEN 1 ELSE 0 END) as checkedOut,
-                SUM(CASE WHEN Status = 'NO_SHOW' THEN 1 ELSE 0 END) as noShow,
-                SUM(CASE WHEN Status IN ('PENDING', 'CONFIRMED') AND VisitDate > SYSDATETIME() THEN 1 ELSE 0 END) as upcoming
-            FROM PropertyVisits
-            ${whereClause}
-        `;
+        const [total, confirmed, cancelled, checkedIn, checkedOut, noShow, upcoming] = await Promise.all([
+            runCount(),
+            runCount(q => q.eq('Status', 'CONFIRMED')),
+            runCount(q => q.eq('Status', 'CANCELLED')),
+            runCount(q => q.eq('Status', 'CHECKED_IN')),
+            runCount(q => q.eq('Status', 'CHECKED_OUT')),
+            runCount(q => q.eq('Status', 'NO_SHOW')),
+            runCount(q => q.in('Status', ['PENDING', 'CONFIRMED']).gt('VisitDate', new Date().toISOString()))
+        ]);
 
-        const request = db.request();
-        if (agentId) request.input('agentId', sql.UniqueIdentifier, agentId);
-        if (startDate) request.input('startDate', sql.DateTime, startDate);
-        if (endDate) request.input('endDate', sql.DateTime, endDate);
-
-        const result = await request.query(query);
-        return result.recordset[0];
+        return {
+            total,
+            confirmed,
+            cancelled,
+            checkedIn,
+            checkedOut,
+            noShow,
+            upcoming
+        };
     }
 }
 

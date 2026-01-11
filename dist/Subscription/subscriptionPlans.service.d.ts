@@ -20,8 +20,8 @@ export interface SubscriptionPlan {
     IsVisible: boolean;
     SortOrder: number;
     HighlightFeatures?: string[];
-    CreatedAt: Date;
-    UpdatedAt: Date;
+    CreatedAt: string;
+    UpdatedAt: string;
 }
 export interface CreatePlanInput {
     name: string;
@@ -54,9 +54,6 @@ export interface UpdatePlanInput {
     highlightFeatures?: string[];
 }
 export declare class SubscriptionPlansService {
-    private db;
-    constructor();
-    private getDb;
     createPlan(data: CreatePlanInput): Promise<SubscriptionPlan>;
     getPlanById(planId: string): Promise<SubscriptionPlan | null>;
     getPlanByName(name: string): Promise<SubscriptionPlan | null>;

@@ -1,0 +1,53 @@
+
+> kajayangu-backend@1.0.0 build
+> tsc
+
+src/admin/adminController.ts(958,13): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'number | undefined'.
+  Type 'string' is not assignable to type 'number'.
+src/admin/adminService.ts(790,48): error TS6133: 'days' is declared but its value is never read.
+src/admin/adminService.ts(863,5): error TS6133: 'userId' is declared but its value is never read.
+src/admin/adminService.ts(864,5): error TS6133: 'limit' is declared but its value is never read.
+src/admin/adminService.ts(872,14): error TS2451: Cannot redeclare block-scoped variable 'getExpiringTrialsService'.
+src/admin/adminService.ts(872,51): error TS6133: 'args' is declared but its value is never read.
+src/admin/adminService.ts(873,14): error TS2451: Cannot redeclare block-scoped variable 'getExpiringSubscriptionsService'.
+src/admin/adminService.ts(873,58): error TS6133: 'args' is declared but its value is never read.
+src/admin/adminService.ts(874,14): error TS2451: Cannot redeclare block-scoped variable 'getSubscriptionPlansService'.
+src/admin/adminService.ts(874,54): error TS6133: 'args' is declared but its value is never read.
+src/admin/adminService.ts(875,14): error TS2451: Cannot redeclare block-scoped variable 'getSubscriptionInvoicesService'.
+src/admin/adminService.ts(875,57): error TS6133: 'args' is declared but its value is never read.
+src/admin/adminService.ts(876,14): error TS2451: Cannot redeclare block-scoped variable 'getSubscriptionEventsService'.
+src/admin/adminService.ts(876,55): error TS6133: 'args' is declared but its value is never read.
+src/admin/adminService.ts(877,14): error TS2451: Cannot redeclare block-scoped variable 'getSubscriptionUsageLogsService'.
+src/admin/adminService.ts(877,58): error TS6133: 'args' is declared but its value is never read.
+src/admin/adminService.ts(980,14): error TS2451: Cannot redeclare block-scoped variable 'getSubscriptionInvoicesService'.
+src/admin/adminService.ts(981,14): error TS2451: Cannot redeclare block-scoped variable 'getExpiringTrialsService'.
+src/admin/adminService.ts(982,14): error TS2451: Cannot redeclare block-scoped variable 'getExpiringSubscriptionsService'.
+src/admin/adminService.ts(983,14): error TS2451: Cannot redeclare block-scoped variable 'getSubscriptionPlansService'.
+src/admin/adminService.ts(984,14): error TS2451: Cannot redeclare block-scoped variable 'getSubscriptionEventsService'.
+src/admin/adminService.ts(985,14): error TS2451: Cannot redeclare block-scoped variable 'getSubscriptionUsageLogsService'.
+src/admin/adminService.ts(986,56): error TS6133: 'args' is declared but its value is never read.
+src/admin/adminService.ts(987,60): error TS6133: 'args' is declared but its value is never read.
+src/admin/adminService.ts(988,49): error TS6133: 'args' is declared but its value is never read.
+src/admin/adminService.ts(989,62): error TS6133: 'args' is declared but its value is never read.
+src/admin/adminService.ts(990,54): error TS6133: 'args' is declared but its value is never read.
+src/admin/adminService.ts(1005,60): error TS6133: 'args' is declared but its value is never read.
+src/AgentVerification/agentService.ts(72,40): error TS6133: 'existingError' is declared but its value is never read.
+src/Auth/auth.service.ts(9,1): error TS6133: 'env' is declared but its value is never read.
+src/index.ts(29,7): error TS6133: 'initDatabaseConnection' is declared but its value is never read.
+src/Messages/message.service.ts(69,40): error TS6133: 'fetchError' is declared but its value is never read.
+src/Payments/payments.service.ts(205,65): error TS2367: This comparison appears to be unintentional because the types '"PENDING" | "FAILED" | "REFUNDED"' and '"COMPLETED"' have no overlap.
+src/Properties/properties.service.ts(417,15): error TS6133: 'queries' is declared but its value is never read.
+src/PropertyAmenities/propertyAmenities.controller.ts(313,13): error TS2554: Expected 1 arguments, but got 2.
+src/PropertyAmenities/propertyAmenities.controller.ts(340,77): error TS2554: Expected 0 arguments, but got 1.
+src/PropertyMedia/propertyMedia.controller.ts(254,57): error TS2554: Expected 2 arguments, but got 1.
+src/PropertyMedia/propertyMedia.controller.ts(256,14): error TS1345: An expression of type 'void' cannot be tested for truthiness.
+src/PropertyMedia/propertyMedia.controller.ts(360,57): error TS2554: Expected 2 arguments, but got 1.
+src/PropertyMedia/propertyMedia.service.ts(125,33): error TS6133: 'args' is declared but its value is never read.
+src/PropertyVisits/propertyVisits.service.ts(221,15): error TS6133: 'counterpartAlias' is declared but its value is never read.
+src/PropertyVisits/propertyVisits.service.ts(222,15): error TS6133: 'counterpartFk' is declared but its value is never read.
+src/PropertyVisits/propertyVisits.service.ts(285,18): error TS6196: 'VisitStatus' is declared but never used.
+src/PropertyVisits/propertyVisits.service.ts(385,32): error TS2554: Expected 0-1 arguments, but got 2.
+src/PropertyVisits/propertyVisits.service.ts(407,32): error TS2554: Expected 0-1 arguments, but got 2.
+src/Subscription/subscriptionPlans.service.ts(221,31): error TS2554: Expected 0-1 arguments, but got 2.
+src/UserSessions/userSessions.service.ts(140,34): error TS2554: Expected 0-1 arguments, but got 2.
+src/UserSessions/userSessions.service.ts(159,66): error TS2554: Expected 0-1 arguments, but got 2.

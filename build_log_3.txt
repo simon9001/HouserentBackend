@@ -1,0 +1,7 @@
+
+> kajayangu-backend@1.0.0 build
+> tsc
+
+src/admin/adminService.ts(709,6): error TS1472: 'catch' or 'finally' expected.
+src/admin/adminService.ts(710,3): error TS1005: ',' expected.
+src/admin/adminService.ts(714,1): error TS1128: Declaration or statement expected.

@@ -50,9 +50,6 @@ export interface UserStatistics {
     verifiedEmails: number;
 }
 export declare class UsersService {
-    private db;
-    constructor();
-    private getDb;
     createUser(data: CreateUserInput): Promise<User>;
     getAllUsers(page?: number, limit?: number): Promise<{
         users: User[];

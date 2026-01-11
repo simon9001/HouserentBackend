@@ -21,6 +21,11 @@ export interface Property {
     BoostExpiry: Date | null;
     CreatedAt: Date;
     UpdatedAt: Date;
+    OwnerName?: string;
+    OwnerEmail?: string;
+    OwnerPhoneNumber?: string;
+    OwnerTrustScore?: number;
+    OwnerAgentStatus?: string;
 }
 export interface CreatePropertyInput {
     ownerId: string;
@@ -71,9 +76,6 @@ export interface PropertyFilter {
     searchTerm?: string;
 }
 export declare class PropertiesService {
-    private db;
-    constructor();
-    private getDb;
     createProperty(data: CreatePropertyInput): Promise<Property>;
     getPropertyById(propertyId: string): Promise<Property | null>;
     getPropertiesByOwner(ownerId: string, page?: number, limit?: number): Promise<{

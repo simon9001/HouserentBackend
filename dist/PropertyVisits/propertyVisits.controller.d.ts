@@ -11,11 +11,14 @@ export declare const createVisit: (c: Context) => Promise<(Response & import("ho
         VisitPurpose: string;
         TenantNotes: string;
         AgentNotes: string;
-        CheckInTime: string;
-        CheckOutTime: string;
+        CheckInTime: string | null;
+        CheckOutTime: string | null;
         Status: "PENDING" | "CONFIRMED" | "CANCELLED" | "CHECKED_IN" | "CHECKED_OUT" | "NO_SHOW";
         CreatedAt: string;
         UpdatedAt: string;
+        PropertyTitle?: string | undefined;
+        TenantName?: string | undefined;
+        AgentName?: string | undefined;
     };
 }, 201, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -35,8 +38,8 @@ export declare const getVisitById: (c: Context) => Promise<(Response & import("h
         VisitPurpose: string;
         TenantNotes: string;
         AgentNotes: string;
-        CheckInTime: string;
-        CheckOutTime: string;
+        CheckInTime: string | null;
+        CheckOutTime: string | null;
         Status: "PENDING" | "CONFIRMED" | "CANCELLED" | "CHECKED_IN" | "CHECKED_OUT" | "NO_SHOW";
         CreatedAt: string;
         UpdatedAt: string;
@@ -59,11 +62,14 @@ export declare const getVisitsByPropertyId: (c: Context) => Promise<(Response & 
         VisitPurpose: string;
         TenantNotes: string;
         AgentNotes: string;
-        CheckInTime: string;
-        CheckOutTime: string;
+        CheckInTime: string | null;
+        CheckOutTime: string | null;
         Status: "PENDING" | "CONFIRMED" | "CANCELLED" | "CHECKED_IN" | "CHECKED_OUT" | "NO_SHOW";
         CreatedAt: string;
         UpdatedAt: string;
+        PropertyTitle?: string | undefined;
+        TenantName?: string | undefined;
+        AgentName?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -80,11 +86,14 @@ export declare const getVisitsByUserId: (c: Context) => Promise<(Response & impo
         VisitPurpose: string;
         TenantNotes: string;
         AgentNotes: string;
-        CheckInTime: string;
-        CheckOutTime: string;
+        CheckInTime: string | null;
+        CheckOutTime: string | null;
         Status: "PENDING" | "CONFIRMED" | "CANCELLED" | "CHECKED_IN" | "CHECKED_OUT" | "NO_SHOW";
         CreatedAt: string;
         UpdatedAt: string;
+        PropertyTitle?: string | undefined;
+        TenantName?: string | undefined;
+        AgentName?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -102,11 +111,14 @@ export declare const updateVisit: (c: Context) => Promise<(Response & import("ho
         VisitPurpose: string;
         TenantNotes: string;
         AgentNotes: string;
-        CheckInTime: string;
-        CheckOutTime: string;
+        CheckInTime: string | null;
+        CheckOutTime: string | null;
         Status: "PENDING" | "CONFIRMED" | "CANCELLED" | "CHECKED_IN" | "CHECKED_OUT" | "NO_SHOW";
         CreatedAt: string;
         UpdatedAt: string;
+        PropertyTitle?: string | undefined;
+        TenantName?: string | undefined;
+        AgentName?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -147,11 +159,14 @@ export declare const getUpcomingVisits: (c: Context) => Promise<(Response & impo
         VisitPurpose: string;
         TenantNotes: string;
         AgentNotes: string;
-        CheckInTime: string;
-        CheckOutTime: string;
+        CheckInTime: string | null;
+        CheckOutTime: string | null;
         Status: "PENDING" | "CONFIRMED" | "CANCELLED" | "CHECKED_IN" | "CHECKED_OUT" | "NO_SHOW";
         CreatedAt: string;
         UpdatedAt: string;
+        PropertyTitle?: string | undefined;
+        TenantName?: string | undefined;
+        AgentName?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;

@@ -1,254 +1,151 @@
-import sql from 'mssql';
-import { getConnectionPool } from '../Database/config.js';
+import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 export class PropertyMediaService {
-    db = null;
-    constructor() {
-        // Lazy initialization
-    }
-    async getDb() {
-        if (!this.db) {
-            this.db = getConnectionPool();
-        }
-        return this.db;
-    }
-    // Create new property media
-    async createMedia(data) {
-        const db = await this.getDb();
-        // Validate property exists
-        const propertyCheck = await db.request()
-            .input('propertyId', sql.UniqueIdentifier, data.propertyId)
-            .query('SELECT PropertyId FROM Properties WHERE PropertyId = @propertyId');
-        if (propertyCheck.recordset.length === 0) {
-            throw new Error('Property not found');
-        }
-        // Validate media type
-        const validMediaTypes = ['IMAGE', 'VIDEO', 'DOCUMENT'];
-        if (!validMediaTypes.includes(data.mediaType)) {
-            throw new Error('Invalid media type');
-        }
-        // If setting as primary, unset any existing primary
+    // Add media to property
+    async addMedia(data) {
+        // If this is primary, unset other primaries for this property
         if (data.isPrimary) {
-            await db.request()
-                .input('propertyId', sql.UniqueIdentifier, data.propertyId)
-                .query('UPDATE PropertyMedia SET IsPrimary = 0 WHERE PropertyId = @propertyId');
+            await supabase
+                .from('PropertyMedia')
+                .update({ IsPrimary: false })
+                .eq('PropertyId', data.propertyId);
         }
-        // Create media
-        const query = `
-            INSERT INTO PropertyMedia (PropertyId, MediaType, MediaUrl, ThumbnailUrl, IsPrimary)
-            OUTPUT INSERTED.*
-            VALUES (@propertyId, @mediaType, @mediaUrl, @thumbnailUrl, @isPrimary)
-        `;
-        const result = await db.request()
-            .input('propertyId', sql.UniqueIdentifier, data.propertyId)
-            .input('mediaType', sql.NVarChar(20), data.mediaType)
-            .input('mediaUrl', sql.NVarChar(500), data.mediaUrl)
-            .input('thumbnailUrl', sql.NVarChar(500), data.thumbnailUrl || null)
-            .input('isPrimary', sql.Bit, data.isPrimary || false)
-            .query(query);
-        return result.recordset[0];
+        const { data: media, error } = await supabase
+            .from('PropertyMedia')
+            .insert({
+            PropertyId: data.propertyId,
+            MediaType: data.mediaType,
+            MediaUrl: data.mediaUrl,
+            ThumbnailUrl: data.thumbnailUrl || null,
+            IsPrimary: data.isPrimary || false,
+            CreatedAt: new Date().toISOString()
+        })
+            .select()
+            .single();
+        if (error)
+            throw new Error(error.message);
+        return media;
+    }
+    // Alias for controller compatibility
+    async createMedia(data) {
+        return this.addMedia(data);
+    }
+    // Add multiple media
+    async addBulkMedia(propertyId, mediaList) {
+        // Handle primary flag if set in list
+        const hasPrimary = mediaList.some(m => m.isPrimary);
+        if (hasPrimary) {
+            await supabase
+                .from('PropertyMedia')
+                .update({ IsPrimary: false })
+                .eq('PropertyId', propertyId);
+        }
+        const items = mediaList.map(m => ({
+            PropertyId: propertyId,
+            MediaType: m.mediaType,
+            MediaUrl: m.mediaUrl,
+            ThumbnailUrl: m.thumbnailUrl || null,
+            IsPrimary: m.isPrimary || false,
+            CreatedAt: new Date().toISOString()
+        }));
+        const { data, error } = await supabase
+            .from('PropertyMedia')
+            .insert(items)
+            .select();
+        if (error)
+            throw new Error(error.message);
+        return data;
+    }
+    // Alias for controller compatibility
+    async createBulkMedia(propertyId, mediaList) {
+        return this.addBulkMedia(propertyId, mediaList);
     }
     // Get media by ID
     async getMediaById(mediaId) {
-        const db = await this.getDb();
-        if (!ValidationUtils.isValidUUID(mediaId)) {
-            throw new Error('Invalid media ID format');
-        }
-        const query = 'SELECT * FROM PropertyMedia WHERE MediaId = @mediaId';
-        const result = await db.request()
-            .input('mediaId', sql.UniqueIdentifier, mediaId)
-            .query(query);
-        return result.recordset[0] || null;
-    }
-    // Get all media for a property
-    async getMediaByPropertyId(propertyId) {
-        const db = await this.getDb();
-        if (!ValidationUtils.isValidUUID(propertyId)) {
-            throw new Error('Invalid property ID format');
-        }
-        const query = `
-            SELECT * FROM PropertyMedia 
-            WHERE PropertyId = @propertyId
-            ORDER BY IsPrimary DESC, CreatedAt ASC
-        `;
-        const result = await db.request()
-            .input('propertyId', sql.UniqueIdentifier, propertyId)
-            .query(query);
-        return result.recordset;
+        const { data, error } = await supabase.from('PropertyMedia').select('*').eq('MediaId', mediaId).single();
+        if (error)
+            throw new Error(error.message);
+        return data;
     }
     // Update media
-    async updateMedia(mediaId, data) {
-        const db = await this.getDb();
-        if (!ValidationUtils.isValidUUID(mediaId)) {
-            throw new Error('Invalid media ID format');
+    async updateMedia(mediaId, updates) {
+        const { data, error } = await supabase.from('PropertyMedia').update({
+            MediaType: updates.mediaType,
+            MediaUrl: updates.mediaUrl,
+            ThumbnailUrl: updates.thumbnailUrl,
+            IsPrimary: updates.isPrimary
+        }).eq('MediaId', mediaId).select().single();
+        if (error)
+            throw new Error(error.message);
+        return data;
+    }
+    // Get primary media
+    async getPrimaryMedia(propertyId) {
+        const { data } = await supabase.from('PropertyMedia').select('*').eq('PropertyId', propertyId).eq('IsPrimary', true).single();
+        return data;
+    }
+    // Get stats
+    async getMediaStatistics(...args) {
+        const { count } = await supabase.from('PropertyMedia').select('*', { count: 'exact', head: true });
+        return { totalMedia: count || 0 };
+    }
+    // Get media by property ID
+    async getMediaByPropertyId(propertyId) {
+        if (!ValidationUtils.isValidUUID(propertyId))
+            throw new Error('Invalid property ID format');
+        const { data, error } = await supabase
+            .from('PropertyMedia')
+            .select('*')
+            .eq('PropertyId', propertyId)
+            .order('IsPrimary', { ascending: false })
+            .order('CreatedAt', { ascending: true });
+        if (error)
+            throw new Error(error.message);
+        return data;
+    }
+    // Set primary media
+    async setPrimaryMedia(mediaId, propertyId) {
+        if (!ValidationUtils.isValidUUID(mediaId) || !ValidationUtils.isValidUUID(propertyId)) {
+            throw new Error('Invalid ID format');
         }
-        // Get existing media to check property
-        const existingMedia = await this.getMediaById(mediaId);
-        if (!existingMedia) {
-            throw new Error('Media not found');
-        }
-        // Build dynamic update query
-        let updateFields = [];
-        const inputs = { mediaId };
-        if (data.mediaType) {
-            const validMediaTypes = ['IMAGE', 'VIDEO', 'DOCUMENT'];
-            if (!validMediaTypes.includes(data.mediaType)) {
-                throw new Error('Invalid media type');
-            }
-            updateFields.push('MediaType = @mediaType');
-            inputs.mediaType = data.mediaType;
-        }
-        if (data.mediaUrl) {
-            updateFields.push('MediaUrl = @mediaUrl');
-            inputs.mediaUrl = data.mediaUrl;
-        }
-        if (data.thumbnailUrl !== undefined) {
-            updateFields.push('ThumbnailUrl = @thumbnailUrl');
-            inputs.thumbnailUrl = data.thumbnailUrl;
-        }
-        if (data.isPrimary !== undefined) {
-            updateFields.push('IsPrimary = @isPrimary');
-            inputs.isPrimary = data.isPrimary;
-            // If setting as primary, unset any existing primary for this property
-            if (data.isPrimary) {
-                await db.request()
-                    .input('propertyId', sql.UniqueIdentifier, existingMedia.PropertyId)
-                    .query('UPDATE PropertyMedia SET IsPrimary = 0 WHERE PropertyId = @propertyId AND MediaId != @mediaId');
-            }
-        }
-        if (updateFields.length === 0) {
-            throw new Error('No fields to update');
-        }
-        const query = `
-            UPDATE PropertyMedia 
-            SET ${updateFields.join(', ')} 
-            OUTPUT INSERTED.*
-            WHERE MediaId = @mediaId
-        `;
-        try {
-            const request = db.request()
-                .input('mediaId', sql.UniqueIdentifier, mediaId);
-            // Add all inputs dynamically
-            Object.keys(inputs).forEach(key => {
-                if (key !== 'mediaId') {
-                    const value = inputs[key];
-                    if (typeof value === 'string') {
-                        request.input(key, sql.NVarChar, value);
-                    }
-                    else if (typeof value === 'boolean') {
-                        request.input(key, sql.Bit, value);
-                    }
-                }
-            });
-            const result = await request.query(query);
-            return result.recordset[0] || null;
-        }
-        catch (error) {
-            throw error;
-        }
+        // Unset all for this property
+        await supabase
+            .from('PropertyMedia')
+            .update({ IsPrimary: false })
+            .eq('PropertyId', propertyId);
+        // Set new primary
+        const { error } = await supabase
+            .from('PropertyMedia')
+            .update({ IsPrimary: true })
+            .eq('MediaId', mediaId)
+            .eq('PropertyId', propertyId); // Safety check to ensure media belongs to property
+        if (error)
+            throw new Error(error.message);
     }
     // Delete media
     async deleteMedia(mediaId) {
-        const db = await this.getDb();
-        if (!ValidationUtils.isValidUUID(mediaId)) {
+        if (!ValidationUtils.isValidUUID(mediaId))
             throw new Error('Invalid media ID format');
-        }
-        const query = 'DELETE FROM PropertyMedia WHERE MediaId = @mediaId';
-        const result = await db.request()
-            .input('mediaId', sql.UniqueIdentifier, mediaId)
-            .query(query);
-        return result.rowsAffected[0] > 0;
+        const { error, count } = await supabase
+            .from('PropertyMedia')
+            .delete({ count: 'exact' })
+            .eq('MediaId', mediaId);
+        if (error)
+            throw new Error(error.message);
+        return (count || 0) > 0;
     }
-    // Set media as primary
-    async setPrimaryMedia(mediaId) {
-        const db = await this.getDb();
-        if (!ValidationUtils.isValidUUID(mediaId)) {
-            throw new Error('Invalid media ID format');
-        }
-        // Get media to get property ID
-        const media = await this.getMediaById(mediaId);
-        if (!media) {
-            throw new Error('Media not found');
-        }
-        // Unset any existing primary for this property
-        await db.request()
-            .input('propertyId', sql.UniqueIdentifier, media.PropertyId)
-            .query('UPDATE PropertyMedia SET IsPrimary = 0 WHERE PropertyId = @propertyId');
-        // Set this media as primary
-        const query = `
-            UPDATE PropertyMedia 
-            SET IsPrimary = 1 
-            OUTPUT INSERTED.*
-            WHERE MediaId = @mediaId
-        `;
-        const result = await db.request()
-            .input('mediaId', sql.UniqueIdentifier, mediaId)
-            .query(query);
-        return result.recordset[0] || null;
-    }
-    // Get primary media for property
-    async getPrimaryMedia(propertyId) {
-        const db = await this.getDb();
-        if (!ValidationUtils.isValidUUID(propertyId)) {
+    // Delete all media for property
+    async deleteMediaByPropertyId(propertyId) {
+        if (!ValidationUtils.isValidUUID(propertyId))
             throw new Error('Invalid property ID format');
-        }
-        const query = `
-            SELECT * FROM PropertyMedia 
-            WHERE PropertyId = @propertyId AND IsPrimary = 1
-        `;
-        const result = await db.request()
-            .input('propertyId', sql.UniqueIdentifier, propertyId)
-            .query(query);
-        return result.recordset[0] || null;
-    }
-    // Bulk create media
-    async createBulkMedia(mediaList) {
-        const results = [];
-        for (const media of mediaList) {
-            try {
-                const createdMedia = await this.createMedia(media);
-                results.push(createdMedia);
-            }
-            catch (error) {
-                console.error('Error creating media:', error);
-                // Continue with other media
-            }
-        }
-        return results;
-    }
-    // Get media statistics
-    async getMediaStatistics(propertyId) {
-        const db = await this.getDb();
-        let whereClause = '';
-        if (propertyId) {
-            whereClause = 'WHERE PropertyId = @propertyId';
-        }
-        const queries = [
-            `SELECT COUNT(*) as total FROM PropertyMedia ${whereClause}`,
-            `SELECT COUNT(*) as images FROM PropertyMedia ${whereClause} AND MediaType = 'IMAGE'`,
-            `SELECT COUNT(*) as videos FROM PropertyMedia ${whereClause} AND MediaType = 'VIDEO'`,
-            `SELECT COUNT(*) as documents FROM PropertyMedia ${whereClause} AND MediaType = 'DOCUMENT'`,
-            `SELECT COUNT(*) as hasPrimary FROM PropertyMedia ${whereClause} AND IsPrimary = 1`
-        ];
-        try {
-            const request = db.request();
-            if (propertyId) {
-                request.input('propertyId', sql.UniqueIdentifier, propertyId);
-            }
-            const results = await Promise.all(queries.map(query => request.query(query)));
-            return {
-                total: parseInt(results[0].recordset[0].total),
-                images: parseInt(results[1].recordset[0].images),
-                videos: parseInt(results[2].recordset[0].videos),
-                documents: parseInt(results[3].recordset[0].documents),
-                hasPrimary: parseInt(results[4].recordset[0].hasPrimary)
-            };
-        }
-        catch (error) {
-            throw error;
-        }
+        const { error, count } = await supabase
+            .from('PropertyMedia')
+            .delete({ count: 'exact' })
+            .eq('PropertyId', propertyId);
+        if (error)
+            throw new Error(error.message);
+        return count || 0;
     }
 }
-// Export singleton instance
 export const propertyMediaService = new PropertyMediaService();
 //# sourceMappingURL=propertyMedia.service.js.map

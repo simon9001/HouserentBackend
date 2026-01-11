@@ -1,24 +1,12 @@
 // src/services/auth.service.ts
-import sql from 'mssql';
-import crypto from 'crypto';
-import { getConnectionPool } from '../Database/config.js';
+import crypto from 'node:crypto';
+import { supabase } from '../Database/config.js';
 import { JWTUtils } from '../utils/jwt.js';
 import { EmailUtils } from '../utils/email.js';
 import { SecurityUtils } from '../utils/security.js';
 import { UserValidators } from '../utils/validators.js';
 import { usersService } from '../Users/userService.js';
 export class AuthService {
-    db = null;
-    constructor() {
-        // Lazy initialization
-    }
-    // Lazy initialization of database connection
-    async getDb() {
-        if (!this.db) {
-            this.db = getConnectionPool();
-        }
-        return this.db;
-    }
     // Helper method to hash tokens for storage
     hashTokenForStorage(token) {
         return crypto.createHash('sha256').update(token).digest('hex');
@@ -79,58 +67,40 @@ export class AuthService {
     }
     // Login user
     async login(data) {
-        const db = await this.getDb();
         // Check if account is locked
-        const lockCheckQuery = `
-            SELECT UserId, LockedUntil 
-            FROM Users 
-            WHERE (Username = @identifier OR Email = @identifier OR PhoneNumber = @identifier)
-                AND IsActive = 1
-        `;
-        const lockCheckResult = await db.request()
-            .input('identifier', sql.NVarChar(150), data.identifier)
-            .query(lockCheckQuery);
-        if (lockCheckResult.recordset.length === 0) {
+        const { data: users, error } = await supabase
+            .from('Users')
+            .select('UserId, LockedUntil, PasswordHash, Username, Email, Role, PhoneNumber, FullName, Bio, Address, AvatarUrl, AgentStatus, TrustScore, IsActive, IsEmailVerified, LoginAttempts, LastLogin, CreatedAt, UpdatedAt')
+            .eq('IsActive', true)
+            .or(`Username.eq.${data.identifier},Email.eq.${data.identifier},PhoneNumber.eq.${data.identifier}`);
+        if (error || !users || users.length === 0) {
             throw new Error('Invalid credentials');
         }
-        const user = lockCheckResult.recordset[0];
+        const user = users[0];
         // Check if account is locked
         if (user.LockedUntil && new Date(user.LockedUntil) > new Date()) {
             throw new Error('Account is temporarily locked. Please try again later.');
         }
-        // Get full user with password hash
-        const userQuery = `
-            SELECT * FROM Users 
-            WHERE (Username = @identifier OR Email = @identifier OR PhoneNumber = @identifier)
-                AND IsActive = 1
-        `;
-        const userResult = await db.request()
-            .input('identifier', sql.NVarChar(150), data.identifier)
-            .query(userQuery);
-        const fullUser = userResult.recordset[0];
-        if (!fullUser) {
-            throw new Error('Invalid credentials');
-        }
         // Verify password
-        const isPasswordValid = await SecurityUtils.comparePassword(data.password, fullUser.PasswordHash);
+        const isPasswordValid = await SecurityUtils.comparePassword(data.password, user.PasswordHash);
         if (!isPasswordValid) {
             // Increment failed login attempts
-            await usersService.updateLoginAttempts(fullUser.UserId, false);
+            await usersService.updateLoginAttempts(user.UserId, false);
             throw new Error('Invalid credentials');
         }
         // Reset login attempts on successful login
-        await usersService.updateLoginAttempts(fullUser.UserId, true);
+        await usersService.updateLoginAttempts(user.UserId, true);
         // Generate consistent token payload
-        const tokenPayload = this.generateTokenPayload(fullUser);
+        const tokenPayload = this.generateTokenPayload(user);
         // Generate tokens
         const tokens = {
             accessToken: JWTUtils.generateAccessToken(tokenPayload),
             refreshToken: JWTUtils.generateRefreshToken(tokenPayload)
         };
         // Create session and get sessionId
-        const sessionId = await this.createSession(fullUser.UserId, tokens.refreshToken);
+        const sessionId = await this.createSession(user.UserId, tokens.refreshToken);
         // Remove password hash from response
-        const { PasswordHash, ...userWithoutPassword } = fullUser;
+        const { PasswordHash, ...userWithoutPassword } = user;
         return {
             user: userWithoutPassword,
             tokens: {
@@ -141,7 +111,6 @@ export class AuthService {
     }
     // Refresh token
     async refreshToken(refreshToken) {
-        const db = await this.getDb();
         // Verify refresh token
         const payload = JWTUtils.verifyRefreshToken(refreshToken);
         if (!payload) {
@@ -149,19 +118,16 @@ export class AuthService {
         }
         // Hash the token to compare with database
         const tokenHash = this.hashTokenForStorage(refreshToken);
-        const sessionQuery = `
-            SELECT * FROM UserSessions 
-            WHERE RefreshTokenHash = @tokenHash 
-                AND IsActive = 1 
-                AND ExpiresAt > GETDATE()
-        `;
-        const sessionResult = await db.request()
-            .input('tokenHash', sql.NVarChar(500), tokenHash)
-            .query(sessionQuery);
-        if (sessionResult.recordset.length === 0) {
+        const { data: sessions, error } = await supabase
+            .from('UserSessions')
+            .select('*')
+            .eq('RefreshTokenHash', tokenHash)
+            .eq('IsActive', true)
+            .gt('ExpiresAt', new Date().toISOString());
+        if (error || !sessions || sessions.length === 0) {
             throw new Error('Invalid or expired session');
         }
-        const session = sessionResult.recordset[0];
+        const session = sessions[0];
         // Generate new tokens
         const newTokenPayload = {
             userId: payload.userId, // Use consistent field name
@@ -182,75 +148,45 @@ export class AuthService {
     }
     // Logout
     async logout(userId, sessionId) {
-        const db = await this.getDb();
+        let query = supabase.from('UserSessions').update({ IsActive: false }).eq('UserId', userId);
         if (sessionId) {
-            // Logout specific session
-            const query = `
-                UPDATE UserSessions 
-                SET IsActive = 0 
-                WHERE SessionId = @sessionId AND UserId = @userId
-            `;
-            await db.request()
-                .input('sessionId', sql.UniqueIdentifier, sessionId)
-                .input('userId', sql.UniqueIdentifier, userId)
-                .query(query);
+            query = query.eq('SessionId', sessionId);
         }
-        else {
-            // Logout all sessions for user
-            const query = `
-                UPDATE UserSessions 
-                SET IsActive = 0 
-                WHERE UserId = @userId
-            `;
-            await db.request()
-                .input('userId', sql.UniqueIdentifier, userId)
-                .query(query);
-        }
+        await query;
     }
     // Verify email
     async verifyEmail(token) {
-        const db = await this.getDb();
         // Verify token
         const payload = JWTUtils.verifyEmailVerificationToken(token);
         if (!payload) {
             throw new Error('Invalid or expired verification token');
         }
         // Check if token exists in database
-        const tokenQuery = `
-            SELECT * FROM EmailVerificationTokens 
-            WHERE VerificationToken = @token 
-                AND IsUsed = 0 
-                AND ExpiresAt > GETDATE()
-        `;
-        const tokenResult = await db.request()
-            .input('token', sql.NVarChar(500), token)
-            .query(tokenQuery);
-        if (tokenResult.recordset.length === 0) {
+        const { data: tokens, error } = await supabase
+            .from('EmailVerificationTokens')
+            .select('*')
+            .eq('VerificationToken', token)
+            .eq('IsUsed', false)
+            .gt('ExpiresAt', new Date().toISOString());
+        if (error || !tokens || tokens.length === 0) {
             throw new Error('Invalid or expired verification token');
         }
+        const verificationRecord = tokens[0];
         // Mark token as used
-        const updateTokenQuery = `
-            UPDATE EmailVerificationTokens 
-            SET IsUsed = 1 
-            WHERE TokenId = @tokenId
-        `;
-        await db.request()
-            .input('tokenId', sql.UniqueIdentifier, tokenResult.recordset[0].TokenId)
-            .query(updateTokenQuery);
+        await supabase
+            .from('EmailVerificationTokens')
+            .update({ IsUsed: true })
+            .eq('TokenId', verificationRecord.TokenId);
         // Update user email verification status
-        const updateUserQuery = `
-            UPDATE Users 
-            SET IsEmailVerified = 1 
-            WHERE Email = @email
-        `;
-        const result = await db.request()
-            .input('email', sql.NVarChar(150), payload.email)
-            .query(updateUserQuery);
-        return result.rowsAffected[0] > 0;
+        // Using email from payload is safer if the token is valid
+        const { error: userError } = await supabase
+            .from('Users')
+            .update({ IsEmailVerified: true })
+            .eq('Email', payload.email);
+        return !userError;
     }
     // Request password reset
     async requestPasswordReset(email) {
-        const db = await this.getDb();
         // Check if user exists
         const user = await usersService.getUserByEmail(email);
         if (!user) {
@@ -262,20 +198,22 @@ export class AuthService {
         // Hash the token for storage
         const tokenHash = this.hashTokenForStorage(resetToken);
         // Save token to database
-        const query = `
-            INSERT INTO PasswordResetTokens (UserId, TokenHash, ExpiresAt)
-            VALUES (@userId, @tokenHash, DATEADD(HOUR, 1, GETDATE()))
-        `;
-        await db.request()
-            .input('userId', sql.UniqueIdentifier, user.UserId)
-            .input('tokenHash', sql.NVarChar(500), tokenHash)
-            .query(query);
+        const { error } = await supabase
+            .from('PasswordResetTokens')
+            .insert({
+            UserId: user.UserId,
+            TokenHash: tokenHash,
+            ExpiresAt: new Date(Date.now() + 3600000).toISOString() // 1 hour
+        });
+        if (error) {
+            console.error("Error saving password reset token", error);
+            return;
+        }
         // Send reset email
         await EmailUtils.sendPasswordResetEmail(email, resetToken);
     }
     // Reset password
     async resetPassword(token, newPassword) {
-        const db = await this.getDb();
         // Verify token
         const payload = JWTUtils.verifyPasswordResetToken(token);
         if (!payload) {
@@ -283,18 +221,16 @@ export class AuthService {
         }
         // Hash the token to compare with database
         const tokenHash = this.hashTokenForStorage(token);
-        const tokenQuery = `
-            SELECT * FROM PasswordResetTokens 
-            WHERE TokenHash = @tokenHash 
-                AND IsUsed = 0 
-                AND ExpiresAt > GETDATE()
-        `;
-        const tokenResult = await db.request()
-            .input('tokenHash', sql.NVarChar(500), tokenHash)
-            .query(tokenQuery);
-        if (tokenResult.recordset.length === 0) {
+        const { data: tokens, error } = await supabase
+            .from('PasswordResetTokens')
+            .select('*')
+            .eq('TokenHash', tokenHash)
+            .eq('IsUsed', false)
+            .gt('ExpiresAt', new Date().toISOString());
+        if (error || !tokens || tokens.length === 0) {
             throw new Error('Invalid or expired reset token');
         }
+        const resetRecord = tokens[0];
         // Validate new password
         const passwordValidation = UserValidators.validatePassword(newPassword);
         if (!passwordValidation.isValid) {
@@ -304,14 +240,10 @@ export class AuthService {
         const success = await usersService.updateUserPassword(payload.userId, newPassword);
         if (success) {
             // Mark token as used
-            const updateTokenQuery = `
-                UPDATE PasswordResetTokens 
-                SET IsUsed = 1 
-                WHERE TokenId = @tokenId
-            `;
-            await db.request()
-                .input('tokenId', sql.UniqueIdentifier, tokenResult.recordset[0].TokenId)
-                .query(updateTokenQuery);
+            await supabase
+                .from('PasswordResetTokens')
+                .update({ IsUsed: true })
+                .eq('TokenId', resetRecord.TokenId);
             // Logout all sessions for security
             await this.logout(payload.userId);
         }
@@ -319,38 +251,24 @@ export class AuthService {
     }
     // Get user sessions
     async getUserSessions(userId) {
-        const db = await this.getDb();
-        const query = `
-            SELECT 
-                SessionId,
-                UserId,
-                DeviceId,
-                ExpiresAt,
-                LastAccessedAt,
-                IsActive
-            FROM UserSessions 
-            WHERE UserId = @userId 
-                AND ExpiresAt > GETDATE()
-            ORDER BY LastAccessedAt DESC
-        `;
-        const result = await db.request()
-            .input('userId', sql.UniqueIdentifier, userId)
-            .query(query);
-        return result.recordset;
+        const { data, error } = await supabase
+            .from('UserSessions')
+            .select('SessionId, UserId, DeviceId, ExpiresAt, LastAccessedAt, IsActive')
+            .eq('UserId', userId)
+            .gt('ExpiresAt', new Date().toISOString())
+            .order('LastAccessedAt', { ascending: false });
+        if (error)
+            throw new Error(error.message);
+        return data;
     }
     // Revoke specific session
     async revokeSession(userId, sessionId) {
-        const db = await this.getDb();
-        const query = `
-            UPDATE UserSessions 
-            SET IsActive = 0 
-            WHERE SessionId = @sessionId AND UserId = @userId
-        `;
-        const result = await db.request()
-            .input('sessionId', sql.UniqueIdentifier, sessionId)
-            .input('userId', sql.UniqueIdentifier, userId)
-            .query(query);
-        return result.rowsAffected[0] > 0;
+        const { error } = await supabase
+            .from('UserSessions')
+            .update({ IsActive: false })
+            .eq('SessionId', sessionId)
+            .eq('UserId', userId);
+        return !error;
     }
     // Validate access token
     async validateAccessToken(token) {
@@ -359,7 +277,6 @@ export class AuthService {
     // Private helper methods
     async createSession(userId, refreshToken, deviceId) {
         try {
-            const db = await this.getDb();
             // Generate session ID
             const sessionId = crypto.randomUUID();
             // Hash the token for storage
@@ -369,57 +286,48 @@ export class AuthService {
                 userId,
                 tokenHashLength: tokenHash.length
             });
-            const query = `
-                INSERT INTO UserSessions (SessionId, UserId, DeviceId, RefreshTokenHash, ExpiresAt)
-                VALUES (@sessionId, @userId, @deviceId, @tokenHash, DATEADD(DAY, 7, GETDATE()))
-            `;
-            await db.request()
-                .input('sessionId', sql.UniqueIdentifier, sessionId)
-                .input('userId', sql.UniqueIdentifier, userId)
-                .input('deviceId', sql.NVarChar(200), deviceId || null)
-                .input('tokenHash', sql.NVarChar(500), tokenHash)
-                .query(query);
+            const { error } = await supabase
+                .from('UserSessions')
+                .insert({
+                SessionId: sessionId,
+                UserId: userId,
+                DeviceId: deviceId || null,
+                RefreshTokenHash: tokenHash,
+                ExpiresAt: new Date(Date.now() + 7 * 24 * 3600000).toISOString() // 7 days
+            });
+            if (error)
+                throw error;
             console.log('Session created successfully:', sessionId);
             return sessionId;
         }
         catch (error) {
             console.error('Error creating session:', error.message);
             console.error('Error stack:', error.stack);
-            // For debugging, log the actual error from SQL Server
-            if (error.originalError) {
-                console.error('SQL Server error:', error.originalError.message);
-            }
             // Generate a temporary session ID if DB fails
             console.warn('Session creation failed, generating temporary session ID');
             return `temp-${crypto.randomUUID()}`;
         }
     }
     async updateSession(sessionId, newRefreshToken) {
-        const db = await this.getDb();
         // Hash the new token
         const tokenHash = this.hashTokenForStorage(newRefreshToken);
-        const query = `
-            UPDATE UserSessions 
-            SET RefreshTokenHash = @tokenHash, 
-                LastAccessedAt = GETDATE(),
-                ExpiresAt = DATEADD(DAY, 7, GETDATE())
-            WHERE SessionId = @sessionId
-        `;
-        await db.request()
-            .input('sessionId', sql.UniqueIdentifier, sessionId)
-            .input('tokenHash', sql.NVarChar(500), tokenHash)
-            .query(query);
+        await supabase
+            .from('UserSessions')
+            .update({
+            RefreshTokenHash: tokenHash,
+            LastAccessedAt: new Date().toISOString(),
+            ExpiresAt: new Date(Date.now() + 7 * 24 * 3600000).toISOString()
+        })
+            .eq('SessionId', sessionId);
     }
     async saveEmailVerificationToken(userId, token) {
-        const db = await this.getDb();
-        const query = `
-            INSERT INTO EmailVerificationTokens (UserId, VerificationToken, ExpiresAt)
-            VALUES (@userId, @token, DATEADD(DAY, 1, GETDATE()))
-        `;
-        await db.request()
-            .input('userId', sql.UniqueIdentifier, userId)
-            .input('token', sql.NVarChar(500), token)
-            .query(query);
+        await supabase
+            .from('EmailVerificationTokens')
+            .insert({
+            UserId: userId,
+            VerificationToken: token,
+            ExpiresAt: new Date(Date.now() + 24 * 3600000).toISOString() // 1 day
+        });
     }
     // Change password (authenticated user)
     async changePassword(userId, currentPassword, newPassword) {
@@ -490,30 +398,8 @@ export class AuthService {
     }
     // Debug method to check database schema
     async debugDatabaseSchema() {
-        const db = await this.getDb();
-        try {
-            // Check UserSessions table structure
-            const sessionColumnsQuery = `
-                SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
-                FROM INFORMATION_SCHEMA.COLUMNS 
-                WHERE TABLE_NAME = 'UserSessions'
-                ORDER BY ORDINAL_POSITION
-            `;
-            const sessionColumns = await db.request().query(sessionColumnsQuery);
-            console.log('UserSessions table columns:', sessionColumns.recordset);
-            // Check PasswordResetTokens table structure
-            const tokenColumnsQuery = `
-                SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
-                FROM INFORMATION_SCHEMA.COLUMNS 
-                WHERE TABLE_NAME = 'PasswordResetTokens'
-                ORDER BY ORDINAL_POSITION
-            `;
-            const tokenColumns = await db.request().query(tokenColumnsQuery);
-            console.log('PasswordResetTokens table columns:', tokenColumns.recordset);
-        }
-        catch (error) {
-            console.error('Error checking database schema:', error.message);
-        }
+        // Not easily doable with Supabase JS client in same way unless we use RPC or just try to select 1
+        console.log('Skipping schema debug for Supabase');
     }
     // Test method to verify JWT generation
     async testJwtGeneration(userId) {

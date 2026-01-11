@@ -1,5 +1,4 @@
-import sql from 'mssql';
-import { getConnectionPool } from '../Database/config.js';
+import { supabase } from '../Database/config.js';
 import { SecurityUtils } from '../utils/security.js';
 import { UserValidators, ValidationUtils } from '../utils/validators.js';
 import { env } from '../Database/envConfig.js';
@@ -61,56 +60,29 @@ export interface UserStatistics {
 }
 
 export class UsersService {
-    private db: sql.ConnectionPool | null = null;
-
-    constructor() {
-        // Don't initialize db in constructor - lazy initialization
-    }
-
-    // Lazy initialization of database connection
-    private async getDb(): Promise<sql.ConnectionPool> {
-        if (!this.db) {
-            this.db = getConnectionPool();
-        }
-        return this.db;
-    }
 
     // Create new user
     async createUser(data: CreateUserInput): Promise<User> {
-        const db = await this.getDb();
-
         // Validate inputs
         const usernameValidation = UserValidators.validateUsername(data.username);
-        if (!usernameValidation.isValid) {
-            throw new Error(usernameValidation.error);
-        }
+        if (!usernameValidation.isValid) throw new Error(usernameValidation.error);
 
         const emailValidation = UserValidators.validateEmail(data.email);
-        if (!emailValidation.isValid) {
-            throw new Error(emailValidation.error);
-        }
+        if (!emailValidation.isValid) throw new Error(emailValidation.error);
 
         const phoneValidation = UserValidators.validatePhoneNumber(data.phoneNumber);
-        if (!phoneValidation.isValid) {
-            throw new Error(phoneValidation.error);
-        }
+        if (!phoneValidation.isValid) throw new Error(phoneValidation.error);
 
         const passwordValidation = UserValidators.validatePassword(data.password);
-        if (!passwordValidation.isValid) {
-            throw new Error(passwordValidation.error);
-        }
+        if (!passwordValidation.isValid) throw new Error(passwordValidation.error);
 
         const fullNameValidation = UserValidators.validateFullName(data.fullName);
-        if (!fullNameValidation.isValid) {
-            throw new Error(fullNameValidation.error);
-        }
+        if (!fullNameValidation.isValid) throw new Error(fullNameValidation.error);
 
         // Set default role if not provided
         const role = data.role || 'TENANT';
         const roleValidation = UserValidators.validateRole(role);
-        if (!roleValidation.isValid) {
-            throw new Error(roleValidation.error);
-        }
+        if (!roleValidation.isValid) throw new Error(roleValidation.error);
 
         // Hash password
         const passwordHash = await SecurityUtils.hashPassword(data.password);
@@ -123,559 +95,380 @@ export class UsersService {
             formattedPhone = '254' + formattedPhone;
         }
 
-        const query = `
-            DECLARE @InsertedRows TABLE (UserId UNIQUEIDENTIFIER);
-            INSERT INTO Users (
-                Username, Email, PasswordHash, FullName, PhoneNumber, Role
-            ) 
-            OUTPUT INSERTED.UserId INTO @InsertedRows
-            VALUES (
-                @username, @email, @passwordHash, @fullName, @phoneNumber, @role
-            );
-            
-            SELECT * FROM Users WHERE UserId = (SELECT TOP 1 UserId FROM @InsertedRows);
-        `;
+        const { data: newUser, error } = await supabase
+            .from('Users')
+            .insert({
+                Username: data.username,
+                Email: data.email.toLowerCase(),
+                PasswordHash: passwordHash,
+                FullName: data.fullName,
+                PhoneNumber: formattedPhone,
+                Role: role
+            })
+            .select()
+            .single();
 
-        try {
-            const result = await db.request()
-                .input('username', sql.NVarChar(50), data.username)
-                .input('email', sql.NVarChar(150), data.email.toLowerCase())
-                .input('passwordHash', sql.NVarChar(500), passwordHash)
-                .input('fullName', sql.NVarChar(150), data.fullName)
-                .input('phoneNumber', sql.NVarChar(20), formattedPhone)
-                .input('role', sql.NVarChar(20), role)
-                .query(query);
-
-            return result.recordset[0];
-        } catch (error: any) {
+        if (error) {
             // Handle unique constraint violations
-            if (error.message?.includes('UNIQUE') || error.message?.includes('duplicate')) {
-                if (error.message?.includes('Username')) {
-                    throw new Error('Username already exists');
-                }
-                if (error.message?.includes('Email')) {
-                    throw new Error('Email already exists');
-                }
-                if (error.message?.includes('PhoneNumber')) {
-                    throw new Error('Phone number already exists');
-                }
+            if (error.message?.includes('violates unique constraint') || error.code === '23505') {
+                // Supabase generic unique error, ideally we check specifics if possible or just generic
+                // But since we can't easily check which field violated without pre-check or improved error parsing:
+                // We will do a generic check or let the error bubble if we can't parse it well.
+                // For better UX, checking specifically:
+                if (error.details?.includes('Username')) throw new Error('Username already exists');
+                if (error.details?.includes('Email')) throw new Error('Email already exists');
+                if (error.details?.includes('PhoneNumber')) throw new Error('Phone number already exists');
             }
-            throw error;
+            throw new Error(error.message);
         }
+
+        return newUser as User;
     }
 
     // Get all users (with pagination)
     async getAllUsers(page: number = 1, limit: number = 20): Promise<{ users: User[]; total: number; page: number; totalPages: number }> {
-        const db = await this.getDb();
         const offset = (page - 1) * limit;
 
-        const countQuery = 'SELECT COUNT(*) as total FROM Users';
-        const dataQuery = `
-            SELECT * FROM Users 
-            ORDER BY CreatedAt DESC 
-            OFFSET @offset ROWS 
-            FETCH NEXT @limit ROWS ONLY
-        `;
+        const { data, count, error } = await supabase
+            .from('Users')
+            .select('*', { count: 'exact' })
+            .order('CreatedAt', { ascending: false })
+            .range(offset, offset + limit - 1);
 
-        try {
-            const countResult = await db.request().query(countQuery);
-            const total = parseInt(countResult.recordset[0].total);
+        if (error) throw new Error(error.message);
 
-            const dataResult = await db.request()
-                .input('offset', sql.Int, offset)
-                .input('limit', sql.Int, limit)
-                .query(dataQuery);
-
-            return {
-                users: dataResult.recordset,
-                total,
-                page,
-                totalPages: Math.ceil(total / limit)
-            };
-        } catch (error) {
-            throw error;
-        }
+        return {
+            users: data as User[],
+            total: count || 0,
+            page,
+            totalPages: Math.ceil((count || 0) / limit)
+        };
     }
 
     // Get user by ID
     async getUserById(userId: string): Promise<User | null> {
-        const db = await this.getDb();
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
+        const { data, error } = await supabase
+            .from('Users')
+            .select('*')
+            .eq('UserId', userId)
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') return null; // No rows returned
+            throw new Error(error.message);
         }
 
-        const query = 'SELECT * FROM Users WHERE UserId = @userId';
-
-        try {
-            const result = await db.request()
-                .input('userId', sql.UniqueIdentifier, userId)
-                .query(query);
-
-            return result.recordset[0] || null;
-        } catch (error) {
-            throw error;
-        }
+        return data as User;
     }
 
     // Get user by username
     async getUserByUsername(username: string): Promise<User | null> {
-        const db = await this.getDb();
-        const query = 'SELECT * FROM Users WHERE Username = @username';
+        const { data, error } = await supabase
+            .from('Users')
+            .select('*')
+            .eq('Username', username)
+            .single();
 
-        try {
-            const result = await db.request()
-                .input('username', sql.NVarChar(50), username)
-                .query(query);
-
-            return result.recordset[0] || null;
-        } catch (error) {
-            throw error;
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw new Error(error.message);
         }
+
+        return data as User;
     }
 
     // Get user by email
     async getUserByEmail(email: string): Promise<User | null> {
-        const db = await this.getDb();
-        const query = 'SELECT * FROM Users WHERE Email = @email';
+        const { data, error } = await supabase
+            .from('Users')
+            .select('*')
+            .eq('Email', email.toLowerCase())
+            .single();
 
-        try {
-            const result = await db.request()
-                .input('email', sql.NVarChar(150), email.toLowerCase())
-                .query(query);
-
-            return result.recordset[0] || null;
-        } catch (error) {
-            throw error;
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw new Error(error.message);
         }
+
+        return data as User;
     }
 
     // Get user by phone number
     async getUserByPhoneNumber(phoneNumber: string): Promise<User | null> {
-        const db = await this.getDb();
         let formattedPhone = phoneNumber.replace(/\D/g, '');
         if (formattedPhone.startsWith('0')) {
             formattedPhone = '254' + formattedPhone.substring(1);
         }
 
-        const query = 'SELECT * FROM Users WHERE PhoneNumber = @phoneNumber';
+        const { data, error } = await supabase
+            .from('Users')
+            .select('*')
+            .eq('PhoneNumber', formattedPhone)
+            .single();
 
-        try {
-            const result = await db.request()
-                .input('phoneNumber', sql.NVarChar(20), formattedPhone)
-                .query(query);
-
-            return result.recordset[0] || null;
-        } catch (error) {
-            throw error;
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw new Error(error.message);
         }
+
+        return data as User;
     }
 
     // Update user
-    // In your userService.js, update the updateUser method:
     async updateUser(userId: string, data: UpdateUserInput): Promise<User | null> {
-        const db = await this.getDb();
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
-        }
-
-        // Build dynamic update query WITHOUT OUTPUT clause
-        let updateFields: string[] = [];
-        const inputs: { [key: string]: any } = { userId };
+        const updates: any = {};
 
         if (data.fullName) {
             const validation = UserValidators.validateFullName(data.fullName);
-            if (!validation.isValid) {
-                throw new Error(validation.error);
-            }
-            updateFields.push('FullName = @fullName');
-            inputs.fullName = data.fullName;
+            if (!validation.isValid) throw new Error(validation.error);
+            updates.FullName = data.fullName;
         }
 
         if (data.phoneNumber) {
             const validation = UserValidators.validatePhoneNumber(data.phoneNumber);
-            if (!validation.isValid) {
-                throw new Error(validation.error);
-            }
+            if (!validation.isValid) throw new Error(validation.error);
 
             let formattedPhone = data.phoneNumber.replace(/\D/g, '');
             if (formattedPhone.startsWith('0')) {
                 formattedPhone = '254' + formattedPhone.substring(1);
             }
-
-            updateFields.push('PhoneNumber = @phoneNumber');
-            inputs.phoneNumber = formattedPhone;
+            updates.PhoneNumber = formattedPhone;
         }
 
         if (data.email) {
             const validation = UserValidators.validateEmail(data.email);
-            if (!validation.isValid) {
-                throw new Error(validation.error);
-            }
-            updateFields.push('Email = @email');
-            inputs.email = data.email.toLowerCase();
+            if (!validation.isValid) throw new Error(validation.error);
+            updates.Email = data.email.toLowerCase();
         }
 
-        if (data.bio) {
-            updateFields.push('Bio = @bio');
-            inputs.bio = data.bio;
-        }
-
-        if (data.address) {
-            updateFields.push('Address = @address');
-            inputs.address = data.address;
-        }
-
-        if (data.avatarUrl) {
-            updateFields.push('AvatarUrl = @avatarUrl');
-            inputs.avatarUrl = data.avatarUrl;
-        }
+        if (data.bio) updates.Bio = data.bio;
+        if (data.address) updates.Address = data.address;
+        if (data.avatarUrl) updates.AvatarUrl = data.avatarUrl;
 
         if (data.role) {
             const validation = UserValidators.validateRole(data.role);
-            if (!validation.isValid) {
-                throw new Error(validation.error);
-            }
-            updateFields.push('Role = @role');
-            inputs.role = data.role;
+            if (!validation.isValid) throw new Error(validation.error);
+            updates.Role = data.role;
         }
 
         if (data.agentStatus) {
             const validation = UserValidators.validateAgentStatus(data.agentStatus);
-            if (!validation.isValid) {
-                throw new Error(validation.error);
-            }
-            updateFields.push('AgentStatus = @agentStatus');
-            inputs.agentStatus = data.agentStatus;
+            if (!validation.isValid) throw new Error(validation.error);
+            updates.AgentStatus = data.agentStatus;
         }
 
-        if (data.trustScore !== undefined) {
-            updateFields.push('TrustScore = @trustScore');
-            inputs.trustScore = data.trustScore;
-        }
+        if (data.trustScore !== undefined) updates.TrustScore = data.trustScore;
+        if (data.isActive !== undefined) updates.IsActive = data.isActive;
 
-        if (data.isActive !== undefined) {
-            updateFields.push('IsActive = @isActive');
-            inputs.isActive = data.isActive;
-        }
-
-        if (updateFields.length === 0) {
+        if (Object.keys(updates).length === 0) {
             throw new Error('No fields to update in the request');
         }
 
-        updateFields.push('UpdatedAt = GETDATE()');
+        updates.UpdatedAt = new Date().toISOString();
 
-        const updateQuery = `
-            UPDATE Users 
-            SET ${updateFields.join(', ')} 
-            WHERE UserId = @userId
-        `;
+        const { data: updatedUser, error } = await supabase
+            .from('Users')
+            .update(updates)
+            .eq('UserId', userId)
+            .select()
+            .single();
 
-        const selectQuery = 'SELECT * FROM Users WHERE UserId = @userId';
-
-        try {
-            const request = db.request()
-                .input('userId', sql.UniqueIdentifier, userId);
-
-            // Add all inputs dynamically
-            Object.keys(inputs).forEach(key => {
-                if (key !== 'userId') {
-                    const value = inputs[key];
-                    if (typeof value === 'string') {
-                        request.input(key, sql.NVarChar(sql.MAX), value);
-                    } else if (typeof value === 'number') {
-                        request.input(key, sql.Int, value);
-                    } else if (typeof value === 'boolean') {
-                        request.input(key, sql.Bit, value);
-                    }
-                }
-            });
-
-            // Execute update
-            await request.query(updateQuery);
-
-            // Then select the updated user
-            const result = await db.request()
-                .input('userId', sql.UniqueIdentifier, userId)
-                .query(selectQuery);
-
-            return result.recordset[0] || null;
-        } catch (error: any) {
-            if (error.message?.includes('UNIQUE') || error.message?.includes('duplicate')) {
-                if (error.message?.includes('Email')) {
-                    throw new Error('Email already exists');
-                }
-                if (error.message?.includes('PhoneNumber')) {
-                    throw new Error('Phone number already exists');
-                }
+        if (error) {
+            if (error.code === '23505') { // Unique violation
+                if (error.details?.includes('Email')) throw new Error('Email already exists');
+                if (error.details?.includes('PhoneNumber')) throw new Error('Phone number already exists');
             }
-            throw error;
+            throw new Error(error.message);
         }
+
+        return updatedUser as User;
     }
 
     // Update user password
     async updateUserPassword(userId: string, newPassword: string): Promise<boolean> {
-        const db = await this.getDb();
-
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
-        }
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
         const passwordValidation = UserValidators.validatePassword(newPassword);
-        if (!passwordValidation.isValid) {
-            throw new Error(passwordValidation.error);
-        }
+        if (!passwordValidation.isValid) throw new Error(passwordValidation.error);
 
         const passwordHash = await SecurityUtils.hashPassword(newPassword);
 
-        const query = `
-            UPDATE Users 
-            SET PasswordHash = @passwordHash, 
-                UpdatedAt = GETDATE(),
-                LoginAttempts = 0,
-                LockedUntil = NULL
-            WHERE UserId = @userId
-        `;
+        const { error } = await supabase
+            .from('Users')
+            .update({
+                PasswordHash: passwordHash,
+                UpdatedAt: new Date().toISOString(),
+                LoginAttempts: 0,
+                LockedUntil: null
+            })
+            .eq('UserId', userId);
 
-        try {
-            const result = await db.request()
-                .input('userId', sql.UniqueIdentifier, userId)
-                .input('passwordHash', sql.NVarChar(500), passwordHash)
-                .query(query);
-
-            return result.rowsAffected[0] > 0;
-        } catch (error) {
-            throw error;
-        }
+        if (error) throw new Error(error.message);
+        return true;
     }
 
     // Update login attempts
     async updateLoginAttempts(userId: string, successful: boolean = false): Promise<void> {
-        const db = await this.getDb();
-
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
-        }
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
         if (successful) {
-            // Reset login attempts and update last login
-            const query = `
-                UPDATE Users 
-                SET LoginAttempts = 0, 
-                    LockedUntil = NULL,
-                    LastLogin = GETDATE(),
-                    UpdatedAt = GETDATE()
-                WHERE UserId = @userId
-            `;
+            const { error } = await supabase
+                .from('Users')
+                .update({
+                    LoginAttempts: 0,
+                    LockedUntil: null,
+                    LastLogin: new Date().toISOString(),
+                    UpdatedAt: new Date().toISOString()
+                })
+                .eq('UserId', userId);
 
-            await db.request()
-                .input('userId', sql.UniqueIdentifier, userId)
-                .query(query);
+            if (error) throw new Error(error.message);
         } else {
-            // Increment login attempts and check for lockout
-            const checkQuery = `
-                UPDATE Users 
-                SET LoginAttempts = LoginAttempts + 1,
-                    UpdatedAt = GETDATE()
-                WHERE UserId = @userId;
+            // We need to fetch current attempts first to increment properly safely, or use rpc if available.
+            // For now standard select-update pattern
+            const { data: user, error: fetchError } = await supabase
+                .from('Users')
+                .select('LoginAttempts')
+                .eq('UserId', userId)
+                .single();
 
-                SELECT LoginAttempts FROM Users WHERE UserId = @userId;
-            `;
+            if (fetchError) throw new Error(fetchError.message);
 
-            const result = await db.request()
-                .input('userId', sql.UniqueIdentifier, userId)
-                .query(checkQuery);
-
-            const loginAttempts = result.recordset[0]?.LoginAttempts || 0;
+            const loginAttempts = (user?.LoginAttempts || 0) + 1;
+            const updates: any = {
+                LoginAttempts: loginAttempts,
+                UpdatedAt: new Date().toISOString()
+            };
 
             if (loginAttempts >= env.MAX_LOGIN_ATTEMPTS) {
-                // Lock account
                 const lockoutMinutes = env.ACCOUNT_LOCKOUT_MINUTES;
-                const lockQuery = `
-                    UPDATE Users 
-                    SET LockedUntil = DATEADD(MINUTE, @lockoutMinutes, GETDATE()),
-                        UpdatedAt = GETDATE()
-                    WHERE UserId = @userId
-                `;
-
-                await db.request()
-                    .input('userId', sql.UniqueIdentifier, userId)
-                    .input('lockoutMinutes', sql.Int, lockoutMinutes)
-                    .query(lockQuery);
+                const lockedUntil = new Date(Date.now() + lockoutMinutes * 60000).toISOString();
+                updates.LockedUntil = lockedUntil;
             }
+
+            const { error: updateError } = await supabase
+                .from('Users')
+                .update(updates)
+                .eq('UserId', userId);
+
+            if (updateError) throw new Error(updateError.message);
         }
     }
 
     // Verify user email
     async verifyEmail(userId: string): Promise<boolean> {
-        const db = await this.getDb();
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
-        }
+        const { error } = await supabase
+            .from('Users')
+            .update({
+                IsEmailVerified: true,
+                UpdatedAt: new Date().toISOString()
+            })
+            .eq('UserId', userId);
 
-        const query = `
-            UPDATE Users 
-            SET IsEmailVerified = 1, 
-                UpdatedAt = GETDATE()
-            WHERE UserId = @userId
-        `;
-
-        try {
-            const result = await db.request()
-                .input('userId', sql.UniqueIdentifier, userId)
-                .query(query);
-
-            return result.rowsAffected[0] > 0;
-        } catch (error) {
-            throw error;
-        }
+        if (error) throw new Error(error.message);
+        return true;
     }
 
     // Delete user
     async deleteUser(userId: string): Promise<boolean> {
-        const db = await this.getDb();
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
-        }
+        const { error } = await supabase
+            .from('Users')
+            .delete()
+            .eq('UserId', userId);
 
-        const query = 'DELETE FROM Users WHERE UserId = @userId';
-
-        try {
-            const result = await db.request()
-                .input('userId', sql.UniqueIdentifier, userId)
-                .query(query);
-
-            return result.rowsAffected[0] > 0;
-        } catch (error) {
-            throw error;
-        }
+        if (error) throw new Error(error.message);
+        return true;
     }
 
     // Get user statistics
     async getUserStatistics(): Promise<UserStatistics> {
-        const db = await this.getDb();
-        const queries = [
-            'SELECT COUNT(*) as total FROM Users',
-            'SELECT COUNT(*) as active FROM Users WHERE IsActive = 1',
-            'SELECT COUNT(*) as tenants FROM Users WHERE Role = \'TENANT\'',
-            'SELECT COUNT(*) as agents FROM Users WHERE Role = \'AGENT\'',
-            'SELECT COUNT(*) as admins FROM Users WHERE Role = \'ADMIN\'',
-            'SELECT COUNT(*) as pendingAgents FROM Users WHERE Role = \'AGENT\' AND AgentStatus = \'PENDING\'',
-            'SELECT COUNT(*) as suspendedUsers FROM Users WHERE AgentStatus = \'SUSPENDED\' OR IsActive = 0',
-            'SELECT COUNT(*) as verifiedEmails FROM Users WHERE IsEmailVerified = 1'
-        ];
+        // Supabase doesn't support multiple counts in one query easily without RPC.
+        // We will run parallel queries.
 
         try {
-            const results = await Promise.all(
-                queries.map(query => db.request().query(query))
-            );
+            const [
+                { count: totalUsers },
+                { count: activeUsers },
+                { count: tenants },
+                { count: agents },
+                { count: admins },
+                { count: pendingAgents },
+                { count: suspendedUsers },
+                { count: verifiedEmails }
+            ] = await Promise.all([
+                supabase.from('Users').select('*', { count: 'exact', head: true }),
+                supabase.from('Users').select('*', { count: 'exact', head: true }).eq('IsActive', true),
+                supabase.from('Users').select('*', { count: 'exact', head: true }).eq('Role', 'TENANT'),
+                supabase.from('Users').select('*', { count: 'exact', head: true }).eq('Role', 'AGENT'),
+                supabase.from('Users').select('*', { count: 'exact', head: true }).eq('Role', 'ADMIN'),
+                supabase.from('Users').select('*', { count: 'exact', head: true }).eq('Role', 'AGENT').eq('AgentStatus', 'PENDING'),
+                supabase.from('Users').select('*', { count: 'exact', head: true }).or('AgentStatus.eq.SUSPENDED,IsActive.eq.false'),
+                supabase.from('Users').select('*', { count: 'exact', head: true }).eq('IsEmailVerified', true)
+            ]);
 
             return {
-                totalUsers: parseInt(results[0].recordset[0].total),
-                activeUsers: parseInt(results[1].recordset[0].active),
-                tenants: parseInt(results[2].recordset[0].tenants),
-                agents: parseInt(results[3].recordset[0].agents),
-                admins: parseInt(results[4].recordset[0].admins),
-                pendingAgents: parseInt(results[5].recordset[0].pendingAgents),
-                suspendedUsers: parseInt(results[6].recordset[0].suspendedUsers),
-                verifiedEmails: parseInt(results[7].recordset[0].verifiedEmails)
+                totalUsers: totalUsers || 0,
+                activeUsers: activeUsers || 0,
+                tenants: tenants || 0,
+                agents: agents || 0,
+                admins: admins || 0,
+                pendingAgents: pendingAgents || 0,
+                suspendedUsers: suspendedUsers || 0,
+                verifiedEmails: verifiedEmails || 0
             };
-        } catch (error) {
-            throw error;
+        } catch (error: any) {
+            throw new Error(error.message);
         }
     }
 
     // Search users
     async searchUsers(searchTerm: string, page: number = 1, limit: number = 20): Promise<{ users: User[]; total: number; page: number; totalPages: number }> {
-        const db = await this.getDb();
         const offset = (page - 1) * limit;
 
-        const countQuery = `
-            SELECT COUNT(*) as total 
-            FROM Users 
-            WHERE Username LIKE @searchTerm 
-                OR Email LIKE @searchTerm 
-                OR FullName LIKE @searchTerm 
-                OR PhoneNumber LIKE @searchTerm
-        `;
+        const { data, count, error } = await supabase
+            .from('Users')
+            .select('*', { count: 'exact' })
+            .or(`Username.ilike.%${searchTerm}%,Email.ilike.%${searchTerm}%,FullName.ilike.%${searchTerm}%,PhoneNumber.ilike.%${searchTerm}%`)
+            .order('CreatedAt', { ascending: false })
+            .range(offset, offset + limit - 1);
 
-        const dataQuery = `
-            SELECT * 
-            FROM Users 
-            WHERE Username LIKE @searchTerm 
-                OR Email LIKE @searchTerm 
-                OR FullName LIKE @searchTerm 
-                OR PhoneNumber LIKE @searchTerm
-            ORDER BY CreatedAt DESC 
-            OFFSET @offset ROWS 
-            FETCH NEXT @limit ROWS ONLY
-        `;
+        if (error) throw new Error(error.message);
 
-        try {
-            const searchParam = `%${searchTerm}%`;
-
-            const countResult = await db.request()
-                .input('searchTerm', sql.NVarChar, searchParam)
-                .query(countQuery);
-
-            const total = parseInt(countResult.recordset[0].total);
-
-            const dataResult = await db.request()
-                .input('searchTerm', sql.NVarChar, searchParam)
-                .input('offset', sql.Int, offset)
-                .input('limit', sql.Int, limit)
-                .query(dataQuery);
-
-            return {
-                users: dataResult.recordset,
-                total,
-                page,
-                totalPages: Math.ceil(total / limit)
-            };
-        } catch (error) {
-            throw error;
-        }
+        return {
+            users: data as User[],
+            total: count || 0,
+            page,
+            totalPages: Math.ceil((count || 0) / limit)
+        };
     }
 
     // Get users by role
     async getUsersByRole(role: 'TENANT' | 'AGENT' | 'ADMIN', page: number = 1, limit: number = 20): Promise<{ users: User[]; total: number; page: number; totalPages: number }> {
-        const db = await this.getDb();
         const offset = (page - 1) * limit;
 
-        const countQuery = 'SELECT COUNT(*) as total FROM Users WHERE Role = @role';
-        const dataQuery = `
-            SELECT * FROM Users 
-            WHERE Role = @role
-            ORDER BY CreatedAt DESC 
-            OFFSET @offset ROWS 
-            FETCH NEXT @limit ROWS ONLY
-        `;
+        const { data, count, error } = await supabase
+            .from('Users')
+            .select('*', { count: 'exact' })
+            .eq('Role', role)
+            .order('CreatedAt', { ascending: false })
+            .range(offset, offset + limit - 1);
 
-        try {
-            const countResult = await db.request()
-                .input('role', sql.NVarChar(20), role)
-                .query(countQuery);
+        if (error) throw new Error(error.message);
 
-            const total = parseInt(countResult.recordset[0].total);
-
-            const dataResult = await db.request()
-                .input('role', sql.NVarChar(20), role)
-                .input('offset', sql.Int, offset)
-                .input('limit', sql.Int, limit)
-                .query(dataQuery);
-
-            return {
-                users: dataResult.recordset,
-                total,
-                page,
-                totalPages: Math.ceil(total / limit)
-            };
-        } catch (error) {
-            throw error;
-        }
+        return {
+            users: data as User[],
+            total: count || 0,
+            page,
+            totalPages: Math.ceil((count || 0) / limit)
+        };
     }
 }
 

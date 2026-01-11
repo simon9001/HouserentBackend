@@ -2,7 +2,7 @@ export interface PropertyAmenity {
     AmenityId: string;
     PropertyId: string;
     AmenityName: string;
-    CreatedAt: Date;
+    CreatedAt: string;
 }
 export interface CreateAmenityInput {
     propertyId: string;
@@ -13,30 +13,21 @@ export interface BulkAmenityInput {
     amenities: string[];
 }
 export declare class PropertyAmenitiesService {
-    private db;
-    constructor();
-    private getDb;
     createAmenity(data: CreateAmenityInput): Promise<PropertyAmenity>;
-    getAmenityById(amenityId: string): Promise<PropertyAmenity | null>;
-    getAmenitiesByPropertyId(propertyId: string): Promise<PropertyAmenity[]>;
-    updateAmenity(amenityId: string, amenityName: string): Promise<PropertyAmenity | null>;
-    deleteAmenity(amenityId: string): Promise<boolean>;
+    bulkCreateAmenities(data: BulkAmenityInput): Promise<PropertyAmenity[]>;
     createBulkAmenities(data: BulkAmenityInput): Promise<PropertyAmenity[]>;
-    deleteAmenitiesByPropertyId(propertyId: string): Promise<boolean>;
+    getAmenityById(amenityId: string, ...args: any[]): Promise<PropertyAmenity>;
+    updateAmenity(amenityId: string, updates: any): Promise<PropertyAmenity>;
+    searchAmenities(query: string, ...args: any[]): Promise<PropertyAmenity[]>;
+    getAmenitiesByPropertyId(propertyId: string): Promise<PropertyAmenity[]>;
+    deleteAmenity(amenityId: string): Promise<boolean>;
+    deleteAmenitiesByPropertyId(propertyId: string): Promise<number>;
+    getPropertiesByAmenity(amenityName: string, limit?: number, offset?: number): Promise<any[]>;
     getCommonAmenities(limit?: number): Promise<{
-        amenityName: string;
+        name: string;
         count: number;
     }[]>;
-    searchAmenities(searchTerm: string, propertyId?: string): Promise<PropertyAmenity[]>;
-    getAmenitiesStatistics(propertyId?: string): Promise<{
-        total: number;
-        uniqueAmenities: number;
-        averagePerProperty: number;
-        mostCommon: {
-            amenityName: string;
-            count: number;
-        }[];
-    }>;
+    getAmenitiesStatistics(...args: any[]): Promise<any>;
 }
 export declare const propertyAmenitiesService: PropertyAmenitiesService;
 //# sourceMappingURL=propertyAmenities.service.d.ts.map

@@ -3,10 +3,10 @@ export interface UserSession {
     UserId: string;
     DeviceId?: string;
     RefreshTokenHash: string;
-    ExpiresAt: Date;
+    ExpiresAt: string;
     IsActive: boolean;
-    CreatedAt: Date;
-    LastAccessedAt: Date;
+    CreatedAt: string;
+    LastAccessedAt: string;
 }
 export interface CreateSessionInput {
     userId: string;
@@ -15,16 +15,13 @@ export interface CreateSessionInput {
     expiresInDays?: number;
 }
 export declare class UserSessionsService {
-    private db;
-    constructor();
-    private getDb;
     createSession(data: CreateSessionInput): Promise<UserSession>;
     validateSession(refreshToken: string): Promise<{
         isValid: boolean;
         session?: UserSession;
         message?: string;
     }>;
-    getSessionById(sessionId: string): Promise<UserSession>;
+    getSessionById(sessionId: string): Promise<UserSession | null>;
     getUserSessions(userId: string): Promise<UserSession[]>;
     updateLastAccessed(sessionId: string): Promise<void>;
     revokeSession(sessionId: string): Promise<boolean>;

@@ -1,5 +1,4 @@
-import sql from 'mssql';
-import { getConnectionPool } from '../Database/config.js';
+import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 import crypto from 'crypto';
 
@@ -8,10 +7,10 @@ export interface UserSession {
     UserId: string;
     DeviceId?: string;
     RefreshTokenHash: string;
-    ExpiresAt: Date;
+    ExpiresAt: string;
     IsActive: boolean;
-    CreatedAt: Date;
-    LastAccessedAt: Date;
+    CreatedAt: string;
+    LastAccessedAt: string;
 }
 
 export interface CreateSessionInput {
@@ -22,49 +21,40 @@ export interface CreateSessionInput {
 }
 
 export class UserSessionsService {
-    private db: sql.ConnectionPool | null = null;
-
-    constructor() {
-        // Lazy initialization
-    }
-
-    private async getDb(): Promise<sql.ConnectionPool> {
-        if (!this.db) {
-            this.db = getConnectionPool();
-        }
-        return this.db;
-    }
 
     // Create new session
     async createSession(data: CreateSessionInput): Promise<UserSession> {
-        const db = await this.getDb();
-        
         // Validate user exists
-        const userCheck = await db.request()
-            .input('userId', sql.UniqueIdentifier, data.userId)
-            .query('SELECT UserId FROM Users WHERE UserId = @userId AND IsActive = 1');
-        
-        if (userCheck.recordset.length === 0) {
-            throw new Error('User not found or inactive');
-        }
+        const { data: user, error: userError } = await supabase
+            .from('Users')
+            .select('UserId')
+            .eq('UserId', data.userId)
+            .eq('IsActive', true)
+            .single();
+
+        if (userError || !user) throw new Error('User not found or inactive');
 
         const refreshTokenHash = crypto.createHash('sha256').update(data.refreshToken).digest('hex');
-        const expiresAt = new Date(Date.now() + (data.expiresInDays || 30) * 24 * 60 * 60 * 1000);
+        const expiresAt = new Date(Date.now() + (data.expiresInDays || 30) * 24 * 60 * 60 * 1000).toISOString();
+        const now = new Date().toISOString();
 
-        const query = `
-            INSERT INTO UserSessions (UserId, DeviceId, RefreshTokenHash, ExpiresAt, IsActive)
-            OUTPUT INSERTED.*
-            VALUES (@userId, @deviceId, @refreshTokenHash, @expiresAt, 1)
-        `;
+        const { data: newSession, error } = await supabase
+            .from('UserSessions')
+            .insert({
+                UserId: data.userId,
+                DeviceId: data.deviceId || null,
+                RefreshTokenHash: refreshTokenHash,
+                ExpiresAt: expiresAt,
+                IsActive: true,
+                CreatedAt: now,
+                LastAccessedAt: now
+            })
+            .select()
+            .single();
 
-        const result = await db.request()
-            .input('userId', sql.UniqueIdentifier, data.userId)
-            .input('deviceId', sql.NVarChar(200), data.deviceId || null)
-            .input('refreshTokenHash', sql.NVarChar(500), refreshTokenHash)
-            .input('expiresAt', sql.DateTime, expiresAt)
-            .query(query);
+        if (error) throw new Error(error.message);
 
-        return result.recordset[0];
+        return newSession as UserSession;
     }
 
     // Validate session by refresh token
@@ -73,25 +63,18 @@ export class UserSessionsService {
         session?: UserSession;
         message?: string;
     }> {
-        const db = await this.getDb();
-        
         const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
-        const query = `
-            SELECT * FROM UserSessions
-            WHERE RefreshTokenHash = @refreshTokenHash
-            AND IsActive = 1
-        `;
+        const { data: session, error } = await supabase
+            .from('UserSessions')
+            .select('*')
+            .eq('RefreshTokenHash', refreshTokenHash)
+            .eq('IsActive', true)
+            .single();
 
-        const result = await db.request()
-            .input('refreshTokenHash', sql.NVarChar(500), refreshTokenHash)
-            .query(query);
-
-        if (result.recordset.length === 0) {
+        if (error || !session) {
             return { isValid: false, message: 'Invalid session' };
         }
-
-        const session = result.recordset[0];
 
         if (new Date(session.ExpiresAt) < new Date()) {
             return { isValid: false, message: 'Session expired' };
@@ -100,121 +83,100 @@ export class UserSessionsService {
         // Update last accessed timestamp
         await this.updateLastAccessed(session.SessionId);
 
-        return { isValid: true, session };
+        return { isValid: true, session: session as UserSession };
     }
 
     // Get session by ID
-    async getSessionById(sessionId: string): Promise<UserSession> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(sessionId)) {
-            throw new Error('Invalid session ID format');
+    async getSessionById(sessionId: string): Promise<UserSession | null> {
+        if (!ValidationUtils.isValidUUID(sessionId)) throw new Error('Invalid session ID format');
+
+        const { data, error } = await supabase
+            .from('UserSessions')
+            .select('*')
+            .eq('SessionId', sessionId)
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw new Error(error.message);
         }
 
-        const query = `
-            SELECT * FROM UserSessions
-            WHERE SessionId = @sessionId
-        `;
-
-        const result = await db.request()
-            .input('sessionId', sql.UniqueIdentifier, sessionId)
-            .query(query);
-
-        return result.recordset[0] || null;
+        return data as UserSession;
     }
 
     // Get active sessions for user
     async getUserSessions(userId: string): Promise<UserSession[]> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(userId)) {
-            throw new Error('Invalid user ID format');
-        }
+        if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        const query = `
-            SELECT * FROM UserSessions
-            WHERE UserId = @userId
-            AND IsActive = 1
-            AND ExpiresAt > SYSDATETIME()
-            ORDER BY LastAccessedAt DESC
-        `;
+        const { data, error } = await supabase
+            .from('UserSessions')
+            .select('*')
+            .eq('UserId', userId)
+            .eq('IsActive', true)
+            .gt('ExpiresAt', new Date().toISOString())
+            .order('LastAccessedAt', { ascending: false });
 
-        const result = await db.request()
-            .input('userId', sql.UniqueIdentifier, userId)
-            .query(query);
+        if (error) throw new Error(error.message);
 
-        return result.recordset;
+        return data as UserSession[];
     }
 
     // Update last accessed timestamp
     async updateLastAccessed(sessionId: string): Promise<void> {
-        const db = await this.getDb();
+        const { error } = await supabase
+            .from('UserSessions')
+            .update({ LastAccessedAt: new Date().toISOString() })
+            .eq('SessionId', sessionId);
 
-        const query = `
-            UPDATE UserSessions 
-            SET LastAccessedAt = SYSDATETIME()
-            WHERE SessionId = @sessionId
-        `;
-
-        await db.request()
-            .input('sessionId', sql.UniqueIdentifier, sessionId)
-            .query(query);
+        if (error) console.error('Error updating session last accessed:', error);
     }
 
     // Revoke session
     async revokeSession(sessionId: string): Promise<boolean> {
-        const db = await this.getDb();
+        const { error, count } = await supabase
+            .from('UserSessions')
+            .update({ IsActive: false })
+            .eq('SessionId', sessionId)
+            .select('SessionId', { count: 'exact' });
 
-        const query = `
-            UPDATE UserSessions 
-            SET IsActive = 0
-            WHERE SessionId = @sessionId
-        `;
+        if (error) throw new Error(error.message);
 
-        const result = await db.request()
-            .input('sessionId', sql.UniqueIdentifier, sessionId)
-            .query(query);
-
-        return result.rowsAffected[0] > 0;
+        return (count || 0) > 0;
     }
 
     // Revoke all sessions for user
     async revokeAllUserSessions(userId: string, excludeSessionId?: string): Promise<number> {
-        const db = await this.getDb();
-
-        let query = `
-            UPDATE UserSessions 
-            SET IsActive = 0
-            WHERE UserId = @userId
-            AND IsActive = 1
-        `;
+        let query = supabase
+            .from('UserSessions')
+            .update({ IsActive: false })
+            .eq('UserId', userId)
+            .eq('IsActive', true);
 
         if (excludeSessionId) {
-            query += ' AND SessionId != @excludeSessionId';
+            query = query.neq('SessionId', excludeSessionId);
         }
 
-        const request = db.request()
-            .input('userId', sql.UniqueIdentifier, userId);
-        
-        if (excludeSessionId) {
-            request.input('excludeSessionId', sql.UniqueIdentifier, excludeSessionId);
-        }
+        const { error, count } = await query.select('SessionId', { count: 'exact' });
 
-        const result = await request.query(query);
-        return result.rowsAffected[0];
+        if (error) throw new Error(error.message);
+
+        return count || 0;
     }
 
     // Clean expired sessions
     async cleanExpiredSessions(): Promise<number> {
-        const db = await this.getDb();
+        // Delete sessions expired more than 7 days ago
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - 7);
 
-        const query = `
-            DELETE FROM UserSessions 
-            WHERE ExpiresAt < DATEADD(DAY, -7, SYSDATETIME())
-        `;
+        const { error, count } = await supabase
+            .from('UserSessions')
+            .delete({ count: 'exact' })
+            .lt('ExpiresAt', cutoffDate.toISOString());
 
-        const result = await db.request().query(query);
-        return result.rowsAffected[0];
+        if (error) throw new Error(error.message);
+
+        return count || 0;
     }
 
     // Get session statistics
@@ -223,32 +185,58 @@ export class UserSessionsService {
         totalExpired: number;
         recentSessions: UserSession[];
     }> {
-        const db = await this.getDb();
+        // Parallel queries
+        const now = new Date().toISOString();
 
-        let whereClause = '';
+        // Active count query
+        let activeQuery = supabase
+            .from('UserSessions')
+            .select('*', { count: 'exact', head: true })
+            .eq('IsActive', true)
+            .gt('ExpiresAt', now);
+
+        // Expired count query (IsActive=false OR ExpiresAt <= now)
+        // Correct way in supabase is .or()
+        let expiredQuery = supabase
+            .from('UserSessions')
+            .select('*', { count: 'exact', head: true })
+            .or(`IsActive.eq.false,ExpiresAt.lte.${now}`);
+
+        // Recent sessions query
+        let recentQuery = supabase
+            .from('UserSessions')
+            .select('*')
+            .order('LastAccessedAt', { ascending: false })
+            .limit(10);
+
         if (userId) {
-            whereClause = 'WHERE UserId = @userId';
+            activeQuery = activeQuery.eq('UserId', userId);
+            // Handling OR with AND filter in Supabase: (A OR B) AND C
+            // .or() is top level usually. We need filtering by UserId AND (IsActive=false OR ExpiresAt <= now)
+            // syntax: .eq('UserId', userId).or(...)
+            expiredQuery = supabase
+                .from('UserSessions')
+                .select('*', { count: 'exact', head: true })
+                .eq('UserId', userId)
+                .or(`IsActive.eq.false,ExpiresAt.lte.${now}`);
+
+            recentQuery = recentQuery.eq('UserId', userId);
         }
 
-        const queries = [
-            `SELECT COUNT(*) as totalActive FROM UserSessions ${whereClause} AND IsActive = 1 AND ExpiresAt > SYSDATETIME()`,
-            `SELECT COUNT(*) as totalExpired FROM UserSessions ${whereClause} AND (IsActive = 0 OR ExpiresAt <= SYSDATETIME())`,
-            `SELECT TOP 10 * FROM UserSessions ${whereClause} ORDER BY LastAccessedAt DESC`
-        ];
+        const [activeRes, expiredRes, recentRes] = await Promise.all([
+            activeQuery,
+            expiredQuery,
+            recentQuery
+        ]);
 
-        const request = db.request();
-        if (userId) {
-            request.input('userId', sql.UniqueIdentifier, userId);
-        }
-
-        const results = await Promise.all(
-            queries.map(query => request.query(query))
-        );
+        if (activeRes.error) throw new Error(activeRes.error.message);
+        if (expiredRes.error) throw new Error(expiredRes.error.message);
+        if (recentRes.error) throw new Error(recentRes.error.message);
 
         return {
-            totalActive: parseInt(results[0].recordset[0].totalActive),
-            totalExpired: parseInt(results[1].recordset[0].totalExpired),
-            recentSessions: results[2].recordset
+            totalActive: activeRes.count || 0,
+            totalExpired: expiredRes.count || 0,
+            recentSessions: recentRes.data as UserSession[]
         };
     }
 }

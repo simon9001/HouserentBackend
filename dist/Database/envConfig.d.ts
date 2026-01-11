@@ -1,10 +1,7 @@
 export declare const validateEnv: () => boolean;
 export declare const env: {
-    DB_USER: string;
-    DB_PASSWORD: string;
-    DB_SERVER: string;
-    DB_DATABASE: string;
-    DB_PORT: number;
+    SUPABASE_URL: string;
+    SUPABASE_SERVICE_KEY: string;
     JWT_SECRET: string;
     JWT_REFRESH_SECRET: string;
     JWT_EXPIRES_IN: string;

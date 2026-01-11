@@ -17,8 +17,6 @@ export interface CreateNotificationInput {
     referenceId?: string;
 }
 export declare class NotificationService {
-    private db;
-    private getDb;
     getNotificationsByUser(userId: string): Promise<Notification[]>;
     markAsRead(notificationId: string, userId: string): Promise<boolean>;
     markAllAsRead(userId: string): Promise<boolean>;

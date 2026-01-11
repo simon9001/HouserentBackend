@@ -6,24 +6,24 @@ export interface UserSubscription {
     Price: number;
     Currency: string;
     BillingCycle: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY';
-    StartDate: Date;
-    EndDate: Date;
-    TrialEndDate?: Date;
+    StartDate: string;
+    EndDate: string;
+    TrialEndDate?: string;
     CancelAtPeriodEnd: boolean;
-    CancelledDate?: Date;
+    CancelledDate?: string;
     Status: 'TRIAL' | 'ACTIVE' | 'CANCELLED' | 'EXPIRED' | 'PAST_DUE' | 'SUSPENDED';
     AutoRenew: boolean;
     RenewalAttempts: number;
-    LastRenewalAttempt?: Date;
+    LastRenewalAttempt?: string;
     PropertiesUsed: number;
     VisitsUsedThisMonth: number;
     MediaUsedThisMonth: number;
     AmenitiesUsedThisMonth: number;
     BoostsUsedThisMonth: number;
-    LastUsageReset: Date;
-    NextUsageReset: Date;
-    CreatedAt: Date;
-    UpdatedAt: Date;
+    LastUsageReset: string;
+    NextUsageReset: string;
+    CreatedAt: string;
+    UpdatedAt: string;
 }
 export interface UserSubscriptionWithPlan extends UserSubscription {
     PlanName?: string;
@@ -66,9 +66,6 @@ export interface UsageCheckResult {
     planId?: string;
 }
 export declare class UserSubscriptionsService {
-    private db;
-    constructor();
-    private getDb;
     createSubscription(data: CreateSubscriptionInput): Promise<UserSubscription>;
     getSubscriptionById(subscriptionId: string): Promise<UserSubscriptionWithPlan | null>;
     getActiveSubscription(userId: string): Promise<UserSubscriptionWithPlan | null>;
@@ -131,7 +128,7 @@ export declare class UserSubscriptionsService {
             allowAdvancedAnalytics: boolean;
             allowBulkOperations: boolean;
         };
-        nextReset: Date;
+        nextReset: string;
     }>;
 }
 export declare const userSubscriptionsService: UserSubscriptionsService;

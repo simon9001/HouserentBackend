@@ -1,5 +1,4 @@
-import sql from 'mssql';
-import { getConnectionPool } from '../Database/config.js';
+import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 
 export interface SubscriptionPlan {
@@ -24,8 +23,8 @@ export interface SubscriptionPlan {
     IsVisible: boolean;
     SortOrder: number;
     HighlightFeatures?: string[];
-    CreatedAt: Date;
-    UpdatedAt: Date;
+    CreatedAt: string;
+    UpdatedAt: string;
 }
 
 export interface CreatePlanInput {
@@ -61,383 +60,222 @@ export interface UpdatePlanInput {
 }
 
 export class SubscriptionPlansService {
-    private db: sql.ConnectionPool | null = null;
-
-    constructor() {
-        // Lazy initialization
-    }
-
-    private async getDb(): Promise<sql.ConnectionPool> {
-        if (!this.db) {
-            this.db = getConnectionPool();
-        }
-        return this.db;
-    }
 
     // Create new subscription plan
     async createPlan(data: CreatePlanInput): Promise<SubscriptionPlan> {
-        const db = await this.getDb();
-        
         // Validate required fields
         if (!data.name || !data.displayName || data.basePrice === undefined) {
             throw new Error('Name, display name, and base price are required');
         }
 
         // Check if plan name already exists
-        const existingCheck = await db.request()
-            .input('name', sql.NVarChar(100), data.name)
-            .query('SELECT PlanId FROM SubscriptionPlans WHERE Name = @name');
-        
-        if (existingCheck.recordset.length > 0) {
-            throw new Error('Subscription plan with this name already exists');
-        }
+        const { data: existing, error: checkError } = await supabase
+            .from('SubscriptionPlans')
+            .select('PlanId')
+            .eq('Name', data.name)
+            .single();
 
-        const query = `
-            INSERT INTO SubscriptionPlans (
-                Name, DisplayName, Description, BasePrice, Currency, BillingCycle, TrialDays,
-                MaxProperties, MaxVisitsPerMonth, MaxMediaPerProperty, MaxAmenitiesPerProperty,
-                AllowBoost, MaxBoostsPerMonth, AllowPremiumSupport, AllowAdvancedAnalytics,
-                AllowBulkOperations, IsVisible, SortOrder, HighlightFeatures
-            )
-            OUTPUT INSERTED.*
-            VALUES (
-                @name, @displayName, @description, @basePrice, @currency, @billingCycle, @trialDays,
-                @maxProperties, @maxVisitsPerMonth, @maxMediaPerProperty, @maxAmenitiesPerProperty,
-                @allowBoost, @maxBoostsPerMonth, @allowPremiumSupport, @allowAdvancedAnalytics,
-                @allowBulkOperations, @isVisible, @sortOrder, @highlightFeatures
-            )
-        `;
+        if (checkError && checkError.code !== 'PGRST116') throw new Error(checkError.message);
+        if (existing) throw new Error('Subscription plan with this name already exists');
 
-        const result = await db.request()
-            .input('name', sql.NVarChar(100), data.name)
-            .input('displayName', sql.NVarChar(150), data.displayName)
-            .input('description', sql.NVarChar(500), data.description || null)
-            .input('basePrice', sql.Decimal(10, 2), data.basePrice)
-            .input('currency', sql.NVarChar(10), data.currency || 'KES')
-            .input('billingCycle', sql.NVarChar(20), data.billingCycle || 'MONTHLY')
-            .input('trialDays', sql.Int, data.trialDays || 0)
-            .input('maxProperties', sql.Int, data.maxProperties || 5)
-            .input('maxVisitsPerMonth', sql.Int, data.maxVisitsPerMonth || 10)
-            .input('maxMediaPerProperty', sql.Int, data.maxMediaPerProperty || 10)
-            .input('maxAmenitiesPerProperty', sql.Int, data.maxAmenitiesPerProperty || 15)
-            .input('allowBoost', sql.Bit, data.allowBoost ? 1 : 0)
-            .input('maxBoostsPerMonth', sql.Int, data.maxBoostsPerMonth || 0)
-            .input('allowPremiumSupport', sql.Bit, data.allowPremiumSupport ? 1 : 0)
-            .input('allowAdvancedAnalytics', sql.Bit, data.allowAdvancedAnalytics ? 1 : 0)
-            .input('allowBulkOperations', sql.Bit, data.allowBulkOperations ? 1 : 0)
-            .input('isVisible', sql.Bit, data.isVisible !== undefined ? (data.isVisible ? 1 : 0) : 1)
-            .input('sortOrder', sql.Int, data.sortOrder || 0)
-            .input('highlightFeatures', sql.NVarChar, 
-                data.highlightFeatures ? JSON.stringify(data.highlightFeatures) : null)
-            .query(query);
+        const { data: newPlan, error } = await supabase
+            .from('SubscriptionPlans')
+            .insert({
+                Name: data.name,
+                DisplayName: data.displayName,
+                Description: data.description || null,
+                BasePrice: data.basePrice,
+                Currency: data.currency || 'KES',
+                BillingCycle: data.billingCycle || 'MONTHLY',
+                TrialDays: data.trialDays || 0,
+                MaxProperties: data.maxProperties || 5,
+                MaxVisitsPerMonth: data.maxVisitsPerMonth || 10,
+                MaxMediaPerProperty: data.maxMediaPerProperty || 10,
+                MaxAmenitiesPerProperty: data.maxAmenitiesPerProperty || 15,
+                AllowBoost: data.allowBoost || false,
+                MaxBoostsPerMonth: data.maxBoostsPerMonth || 0,
+                AllowPremiumSupport: data.allowPremiumSupport || false,
+                AllowAdvancedAnalytics: data.allowAdvancedAnalytics || false,
+                AllowBulkOperations: data.allowBulkOperations || false,
+                IsVisible: data.isVisible !== undefined ? data.isVisible : true,
+                SortOrder: data.sortOrder || 0,
+                HighlightFeatures: data.highlightFeatures || null, // Supabase handles array/json
+                CreatedAt: new Date().toISOString(),
+                UpdatedAt: new Date().toISOString(),
+                IsActive: true // Default active on create? interface says boolean.
+            })
+            .select()
+            .single();
 
-        const plan = result.recordset[0];
+        if (error) throw new Error(error.message);
 
-        // Parse JSON fields
-        if (plan.HighlightFeatures) {
-            plan.HighlightFeatures = JSON.parse(plan.HighlightFeatures);
-        }
-
-        return plan;
+        return newPlan as SubscriptionPlan;
     }
 
-    // Get plan by ID - FIXED: Allow null return
+    // Get plan by ID
     async getPlanById(planId: string): Promise<SubscriptionPlan | null> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(planId)) {
-            throw new Error('Invalid plan ID format');
+        if (!ValidationUtils.isValidUUID(planId)) throw new Error('Invalid plan ID format');
+
+        const { data, error } = await supabase
+            .from('SubscriptionPlans')
+            .select('*')
+            .eq('PlanId', planId)
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw new Error(error.message);
         }
 
-        const query = `
-            SELECT *, 
-                JSON_QUERY(HighlightFeatures) as HighlightFeatures
-            FROM SubscriptionPlans 
-            WHERE PlanId = @planId
-        `;
-
-        const result = await db.request()
-            .input('planId', sql.UniqueIdentifier, planId)
-            .query(query);
-
-        const plan = result.recordset[0];
-        if (!plan) return null;
-
-        // Parse JSON fields
-        if (plan.HighlightFeatures) {
-            plan.HighlightFeatures = JSON.parse(plan.HighlightFeatures);
-        }
-
-        return plan;
+        return data as SubscriptionPlan;
     }
 
-    // Get plan by name - FIXED: Allow null return
+    // Get plan by name
     async getPlanByName(name: string): Promise<SubscriptionPlan | null> {
-        const db = await this.getDb();
+        const { data, error } = await supabase
+            .from('SubscriptionPlans')
+            .select('*')
+            .eq('Name', name)
+            .single();
 
-        const query = `
-            SELECT *, 
-                JSON_QUERY(HighlightFeatures) as HighlightFeatures
-            FROM SubscriptionPlans 
-            WHERE Name = @name
-        `;
-
-        const result = await db.request()
-            .input('name', sql.NVarChar(100), name)
-            .query(query);
-
-        const plan = result.recordset[0];
-        if (!plan) return null;
-
-        // Parse JSON fields
-        if (plan.HighlightFeatures) {
-            plan.HighlightFeatures = JSON.parse(plan.HighlightFeatures);
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw new Error(error.message);
         }
 
-        return plan;
+        return data as SubscriptionPlan;
     }
 
     // Get all plans (with optional filters)
     async getAllPlans(isActive?: boolean, isVisible?: boolean): Promise<SubscriptionPlan[]> {
-        const db = await this.getDb();
+        let query = supabase
+            .from('SubscriptionPlans')
+            .select('*')
+            .order('SortOrder', { ascending: true })
+            .order('DisplayName', { ascending: true });
 
-        let whereClause = 'WHERE 1=1';
         if (isActive !== undefined) {
-            whereClause += ` AND IsActive = ${isActive ? 1 : 0}`;
+            query = query.eq('IsActive', isActive);
         }
         if (isVisible !== undefined) {
-            whereClause += ` AND IsVisible = ${isVisible ? 1 : 0}`;
+            query = query.eq('IsVisible', isVisible);
         }
 
-        const query = `
-            SELECT *, 
-                JSON_QUERY(HighlightFeatures) as HighlightFeatures
-            FROM SubscriptionPlans
-            ${whereClause}
-            ORDER BY SortOrder ASC, DisplayName ASC
-        `;
+        const { data, error } = await query;
+        if (error) throw new Error(error.message);
 
-        const result = await db.request().query(query);
-        
-        // Parse JSON fields
-        return result.recordset.map(plan => ({
-            ...plan,
-            HighlightFeatures: plan.HighlightFeatures ? JSON.parse(plan.HighlightFeatures) : []
-        }));
+        return data as SubscriptionPlan[];
     }
 
     // Update plan
     async updatePlan(planId: string, data: UpdatePlanInput): Promise<SubscriptionPlan> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(planId)) {
-            throw new Error('Invalid plan ID format');
-        }
+        if (!ValidationUtils.isValidUUID(planId)) throw new Error('Invalid plan ID format');
 
-        // Build dynamic update query
-        const updates: string[] = [];
-        const inputs: any = { planId };
+        const updates: any = {};
+        if (data.displayName !== undefined) updates.DisplayName = data.displayName;
+        if (data.description !== undefined) updates.Description = data.description;
+        if (data.basePrice !== undefined) updates.BasePrice = data.basePrice;
+        if (data.isActive !== undefined) updates.IsActive = data.isActive;
+        if (data.isVisible !== undefined) updates.IsVisible = data.isVisible;
+        if (data.sortOrder !== undefined) updates.SortOrder = data.sortOrder;
+        if (data.highlightFeatures !== undefined) updates.HighlightFeatures = data.highlightFeatures;
 
-        if (data.displayName !== undefined) {
-            updates.push('DisplayName = @displayName');
-            inputs.displayName = data.displayName;
-        }
-        if (data.description !== undefined) {
-            updates.push('Description = @description');
-            inputs.description = data.description;
-        }
-        if (data.basePrice !== undefined) {
-            updates.push('BasePrice = @basePrice');
-            inputs.basePrice = data.basePrice;
-        }
-        if (data.isActive !== undefined) {
-            updates.push('IsActive = @isActive');
-            inputs.isActive = data.isActive ? 1 : 0;
-        }
-        if (data.isVisible !== undefined) {
-            updates.push('IsVisible = @isVisible');
-            inputs.isVisible = data.isVisible ? 1 : 0;
-        }
-        if (data.sortOrder !== undefined) {
-            updates.push('SortOrder = @sortOrder');
-            inputs.sortOrder = data.sortOrder;
-        }
-        if (data.highlightFeatures !== undefined) {
-            updates.push('HighlightFeatures = @highlightFeatures');
-            inputs.highlightFeatures = JSON.stringify(data.highlightFeatures);
-        }
+        if (Object.keys(updates).length === 0) throw new Error('No fields to update');
 
-        if (updates.length === 0) {
-            throw new Error('No fields to update');
-        }
+        updates.UpdatedAt = new Date().toISOString();
 
-        const query = `
-            UPDATE SubscriptionPlans 
-            SET ${updates.join(', ')}
-            OUTPUT INSERTED.*
-            WHERE PlanId = @planId
-        `;
+        const { data: updated, error } = await supabase
+            .from('SubscriptionPlans')
+            .update(updates)
+            .eq('PlanId', planId)
+            .select()
+            .single();
 
-        const request = db.request()
-            .input('planId', sql.UniqueIdentifier, inputs.planId);
+        if (error) throw new Error(error.message);
 
-        // Add inputs dynamically
-        Object.keys(inputs).forEach(key => {
-            if (key !== 'planId') {
-                let sqlType: any = sql.NVarChar;
-                if (key === 'basePrice') {
-                    sqlType = sql.Decimal(10, 2);
-                } else if (key === 'isActive' || key === 'isVisible') {
-                    sqlType = sql.Bit;
-                } else if (key === 'sortOrder') {
-                    sqlType = sql.Int;
-                }
-                request.input(key, sqlType, inputs[key]);
-            }
-        });
-
-        const result = await request.query(query);
-        const plan = result.recordset[0];
-
-        // Parse JSON fields
-        if (plan.HighlightFeatures) {
-            plan.HighlightFeatures = JSON.parse(plan.HighlightFeatures);
-        }
-
-        return plan;
+        return updated as SubscriptionPlan;
     }
 
     // Delete plan (soft delete)
     async deletePlan(planId: string): Promise<boolean> {
-        const db = await this.getDb();
-        
-        if (!ValidationUtils.isValidUUID(planId)) {
-            throw new Error('Invalid plan ID format');
-        }
+        if (!ValidationUtils.isValidUUID(planId)) throw new Error('Invalid plan ID format');
 
-        // Check if plan has active subscriptions
-        const subscriptionCheck = await db.request()
-            .input('planId', sql.UniqueIdentifier, planId)
-            .query(`
-                SELECT COUNT(*) as subscriptionCount
-                FROM UserSubscriptions 
-                WHERE PlanId = @planId 
-                AND Status IN ('TRIAL', 'ACTIVE')
-            `);
+        // Check active subscriptions
+        const { count, error: countError } = await supabase
+            .from('UserSubscriptions')
+            .select('SubscriptionId', { count: 'exact', head: true })
+            .eq('PlanId', planId)
+            .in('Status', ['TRIAL', 'ACTIVE']);
 
-        if (subscriptionCheck.recordset[0].subscriptionCount > 0) {
+        if (countError) throw new Error(countError.message);
+
+        if ((count || 0) > 0) {
             throw new Error('Cannot delete plan with active subscriptions');
         }
 
-        // Soft delete by deactivating
-        const query = `
-            UPDATE SubscriptionPlans 
-            SET IsActive = 0, IsVisible = 0
-            WHERE PlanId = @planId
-        `;
+        // Soft delete
+        const { error, count: updatedCount } = await supabase
+            .from('SubscriptionPlans')
+            .update({ IsActive: false, IsVisible: false })
+            .eq('PlanId', planId)
+            .select('PlanId', { count: 'exact' });
 
-        const result = await db.request()
-            .input('planId', sql.UniqueIdentifier, planId)
-            .query(query);
+        if (error) throw new Error(error.message);
 
-        return result.rowsAffected[0] > 0;
+        return (updatedCount || 0) > 0;
     }
 
     // Compare plans
     async comparePlans(planIds: string[]): Promise<SubscriptionPlan[]> {
-        const db = await this.getDb();
-
-        // Validate UUIDs
-        planIds.forEach(planId => {
-            if (!ValidationUtils.isValidUUID(planId)) {
-                throw new Error(`Invalid plan ID format: ${planId}`);
-            }
+        // Validation
+        planIds.forEach(id => {
+            if (!ValidationUtils.isValidUUID(id)) throw new Error(`Invalid plan ID format: ${id}`);
         });
 
-        const query = `
-            SELECT 
-                PlanId,
-                DisplayName,
-                BasePrice,
-                Currency,
-                BillingCycle,
-                TrialDays,
-                MaxProperties,
-                MaxVisitsPerMonth,
-                MaxMediaPerProperty,
-                MaxAmenitiesPerProperty,
-                AllowBoost,
-                MaxBoostsPerMonth,
-                AllowPremiumSupport,
-                AllowAdvancedAnalytics,
-                AllowBulkOperations,
-                HighlightFeatures
-            FROM SubscriptionPlans
-            WHERE PlanId IN (${planIds.map((_, i) => `@planId${i}`).join(',')})
-            AND IsActive = 1
-            ORDER BY SortOrder ASC
-        `;
+        const { data, error } = await supabase
+            .from('SubscriptionPlans')
+            .select('*')
+            .in('PlanId', planIds)
+            .eq('IsActive', true)
+            .order('SortOrder', { ascending: true });
 
-        const request = db.request();
-        planIds.forEach((planId, index) => {
-            request.input(`planId${index}`, sql.UniqueIdentifier, planId);
-        });
+        if (error) throw new Error(error.message);
 
-        const result = await request.query(query);
-        
-        // Parse JSON fields
-        return result.recordset.map(plan => ({
-            ...plan,
-            HighlightFeatures: plan.HighlightFeatures ? JSON.parse(plan.HighlightFeatures) : []
-        }));
+        return data as SubscriptionPlan[];
     }
 
     // Get default (free) plan
     async getFreePlan(): Promise<SubscriptionPlan | null> {
-        const db = await this.getDb();
+        const { data, error } = await supabase
+            .from('SubscriptionPlans')
+            .select('*')
+            .eq('Name', 'FREE')
+            .eq('IsActive', true)
+            .single();
 
-        const query = `
-            SELECT *, 
-                JSON_QUERY(HighlightFeatures) as HighlightFeatures
-            FROM SubscriptionPlans 
-            WHERE Name = 'FREE'
-            AND IsActive = 1
-        `;
-
-        const result = await db.request().query(query);
-
-        const plan = result.recordset[0];
-        if (!plan) return null;
-
-        // Parse JSON fields
-        if (plan.HighlightFeatures) {
-            plan.HighlightFeatures = JSON.parse(plan.HighlightFeatures);
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw new Error(error.message);
         }
 
-        return plan;
+        return data as SubscriptionPlan;
     }
 
     // Get featured/premium plans (for upsell)
     async getFeaturedPlans(limit: number = 3): Promise<SubscriptionPlan[]> {
-        const db = await this.getDb();
+        const { data, error } = await supabase
+            .from('SubscriptionPlans')
+            .select('*')
+            .eq('IsActive', true)
+            .eq('IsVisible', true)
+            .neq('Name', 'FREE')
+            .order('SortOrder', { ascending: true })
+            .order('BasePrice', { ascending: true })
+            .limit(limit);
 
-        const query = `
-            SELECT TOP ${limit} *, 
-                JSON_QUERY(HighlightFeatures) as HighlightFeatures
-            FROM SubscriptionPlans 
-            WHERE IsActive = 1 
-            AND IsVisible = 1
-            AND Name != 'FREE'
-            ORDER BY SortOrder ASC, BasePrice ASC
-        `;
+        if (error) throw new Error(error.message);
 
-        const result = await db.request().query(query);
-        
-        // Parse JSON fields
-        return result.recordset.map(plan => ({
-            ...plan,
-            HighlightFeatures: plan.HighlightFeatures ? JSON.parse(plan.HighlightFeatures) : []
-        }));
+        return data as SubscriptionPlan[];
     }
 }
 

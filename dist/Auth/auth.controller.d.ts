@@ -4,23 +4,23 @@ export declare const register: (c: Context) => Promise<(Response & import("hono"
     message: string;
     data: {
         user: {
-            Username: string;
-            Email: string;
-            PhoneNumber: string;
+            IsActive: boolean;
+            CreatedAt: string;
             UserId: string;
             FullName: string;
+            Role: "TENANT" | "AGENT" | "ADMIN";
+            AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
+            Email: string;
+            Username: string;
+            PhoneNumber: string;
+            LoginAttempts: number;
+            IsEmailVerified: boolean;
             Bio?: string | undefined;
             Address?: string | undefined;
             AvatarUrl?: string | undefined;
-            Role: "TENANT" | "AGENT" | "ADMIN";
-            AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
             TrustScore: number;
-            IsActive: boolean;
-            IsEmailVerified: boolean;
-            LoginAttempts: number;
             LastLogin: string | null;
             LockedUntil: string | null;
-            CreatedAt: string;
             UpdatedAt: string;
         };
         tokens: {
@@ -47,23 +47,23 @@ export declare const login: (c: Context) => Promise<(Response & import("hono").T
     message: string;
     data: {
         user: {
-            Username: string;
-            Email: string;
-            PhoneNumber: string;
+            IsActive: boolean;
+            CreatedAt: string;
             UserId: string;
             FullName: string;
+            Role: "TENANT" | "AGENT" | "ADMIN";
+            AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
+            Email: string;
+            Username: string;
+            PhoneNumber: string;
+            LoginAttempts: number;
+            IsEmailVerified: boolean;
             Bio?: string | undefined;
             Address?: string | undefined;
             AvatarUrl?: string | undefined;
-            Role: "TENANT" | "AGENT" | "ADMIN";
-            AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
             TrustScore: number;
-            IsActive: boolean;
-            IsEmailVerified: boolean;
-            LoginAttempts: number;
             LastLogin: string | null;
             LockedUntil: string | null;
-            CreatedAt: string;
             UpdatedAt: string;
         };
         tokens: {
@@ -185,23 +185,23 @@ export declare const getAuthProfile: (c: Context) => Promise<(Response & import(
 }, 404, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        Username: string;
-        Email: string;
-        PhoneNumber: string;
+        IsActive: boolean;
+        CreatedAt: string;
         UserId: string;
         FullName: string;
+        Role: "TENANT" | "AGENT" | "ADMIN";
+        AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
+        Email: string;
+        Username: string;
+        PhoneNumber: string;
+        LoginAttempts: number;
+        IsEmailVerified: boolean;
         Bio?: string | undefined;
         Address?: string | undefined;
         AvatarUrl?: string | undefined;
-        Role: "TENANT" | "AGENT" | "ADMIN";
-        AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
         TrustScore: number;
-        IsActive: boolean;
-        IsEmailVerified: boolean;
-        LoginAttempts: number;
         LastLogin: string | null;
         LockedUntil: string | null;
-        CreatedAt: string;
         UpdatedAt: string;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{

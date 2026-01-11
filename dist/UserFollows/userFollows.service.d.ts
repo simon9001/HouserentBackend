@@ -1,16 +1,13 @@
 export interface UserFollow {
     FollowerId: string;
     FollowedId: string;
-    CreatedAt: Date;
+    CreatedAt: string;
 }
 export interface FollowStats {
     followerCount: number;
     followingCount: number;
 }
 export declare class UserFollowsService {
-    private db;
-    constructor();
-    private getDb;
     followUser(followerId: string, followedId: string): Promise<UserFollow>;
     unfollowUser(followerId: string, followedId: string): Promise<boolean>;
     isFollowing(followerId: string, followedId: string): Promise<boolean>;

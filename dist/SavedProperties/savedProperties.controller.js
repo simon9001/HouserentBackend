@@ -44,6 +44,9 @@ export const getSavedPropertiesByUserId = async (c) => {
     }
     catch (error) {
         console.error('Error fetching saved properties:', error.message);
+        if (error.message.includes('Invalid user ID')) {
+            return c.json({ success: false, error: error.message }, 400);
+        }
         return c.json({ success: false, error: 'Failed to fetch saved properties' }, 500);
     }
 };

@@ -25,6 +25,11 @@ export declare const createProperty: (c: Context) => Promise<(Response & import(
         BoostExpiry: string | null;
         CreatedAt: string;
         UpdatedAt: string;
+        OwnerName?: string | undefined;
+        OwnerEmail?: string | undefined;
+        OwnerPhoneNumber?: string | undefined;
+        OwnerTrustScore?: number | undefined;
+        OwnerAgentStatus?: string | undefined;
     };
 }, 201, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -64,6 +69,11 @@ export declare const getPropertyById: (c: Context) => Promise<(Response & import
         BoostExpiry: string | null;
         CreatedAt: string;
         UpdatedAt: string;
+        OwnerName?: string | undefined;
+        OwnerEmail?: string | undefined;
+        OwnerPhoneNumber?: string | undefined;
+        OwnerTrustScore?: number | undefined;
+        OwnerAgentStatus?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -98,6 +108,11 @@ export declare const getPropertiesByOwner: (c: Context) => Promise<(Response & i
             BoostExpiry: string | null;
             CreatedAt: string;
             UpdatedAt: string;
+            OwnerName?: string | undefined;
+            OwnerEmail?: string | undefined;
+            OwnerPhoneNumber?: string | undefined;
+            OwnerTrustScore?: number | undefined;
+            OwnerAgentStatus?: string | undefined;
         }[];
         pagination: {
             total: number;
@@ -139,6 +154,11 @@ export declare const getAllProperties: (c: Context) => Promise<(Response & impor
             BoostExpiry: string | null;
             CreatedAt: string;
             UpdatedAt: string;
+            OwnerName?: string | undefined;
+            OwnerEmail?: string | undefined;
+            OwnerPhoneNumber?: string | undefined;
+            OwnerTrustScore?: number | undefined;
+            OwnerAgentStatus?: string | undefined;
         }[];
         pagination: {
             total: number;
@@ -180,6 +200,11 @@ export declare const updateProperty: (c: Context) => Promise<(Response & import(
         BoostExpiry: string | null;
         CreatedAt: string;
         UpdatedAt: string;
+        OwnerName?: string | undefined;
+        OwnerEmail?: string | undefined;
+        OwnerPhoneNumber?: string | undefined;
+        OwnerTrustScore?: number | undefined;
+        OwnerAgentStatus?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -246,6 +271,11 @@ export declare const searchProperties: (c: Context) => Promise<(Response & impor
             BoostExpiry: string | null;
             CreatedAt: string;
             UpdatedAt: string;
+            OwnerName?: string | undefined;
+            OwnerEmail?: string | undefined;
+            OwnerPhoneNumber?: string | undefined;
+            OwnerTrustScore?: number | undefined;
+            OwnerAgentStatus?: string | undefined;
         }[];
         pagination: {
             total: number;
@@ -287,6 +317,11 @@ export declare const verifyProperty: (c: Context) => Promise<(Response & import(
         BoostExpiry: string | null;
         CreatedAt: string;
         UpdatedAt: string;
+        OwnerName?: string | undefined;
+        OwnerEmail?: string | undefined;
+        OwnerPhoneNumber?: string | undefined;
+        OwnerTrustScore?: number | undefined;
+        OwnerAgentStatus?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -321,6 +356,11 @@ export declare const boostProperty: (c: Context) => Promise<(Response & import("
         BoostExpiry: string | null;
         CreatedAt: string;
         UpdatedAt: string;
+        OwnerName?: string | undefined;
+        OwnerEmail?: string | undefined;
+        OwnerPhoneNumber?: string | undefined;
+        OwnerTrustScore?: number | undefined;
+        OwnerAgentStatus?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;

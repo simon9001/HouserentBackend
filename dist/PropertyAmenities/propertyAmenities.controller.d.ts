@@ -88,7 +88,7 @@ export declare const deleteAmenitiesByPropertyId: (c: Context) => Promise<(Respo
 export declare const getCommonAmenities: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        amenityName: string;
+        name: string;
         count: number;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
@@ -109,15 +109,7 @@ export declare const searchAmenities: (c: Context) => Promise<(Response & import
 }, 400, "json">)>;
 export declare const getAmenitiesStatistics: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
-    data: {
-        total: number;
-        uniqueAmenities: number;
-        averagePerProperty: number;
-        mostCommon: {
-            amenityName: string;
-            count: number;
-        }[];
-    };
+    data: any;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;

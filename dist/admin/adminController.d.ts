@@ -525,30 +525,7 @@ export declare const getSubscriptionPlans: (c: Context) => Promise<(Response & i
 export declare const getSubscriptionInvoices: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        invoices: {
-            invoiceId: string;
-            subscriptionId: string;
-            userId: string;
-            userName: string;
-            invoiceNumber: string;
-            invoiceDate: string;
-            dueDate: string;
-            periodStart: string;
-            periodEnd: string;
-            subtotal: number;
-            taxAmount: number;
-            totalAmount: number;
-            currency: string;
-            status: string;
-            paidAmount: number;
-            paidDate: string | null;
-            paymentId: string | null;
-            lineItems: any[];
-            pdfUrl: string | null;
-            htmlUrl: string | null;
-            createdAt: string;
-            updatedAt: string;
-        }[];
+        invoices: never[];
         pagination: {
             page: number;
             limit: number;
@@ -564,20 +541,7 @@ export declare const getSubscriptionInvoices: (c: Context) => Promise<(Response 
 export declare const getSubscriptionEvents: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        events: {
-            eventId: string;
-            eventType: string;
-            subscriptionId: string | null;
-            userId: string;
-            userName: string;
-            eventData: any;
-            processed: boolean;
-            processedAt: string | null;
-            errorMessage: string | null;
-            retryCount: number;
-            scheduledFor: string;
-            createdAt: string;
-        }[];
+        events: never[];
         pagination: {
             page: number;
             limit: number;
@@ -593,24 +557,7 @@ export declare const getSubscriptionEvents: (c: Context) => Promise<(Response & 
 export declare const getSubscriptionUsageLogs: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        logs: {
-            logId: string;
-            subscriptionId: string;
-            userId: string;
-            userName: string;
-            feature: string;
-            resourceId: string | null;
-            action: string;
-            usageCount: number;
-            usageDate: string;
-            wasGated: boolean;
-            gateType: string | null;
-            overrideReason: string | null;
-            ipAddress: string | null;
-            userAgent: string | null;
-            metadata: any;
-            createdAt: string;
-        }[];
+        logs: never[];
         pagination: {
             page: number;
             limit: number;
@@ -652,7 +599,7 @@ export declare const reactivateSubscription: (c: Context) => Promise<(Response &
     message: string;
 }, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
-    data: any;
+    data: {};
     message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -664,7 +611,7 @@ export declare const overrideSubscriptionLimits: (c: Context) => Promise<(Respon
     message: string;
 }, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
-    data: any;
+    data: {};
     message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -676,7 +623,7 @@ export declare const generateInvoice: (c: Context) => Promise<(Response & import
     message: string;
 }, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
-    data: any;
+    data: {};
     message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -688,7 +635,7 @@ export declare const sendSubscriptionNotification: (c: Context) => Promise<(Resp
     message: string;
 }, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
-    data: any;
+    data: {};
     message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -946,48 +893,8 @@ export declare const exportSubscriptionData: (c: Context) => Promise<(Response &
             createdAt: string;
             updatedAt: string;
         }[];
-        invoices: {
-            invoiceId: string;
-            subscriptionId: string;
-            userId: string;
-            userName: string;
-            invoiceNumber: string;
-            invoiceDate: string;
-            dueDate: string;
-            periodStart: string;
-            periodEnd: string;
-            subtotal: number;
-            taxAmount: number;
-            totalAmount: number;
-            currency: string;
-            status: string;
-            paidAmount: number;
-            paidDate: string | null;
-            paymentId: string | null;
-            lineItems: any[];
-            pdfUrl: string | null;
-            htmlUrl: string | null;
-            createdAt: string;
-            updatedAt: string;
-        }[];
-        usageLogs: {
-            logId: string;
-            subscriptionId: string;
-            userId: string;
-            userName: string;
-            feature: string;
-            resourceId: string | null;
-            action: string;
-            usageCount: number;
-            usageDate: string;
-            wasGated: boolean;
-            gateType: string | null;
-            overrideReason: string | null;
-            ipAddress: string | null;
-            userAgent: string | null;
-            metadata: any;
-            createdAt: string;
-        }[];
+        invoices: never[];
+        usageLogs: never[];
         exportedAt: string;
         exportFormat: string;
     };

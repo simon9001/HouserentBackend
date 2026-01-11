@@ -16,10 +16,10 @@ export class EmailUtils {
     static async sendVerificationEmail(email: string, token: string): Promise<void> {
         // Use FRONTEND_URL which should be http://localhost:5174
         const verificationLink = `${env.FRONTEND_URL}/verify-email?token=${token}`;
-        
+
         console.log('📧 Sending verification email to:', email);
         console.log('🔗 Verification link:', verificationLink);
-        
+
         const mailOptions = {
             from: `"${env.SMTP_FROM_NAME}" <${env.SMTP_FROM_EMAIL}>`,
             to: email,
@@ -65,10 +65,10 @@ export class EmailUtils {
     // Send password reset email
     static async sendPasswordResetEmail(email: string, token: string): Promise<void> {
         const resetLink = `${env.FRONTEND_URL}/reset-password?token=${token}`;
-        
+
         console.log('📧 Sending password reset email to:', email);
         console.log('🔗 Reset link:', resetLink);
-        
+
         const mailOptions = {
             from: `"${env.SMTP_FROM_NAME}" <${env.SMTP_FROM_EMAIL}>`,
             to: email,
@@ -153,7 +153,7 @@ export class EmailUtils {
         try {
             await this.transporter.verify();
             console.log('✅ Email server connection verified');
-            
+
             // Try sending a test email
             const testMailOptions = {
                 from: `"${env.SMTP_FROM_NAME}" <${env.SMTP_FROM_EMAIL}>`,
@@ -162,10 +162,10 @@ export class EmailUtils {
                 text: 'This is a test email from KajaYangu backend.',
                 html: '<p>This is a test email from KajaYangu backend.</p>'
             };
-            
+
             await this.transporter.sendMail(testMailOptions);
             console.log('✅ Test email sent successfully');
-            
+
             return true;
         } catch (error: any) {
             console.error('❌ Email server connection failed:', error.message);
@@ -180,7 +180,7 @@ export class EmailUtils {
     static async sendTestEmail(toEmail: string): Promise<void> {
         const testToken = 'test-token-' + Date.now();
         const testLink = `${env.FRONTEND_URL}/test?token=${testToken}`;
-        
+
         const mailOptions = {
             from: `"${env.SMTP_FROM_NAME}" <${env.SMTP_FROM_EMAIL}>`,
             to: toEmail,

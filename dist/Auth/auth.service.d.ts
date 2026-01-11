@@ -28,9 +28,6 @@ export interface SessionData {
     lastAccessedAt: Date;
 }
 export declare class AuthService {
-    private db;
-    constructor();
-    private getDb;
     private hashTokenForStorage;
     private generateTokenPayload;
     register(data: RegisterInput): Promise<AuthResponse>;

@@ -4,9 +4,16 @@ import { ValidationUtils } from '../utils/validators.js';
 // Create new agent verification
 export const createVerification = async (c) => {
     try {
+        const user = c.get('user');
+        if (!user) {
+            return c.json({
+                success: false,
+                error: 'Authentication required'
+            }, 401);
+        }
         const body = await c.req.json();
         // Validate required fields
-        const requiredFields = ['userId', 'nationalId', 'selfieUrl', 'idFrontUrl'];
+        const requiredFields = ['nationalId', 'selfieUrl', 'idFrontUrl'];
         const missingFields = requiredFields.filter(field => !body[field]);
         if (missingFields.length > 0) {
             return c.json({
@@ -14,15 +21,8 @@ export const createVerification = async (c) => {
                 error: `Missing required fields: ${missingFields.join(', ')}`
             }, 400);
         }
-        // Validate UUID
-        if (!ValidationUtils.isValidUUID(body.userId)) {
-            return c.json({
-                success: false,
-                error: 'Invalid user ID format'
-            }, 400);
-        }
         const verificationData = {
-            userId: body.userId,
+            userId: user.userId,
             nationalId: body.nationalId,
             selfieUrl: body.selfieUrl,
             idFrontUrl: body.idFrontUrl,
@@ -94,10 +94,11 @@ export const getVerificationByUserId = async (c) => {
         }
         const verification = await agentVerificationService.getVerificationByUserId(userId);
         if (!verification) {
+            // Return null data instead of 404 to prevent console errors when checking status
             return c.json({
-                success: false,
-                error: 'No verification found for this user'
-            }, 404);
+                success: true,
+                data: null
+            });
         }
         return c.json({
             success: true,

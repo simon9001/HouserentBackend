@@ -3,12 +3,10 @@ import assert from 'assert';
 dotenv.config();
 // Validate required environment variables
 export const validateEnv = () => {
-    const { DB_USER, DB_PASSWORD, DB_SERVER, DB_DATABASE, JWT_SECRET, JWT_REFRESH_SECRET, SMTP_USER, SMTP_PASS } = process.env;
+    const { SUPABASE_URL, SUPABASE_SERVICE_KEY, JWT_SECRET, JWT_REFRESH_SECRET, SMTP_USER, SMTP_PASS } = process.env;
     try {
-        assert(DB_USER, 'DB_USER is required');
-        assert(DB_PASSWORD, 'DB_PASSWORD is required');
-        assert(DB_SERVER, 'DB_SERVER is required');
-        assert(DB_DATABASE, 'DB_DATABASE is required');
+        assert(SUPABASE_URL, 'SUPABASE_URL is required');
+        assert(SUPABASE_SERVICE_KEY, 'SUPABASE_SERVICE_KEY is required');
         assert(JWT_SECRET, 'JWT_SECRET is required');
         assert(JWT_REFRESH_SECRET, 'JWT_REFRESH_SECRET is required');
         assert(SMTP_USER, 'SMTP_USER is required');
@@ -24,11 +22,8 @@ export const validateEnv = () => {
 // Export validated environment variables with proper typing
 export const env = {
     // Database
-    DB_USER: process.env.DB_USER,
-    DB_PASSWORD: process.env.DB_PASSWORD,
-    DB_SERVER: process.env.DB_SERVER,
-    DB_DATABASE: process.env.DB_DATABASE,
-    DB_PORT: parseInt(process.env.DB_PORT || '1433'),
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY,
     // JWT
     JWT_SECRET: process.env.JWT_SECRET,
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,

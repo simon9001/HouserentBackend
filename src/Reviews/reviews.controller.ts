@@ -284,11 +284,11 @@ export const getPropertyRatingSummary = async (c: Context) => {
 export const getRecentReviews = async (c: Context) => {
     try {
         const limit = parseInt(c.req.query('limit') || '10');
-        
-        if (isNaN(limit) || limit < 1 || limit > 50) {
+
+        if (isNaN(limit) || limit < 1 || limit > 100) {
             return c.json({
                 success: false,
-                error: 'Limit must be between 1 and 50'
+                error: 'Limit must be between 1 and 100'
             }, 400);
         }
 

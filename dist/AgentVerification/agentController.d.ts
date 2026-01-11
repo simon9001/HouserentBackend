@@ -1,5 +1,8 @@
 import { AuthContext } from './agentRoutes.js';
 export declare const createVerification: (c: AuthContext) => Promise<(Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 401, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     message: string;
     data: {
@@ -15,6 +18,12 @@ export declare const createVerification: (c: AuthContext) => Promise<(Response &
         ReviewNotes: string | null;
         SubmittedAt: string;
         ReviewedAt: string | null;
+        UserFullName?: string | undefined;
+        UserEmail?: string | undefined;
+        UserPhoneNumber?: string | undefined;
+        UserRole?: string | undefined;
+        UserAgentStatus?: string | undefined;
+        ReviewerFullName?: string | undefined;
     };
 }, 201, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -44,6 +53,12 @@ export declare const getVerificationById: (c: AuthContext) => Promise<(Response 
         ReviewNotes: string | null;
         SubmittedAt: string;
         ReviewedAt: string | null;
+        UserFullName?: string | undefined;
+        UserEmail?: string | undefined;
+        UserPhoneNumber?: string | undefined;
+        UserRole?: string | undefined;
+        UserAgentStatus?: string | undefined;
+        ReviewerFullName?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -53,9 +68,9 @@ export declare const getVerificationByUserId: (c: AuthContext) => Promise<(Respo
     success: false;
     error: string;
 }, 400, "json">) | (Response & import("hono").TypedResponse<{
-    success: false;
-    error: string;
-}, 404, "json">) | (Response & import("hono").TypedResponse<{
+    success: true;
+    data: null;
+}, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     data: {
         VerificationId: string;
@@ -70,6 +85,12 @@ export declare const getVerificationByUserId: (c: AuthContext) => Promise<(Respo
         ReviewNotes: string | null;
         SubmittedAt: string;
         ReviewedAt: string | null;
+        UserFullName?: string | undefined;
+        UserEmail?: string | undefined;
+        UserPhoneNumber?: string | undefined;
+        UserRole?: string | undefined;
+        UserAgentStatus?: string | undefined;
+        ReviewerFullName?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -94,6 +115,12 @@ export declare const getAllVerifications: (c: AuthContext) => Promise<(Response 
             ReviewNotes: string | null;
             SubmittedAt: string;
             ReviewedAt: string | null;
+            UserFullName?: string | undefined;
+            UserEmail?: string | undefined;
+            UserPhoneNumber?: string | undefined;
+            UserRole?: string | undefined;
+            UserAgentStatus?: string | undefined;
+            ReviewerFullName?: string | undefined;
         }[];
         pagination: {
             total: number;
@@ -128,6 +155,12 @@ export declare const updateVerification: (c: AuthContext) => Promise<(Response &
         ReviewNotes: string | null;
         SubmittedAt: string;
         ReviewedAt: string | null;
+        UserFullName?: string | undefined;
+        UserEmail?: string | undefined;
+        UserPhoneNumber?: string | undefined;
+        UserRole?: string | undefined;
+        UserAgentStatus?: string | undefined;
+        ReviewerFullName?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -155,6 +188,12 @@ export declare const approveVerification: (c: AuthContext) => Promise<(Response 
         ReviewNotes: string | null;
         SubmittedAt: string;
         ReviewedAt: string | null;
+        UserFullName?: string | undefined;
+        UserEmail?: string | undefined;
+        UserPhoneNumber?: string | undefined;
+        UserRole?: string | undefined;
+        UserAgentStatus?: string | undefined;
+        ReviewerFullName?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -182,6 +221,12 @@ export declare const rejectVerification: (c: AuthContext) => Promise<(Response &
         ReviewNotes: string | null;
         SubmittedAt: string;
         ReviewedAt: string | null;
+        UserFullName?: string | undefined;
+        UserEmail?: string | undefined;
+        UserPhoneNumber?: string | undefined;
+        UserRole?: string | undefined;
+        UserAgentStatus?: string | undefined;
+        ReviewerFullName?: string | undefined;
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -206,6 +251,12 @@ export declare const bulkApproveVerifications: (c: AuthContext) => Promise<(Resp
         ReviewNotes: string | null;
         SubmittedAt: string;
         ReviewedAt: string | null;
+        UserFullName?: string | undefined;
+        UserEmail?: string | undefined;
+        UserPhoneNumber?: string | undefined;
+        UserRole?: string | undefined;
+        UserAgentStatus?: string | undefined;
+        ReviewerFullName?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -233,6 +284,12 @@ export declare const bulkRejectVerifications: (c: AuthContext) => Promise<(Respo
         ReviewNotes: string | null;
         SubmittedAt: string;
         ReviewedAt: string | null;
+        UserFullName?: string | undefined;
+        UserEmail?: string | undefined;
+        UserPhoneNumber?: string | undefined;
+        UserRole?: string | undefined;
+        UserAgentStatus?: string | undefined;
+        ReviewerFullName?: string | undefined;
     }[];
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -273,7 +330,7 @@ export declare const testAuth: (c: AuthContext) => Promise<(Response & import("h
     user: {
         userId: string;
         username: string;
-        role: "TENANT" | "AGENT" | "ADMIN";
+        role: "AGENT" | "TENANT" | "ADMIN";
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">)>;
 //# sourceMappingURL=agentController.d.ts.map

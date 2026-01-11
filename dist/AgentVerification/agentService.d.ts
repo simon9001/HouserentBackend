@@ -11,6 +11,12 @@ export interface AgentVerification {
     ReviewNotes: string | null;
     SubmittedAt: Date;
     ReviewedAt: Date | null;
+    UserFullName?: string;
+    UserEmail?: string;
+    UserPhoneNumber?: string;
+    UserRole?: string;
+    UserAgentStatus?: string;
+    ReviewerFullName?: string;
 }
 export interface CreateVerificationInput {
     userId: string;
@@ -26,9 +32,6 @@ export interface UpdateVerificationInput {
     reviewedBy?: string;
 }
 export declare class AgentVerificationService {
-    private db;
-    constructor();
-    private getDb;
     createVerification(data: CreateVerificationInput): Promise<AgentVerification>;
     createVerificationForUser(data: CreateVerificationInput): Promise<AgentVerification>;
     getVerificationById(verificationId: string): Promise<AgentVerification | null>;

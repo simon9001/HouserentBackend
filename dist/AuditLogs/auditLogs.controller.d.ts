@@ -12,6 +12,7 @@ export declare const createAuditLog: (c: Context) => Promise<(Response & import(
         UserAgent?: string | undefined;
         Metadata?: string | undefined;
         CreatedAt: string;
+        UserName?: string | undefined;
     };
 }, 201, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -51,6 +52,7 @@ export declare const getAuditLogsByUserId: (c: Context) => Promise<(Response & i
             UserAgent?: string | undefined;
             Metadata?: string | undefined;
             CreatedAt: string;
+            UserName?: string | undefined;
         }[];
         pagination: {
             total: number;

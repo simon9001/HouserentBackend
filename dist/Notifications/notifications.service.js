@@ -1,111 +1,141 @@
-import sql from 'mssql';
-import { getConnectionPool } from '../Database/config.js';
+import { supabase } from '../Database/config.js';
+import { ValidationUtils } from '../utils/validators.js';
 export class NotificationService {
-    db = null;
-    async getDb() {
-        if (!this.db) {
-            this.db = getConnectionPool();
-        }
-        return this.db;
-    }
     async getNotificationsByUser(userId) {
-        const db = await this.getDb();
-        const query = `
-            SELECT * FROM Notifications 
-            WHERE UserId = @userId 
-            ORDER BY CreatedAt DESC
-        `;
-        const result = await db.request()
-            .input('userId', sql.UniqueIdentifier, userId)
-            .query(query);
-        return result.recordset;
+        if (!ValidationUtils.isValidUUID(userId))
+            return [];
+        const { data, error } = await supabase
+            .from('Notifications')
+            .select('*')
+            .eq('UserId', userId)
+            .order('CreatedAt', { ascending: false });
+        if (error)
+            throw new Error(error.message);
+        return data;
     }
     async markAsRead(notificationId, userId) {
-        const db = await this.getDb();
-        const query = `
-            UPDATE Notifications 
-            SET IsRead = 1, UpdatedAt = SYSDATETIME()
-            WHERE NotificationId = @notificationId AND UserId = @userId
-        `;
-        const result = await db.request()
-            .input('notificationId', sql.UniqueIdentifier, notificationId)
-            .input('userId', sql.UniqueIdentifier, userId)
-            .query(query);
-        return result.rowsAffected[0] > 0;
+        if (!ValidationUtils.isValidUUID(notificationId) || !ValidationUtils.isValidUUID(userId))
+            return false;
+        const { error } = await supabase
+            .from('Notifications')
+            .update({
+            IsRead: true,
+            UpdatedAt: new Date().toISOString()
+        })
+            .eq('NotificationId', notificationId)
+            .eq('UserId', userId);
+        if (error)
+            throw new Error(error.message);
+        return true;
     }
     async markAllAsRead(userId) {
-        const db = await this.getDb();
-        const query = `
-            UPDATE Notifications 
-            SET IsRead = 1, UpdatedAt = SYSDATETIME()
-            WHERE UserId = @userId AND IsRead = 0
-        `;
-        const result = await db.request()
-            .input('userId', sql.UniqueIdentifier, userId)
-            .query(query);
-        return result.rowsAffected[0] > 0;
+        if (!ValidationUtils.isValidUUID(userId))
+            return false;
+        const { error } = await supabase
+            .from('Notifications')
+            .update({
+            IsRead: true,
+            UpdatedAt: new Date().toISOString()
+        })
+            .eq('UserId', userId)
+            .eq('IsRead', false);
+        if (error)
+            throw new Error(error.message);
+        return true;
     }
     async createNotification(input) {
-        const db = await this.getDb();
-        const query = `
-            INSERT INTO Notifications (UserId, Title, Message, Type, ReferenceId)
-            OUTPUT INSERTED.*
-            VALUES (@userId, @title, @message, @type, @referenceId)
-        `;
-        const result = await db.request()
-            .input('userId', sql.UniqueIdentifier, input.userId)
-            .input('title', sql.NVarChar(200), input.title)
-            .input('message', sql.NVarChar(1000), input.message)
-            .input('type', sql.NVarChar(50), input.type)
-            .input('referenceId', sql.UniqueIdentifier, input.referenceId || null)
-            .query(query);
-        return result.recordset[0];
+        const { data, error } = await supabase
+            .from('Notifications')
+            .insert({
+            UserId: input.userId,
+            Title: input.title,
+            Message: input.message,
+            Type: input.type,
+            ReferenceId: input.referenceId || null,
+            IsRead: false,
+            CreatedAt: new Date().toISOString(),
+            UpdatedAt: new Date().toISOString()
+        })
+            .select()
+            .single();
+        if (error)
+            throw new Error(error.message);
+        return data;
     }
     // Helper to get unread count
     async getUnreadCount(userId) {
-        const db = await this.getDb();
-        const query = `
-            SELECT COUNT(*) as count FROM Notifications 
-            WHERE UserId = @userId AND IsRead = 0
-        `;
-        const result = await db.request()
-            .input('userId', sql.UniqueIdentifier, userId)
-            .query(query);
-        return result.recordset[0].count;
+        if (!ValidationUtils.isValidUUID(userId))
+            return 0;
+        const { count, error } = await supabase
+            .from('Notifications')
+            .select('*', { count: 'exact', head: true })
+            .eq('UserId', userId)
+            .eq('IsRead', false);
+        if (error)
+            throw new Error(error.message);
+        return count || 0;
     }
     // Broadcast to all users
     async createBroadcastNotification(title, message, type = 'SYSTEM') {
-        const db = await this.getDb();
-        // Insert for all active users
-        const query = `
-            INSERT INTO Notifications (UserId, Title, Message, Type)
-            SELECT UserId, @title, @message, @type
-            FROM Users 
-            WHERE IsActive = 1
-        `;
-        const result = await db.request()
-            .input('title', sql.NVarChar(200), title)
-            .input('message', sql.NVarChar(1000), message)
-            .input('type', sql.NVarChar(50), type)
-            .query(query);
-        return result.rowsAffected[0];
+        // Fetch all active users
+        // Note: For very large user bases, this should be an RPC call or a batched job.
+        // Assuming manageable size for now.
+        const { data: users, error: userError } = await supabase
+            .from('Users')
+            .select('UserId')
+            .eq('IsActive', true);
+        if (userError)
+            throw new Error(userError.message);
+        if (!users || users.length === 0)
+            return 0;
+        const notifications = users.map(user => ({
+            UserId: user.UserId,
+            Title: title,
+            Message: message,
+            Type: type,
+            IsRead: false,
+            CreatedAt: new Date().toISOString(),
+            UpdatedAt: new Date().toISOString()
+        }));
+        // Insert in batches of 1000 if needed, supabase js client handles batching to some extent but good to be safe.
+        // If list is huge we might timeout.
+        const { error: insertError } = await supabase
+            .from('Notifications')
+            .insert(notifications);
+        if (insertError)
+            throw new Error(insertError.message);
+        return notifications.length;
     }
     // Send to clients (users who have visited agent's properties)
     async createClientNotification(agentId, title, message) {
-        const db = await this.getDb();
         // Find distinct tenants who have visits with this agent
-        const query = `
-            INSERT INTO Notifications (UserId, Title, Message, Type)
-            SELECT DISTINCT pv.TenantId, @title, @message, 'ALERT'
-            FROM PropertyVisits pv
-            WHERE pv.AgentId = @agentId
-        `;
-        const result = await db.request()
-            .input('agentId', sql.UniqueIdentifier, agentId)
-            .input('title', sql.NVarChar(200), title)
-            .input('message', sql.NVarChar(1000), message)
-            .query(query);
-        return result.rowsAffected[0];
+        const { data: visits, error: visitError } = await supabase
+            .from('PropertyVisits')
+            .select('TenantId')
+            .eq('AgentId', agentId);
+        if (visitError)
+            throw new Error(visitError.message);
+        if (!visits || visits.length === 0)
+            return 0;
+        // Dedup
+        const distinctTenantIds = [...new Set(visits.map(v => v.TenantId))];
+        const notifications = distinctTenantIds.map(tenantId => ({
+            UserId: tenantId,
+            Title: title,
+            Message: message,
+            Type: 'ALERT',
+            IsRead: false,
+            CreatedAt: new Date().toISOString(),
+            UpdatedAt: new Date().toISOString()
+        }));
+        if (notifications.length === 0)
+            return 0;
+        const { error: insertError } = await supabase
+            .from('Notifications')
+            .insert(notifications);
+        if (insertError)
+            throw new Error(insertError.message);
+        return notifications.length;
     }
 }
 export const notificationService = new NotificationService();

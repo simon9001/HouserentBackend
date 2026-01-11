@@ -92,15 +92,6 @@ export declare const setPrimaryMedia: (c: Context) => Promise<(Response & import
 }, 500, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     message: string;
-    data: {
-        MediaId: string;
-        PropertyId: string;
-        MediaType: "IMAGE" | "VIDEO" | "DOCUMENT";
-        MediaUrl: string;
-        ThumbnailUrl: string | null;
-        IsPrimary: boolean;
-        CreatedAt: string;
-    };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
@@ -150,13 +141,7 @@ export declare const getMediaStatistics: (c: Context) => Promise<(Response & imp
     error: string;
 }, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
-    data: {
-        total: number;
-        images: number;
-        videos: number;
-        documents: number;
-        hasPrimary: number;
-    };
+    data: any;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: string;

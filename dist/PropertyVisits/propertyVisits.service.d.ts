@@ -3,15 +3,18 @@ export interface PropertyVisit {
     PropertyId: string;
     TenantId: string;
     AgentId: string;
-    VisitDate: Date;
+    VisitDate: string;
     VisitPurpose: string;
     TenantNotes: string;
     AgentNotes: string;
-    CheckInTime: Date;
-    CheckOutTime: Date;
+    CheckInTime: string | null;
+    CheckOutTime: string | null;
     Status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'NO_SHOW';
-    CreatedAt: Date;
-    UpdatedAt: Date;
+    CreatedAt: string;
+    UpdatedAt: string;
+    PropertyTitle?: string;
+    TenantName?: string;
+    AgentName?: string;
 }
 export interface CreateVisitInput {
     propertyId: string;
@@ -30,15 +33,9 @@ export interface UpdateVisitInput {
     checkOutTime?: Date;
 }
 export declare class PropertyVisitsService {
-    private db;
-    constructor();
-    private getDb;
     createVisit(data: CreateVisitInput): Promise<PropertyVisit>;
-    getVisitById(visitId: string): Promise<PropertyVisit & {
-        PropertyTitle?: string;
-        TenantName?: string;
-        AgentName?: string;
-    }>;
+    getVisitById(visitId: string): Promise<PropertyVisit | null>;
+    private mapVisitJoins;
     getVisitsByPropertyId(propertyId: string, status?: string): Promise<PropertyVisit[]>;
     getVisitsByUserId(userId: string, role?: 'tenant' | 'agent'): Promise<PropertyVisit[]>;
     updateVisit(visitId: string, data: UpdateVisitInput): Promise<PropertyVisit>;

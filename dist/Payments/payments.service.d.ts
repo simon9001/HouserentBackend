@@ -10,6 +10,8 @@ export interface Payment {
     Status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
     CreatedAt: Date;
     CompletedAt?: Date;
+    UserName?: string;
+    PropertyTitle?: string;
 }
 export interface CreatePaymentInput {
     userId: string;
@@ -26,9 +28,6 @@ export interface UpdatePaymentInput {
     completedAt?: Date;
 }
 export declare class PaymentsService {
-    private db;
-    constructor();
-    private getDb;
     createPayment(data: CreatePaymentInput): Promise<Payment>;
     getPaymentById(paymentId: string): Promise<Payment & {
         UserName?: string;
@@ -51,6 +50,7 @@ export declare class PaymentsService {
         pendingTransactions: number;
         failedTransactions: number;
         refundedTransactions: number;
+        recentTransactions: number;
     }>;
     getRecentPayments(limit?: number): Promise<Payment[]>;
     searchPayments(searchTerm: string, userId?: string): Promise<Payment[]>;

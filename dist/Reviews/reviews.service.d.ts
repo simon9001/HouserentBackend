@@ -6,8 +6,11 @@ export interface Review {
     ReviewType: 'PROPERTY' | 'AGENT';
     Rating: number;
     Comment: string;
-    CreatedAt: Date;
-    UpdatedAt: Date;
+    CreatedAt: string;
+    UpdatedAt: string;
+    ReviewerName?: string;
+    AgentName?: string;
+    PropertyTitle?: string;
 }
 export interface CreateReviewInput {
     propertyId?: string;
@@ -22,15 +25,8 @@ export interface UpdateReviewInput {
     comment?: string;
 }
 export declare class ReviewsService {
-    private db;
-    constructor();
-    private getDb;
     createReview(data: CreateReviewInput): Promise<Review>;
-    getReviewById(reviewId: string): Promise<Review & {
-        ReviewerName?: string;
-        AgentName?: string;
-        PropertyTitle?: string;
-    }>;
+    getReviewById(reviewId: string): Promise<Review | null>;
     getReviewsByAgentId(agentId: string, reviewType?: string): Promise<Review[]>;
     getReviewsByPropertyId(propertyId: string): Promise<Review[]>;
     updateReview(reviewId: string, data: UpdateReviewInput): Promise<Review>;
@@ -49,6 +45,7 @@ export declare class ReviewsService {
             [key: number]: number;
         };
     }>;
+    private calculateRatingStats;
     getRecentReviews(limit?: number): Promise<Review[]>;
     private updateAgentTrustScore;
 }

@@ -8,6 +8,7 @@ export interface AuditLog {
     UserAgent?: string;
     Metadata?: string;
     CreatedAt: Date;
+    UserName?: string;
 }
 export interface CreateAuditLogInput {
     userId?: string;
@@ -19,9 +20,6 @@ export interface CreateAuditLogInput {
     metadata?: any;
 }
 export declare class AuditLogsService {
-    private db;
-    constructor();
-    private getDb;
     createLog(data: CreateAuditLogInput): Promise<AuditLog>;
     getLogById(logId: string): Promise<AuditLog & {
         UserName?: string;

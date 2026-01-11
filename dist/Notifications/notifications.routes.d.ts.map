@@ -1,1 +1,1 @@
-{"version":3,"file":"notifications.routes.d.ts","sourceRoot":"","sources":["../../src/Notifications/notifications.routes.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,IAAI,EAAE,MAAM,MAAM,CAAC;AAI5B,QAAA,MAAM,kBAAkB,4EAAa,CAAC;AAYtC,eAAe,kBAAkB,CAAC"}
+{"version":3,"file":"notifications.routes.d.ts","sourceRoot":"","sources":["../../src/Notifications/notifications.routes.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,IAAI,EAAE,MAAM,MAAM,CAAC;AAI5B,QAAA,MAAM,kBAAkB,4EAAa,CAAC;AA8BtC,eAAe,kBAAkB,CAAC"}

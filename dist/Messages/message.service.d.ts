@@ -53,7 +53,6 @@ export interface Message {
     Reactions?: MessageReaction[] | string;
 }
 export declare class MessageService {
-    private getDb;
     getOrCreateConversation(propertyId: string, agentId: string, userId: string, initialMessage?: string, messageType?: string): Promise<{
         ConversationId: string;
     }>;
