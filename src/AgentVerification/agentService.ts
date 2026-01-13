@@ -1,3 +1,4 @@
+// agentService.ts
 import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 
@@ -43,20 +44,81 @@ export class AgentVerificationService {
 
     // Create new agent verification
     async createVerification(data: CreateVerificationInput): Promise<AgentVerification> {
-        // Validate user exists and is active
-        const { data: users, error: userError } = await supabase
-            .from('Users')
-            .select('UserId, Role, AgentStatus')
-            .eq('UserId', data.userId)
-            .eq('IsActive', true);
+        console.log('Creating verification for user:', data.userId);
+        
+        try {
+            // FIRST: Check if the user exists - try without quotes first
+            const { data: userData, error: userError } = await supabase
+                .from('Users')  // ✅ Try without quotes first
+                .select('UserId, Username, FullName, Role, AgentStatus, IsActive, Email')
+                .eq('UserId', data.userId)
+                .single();
 
-        if (userError || !users || users.length === 0) {
-            throw new Error('User not found or inactive');
+            console.log('User query result:', { userData, userError });
+
+            // If that fails, try with lowercase
+            if (userError && userError.code === 'PGRST205') {
+                console.log('Trying lowercase users table...');
+                
+                const { data: userDataLower, error: userErrorLower } = await supabase
+                    .from('users')  // ✅ Try lowercase
+                    .select('user_id, username, full_name, role, agent_status, is_active, email')
+                    .eq('user_id', data.userId)
+                    .single();
+
+                if (userErrorLower) {
+                    console.error('Lowercase user query error:', userErrorLower);
+                    throw new Error('User not found');
+                }
+
+                if (!userDataLower) {
+                    throw new Error('User not found');
+                }
+
+                // Map lowercase fields to our expected format
+                const mappedUserData = {
+                    UserId: userDataLower.user_id,
+                    Username: userDataLower.username,
+                    FullName: userDataLower.full_name,
+                    Role: userDataLower.role,
+                    AgentStatus: userDataLower.agent_status,
+                    IsActive: userDataLower.is_active,
+                    Email: userDataLower.email
+                };
+
+                return await this.createVerificationWithUserData(data, mappedUserData);
+            }
+
+            if (userError) {
+                console.error('User query error:', userError);
+                if (userError.code === 'PGRST116') {
+                    throw new Error('User not found');
+                }
+                throw new Error(`Database error: ${userError.message}`);
+            }
+
+            if (!userData) {
+                throw new Error('User not found');
+            }
+
+            return await this.createVerificationWithUserData(data, userData);
+
+        } catch (error: any) {
+            console.error('Error in createVerification:', error);
+            throw error;
+        }
+    }
+
+    private async createVerificationWithUserData(data: CreateVerificationInput, userData: any): Promise<AgentVerification> {
+        console.log('Found user:', userData);
+
+        // Check if user is active
+        if (!userData.IsActive && !userData.is_active) {
+            throw new Error('User account is not active');
         }
 
-        const user = users[0];
-        const userRole = user.Role?.toUpperCase();
-        const agentStatus = user.AgentStatus?.toUpperCase();
+        const userRole = (userData.Role || userData.role)?.toUpperCase();
+        const agentStatus = (userData.AgentStatus || userData.agent_status)?.toUpperCase();
 
         // Check if user is already an approved agent
         if (userRole === 'AGENT' && agentStatus === 'APPROVED') {
@@ -69,162 +131,206 @@ export class AgentVerificationService {
         }
 
         // Check if user already has a pending verification
-        const { data: existing } = await supabase
-            .from('AgentVerification')
-            .select('VerificationId')
-            .eq('UserId', data.userId)
-            .in('ReviewStatus', ['PENDING', 'APPROVED']);
+        const { data: existing, error: existingError } = await supabase
+            .from('agent_verification')
+            .select('verification_id')
+            .eq('user_id', data.userId)
+            .in('review_status', ['PENDING', 'APPROVED']);
+
+        if (existingError) {
+            console.error('Existing verification query error:', existingError);
+        }
+
+        console.log('Existing verifications:', existing);
 
         if (existing && existing.length > 0) {
             throw new Error('Agent verification already exists or is pending');
         }
 
         // Create verification
+        const verificationData = {
+            user_id: data.userId,
+            national_id: data.nationalId,
+            selfie_url: data.selfieUrl,
+            id_front_url: data.idFrontUrl,
+            id_back_url: data.idBackUrl || null,
+            property_proof_url: data.propertyProofUrl || null,
+            review_status: 'PENDING'
+        };
+
+        console.log('Creating verification with data:', verificationData);
+
         const { data: newVerification, error: createError } = await supabase
-            .from('AgentVerification')
-            .insert({
-                UserId: data.userId,
-                NationalId: data.nationalId,
-                SelfieUrl: data.selfieUrl,
-                IdFrontUrl: data.idFrontUrl,
-                IdBackUrl: data.idBackUrl || null,
-                PropertyProofUrl: data.propertyProofUrl || null
-            })
+            .from('agent_verification')
+            .insert(verificationData)
             .select()
             .single();
 
-        if (createError) throw new Error(createError.message);
+        if (createError) {
+            console.error('Create verification error:', createError);
+            throw new Error(`Failed to create verification: ${createError.message}`);
+        }
+
+        console.log('Verification created:', newVerification);
 
         // Update user's agent status to PENDING
-        await supabase
-            .from('Users')
-            .update({ AgentStatus: 'PENDING', UpdatedAt: new Date().toISOString() })
-            .eq('UserId', data.userId);
+        try {
+            // Try to update Users table (PascalCase)
+            const { error: updateError } = await supabase
+                .from('Users')
+                .update({ 
+                    AgentStatus: 'PENDING',
+                    UpdatedAt: new Date().toISOString()
+                })
+                .eq('UserId', data.userId);
 
-        return newVerification as AgentVerification;
+            if (updateError) {
+                console.log('Trying lowercase users table for update...');
+                // Try lowercase table
+                await supabase
+                    .from('users')
+                    .update({ 
+                        agent_status: 'PENDING',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('user_id', data.userId);
+            }
+
+            console.log('User updated successfully');
+        } catch (updateError: any) {
+            console.error('Update user error (non-critical):', updateError);
+            // Don't throw here, verification was created successfully
+        }
+
+        return this.mapToCamelCase(newVerification) as AgentVerification;
     }
 
-    // Create verification by admin for a user
-    async createVerificationForUser(data: CreateVerificationInput): Promise<AgentVerification> {
-        // Validate user exists and is active
-        const { data: users, error: userError } = await supabase
-            .from('Users')
-            .select('UserId, Role, AgentStatus')
-            .eq('UserId', data.userId)
-            .eq('IsActive', true);
-
-        if (userError || !users || users.length === 0) {
-            throw new Error('User not found or inactive');
-        }
-
-        const user = users[0];
-        const userRole = user.Role?.toUpperCase();
-        const agentStatus = user.AgentStatus?.toUpperCase();
-
-        // Check if user is already an approved agent
-        if (userRole === 'AGENT' && agentStatus === 'APPROVED') {
-            throw new Error('User is already an approved agent');
-        }
-
-        // Check if user already has a pending verification
-        const { data: existing } = await supabase
-            .from('AgentVerification')
-            .select('VerificationId')
-            .eq('UserId', data.userId)
-            .in('ReviewStatus', ['PENDING', 'APPROVED']);
-
-        if (existing && existing.length > 0) {
-            throw new Error('Agent verification already exists or is pending');
-        }
-
-        // Create verification
-        const { data: newVerification, error: createError } = await supabase
-            .from('AgentVerification')
-            .insert({
-                UserId: data.userId,
-                NationalId: data.nationalId,
-                SelfieUrl: data.selfieUrl,
-                IdFrontUrl: data.idFrontUrl,
-                IdBackUrl: data.idBackUrl || null,
-                PropertyProofUrl: data.propertyProofUrl || null
-            })
-            .select()
-            .single();
-
-        if (createError) throw new Error(createError.message);
-
-        // Update user's agent status to PENDING
-        await supabase
-            .from('Users')
-            .update({ AgentStatus: 'PENDING', UpdatedAt: new Date().toISOString() })
-            .eq('UserId', data.userId);
-
-        return newVerification as AgentVerification;
-    }
-
-    // Get verification by ID
+    // Get verification by ID - FIXED VERSION
     async getVerificationById(verificationId: string): Promise<AgentVerification | null> {
-        if (!ValidationUtils.isValidUUID(verificationId)) throw new Error('Invalid verification ID format');
-
-        const { data, error } = await supabase
-            .from('AgentVerification')
-            .select(`
-                *,
-                Users:UserId (FullName, Email, PhoneNumber, Role, AgentStatus)
-            `)
-            .eq('VerificationId', verificationId)
-            .single();
-
-        if (error) {
-            if (error.code === 'PGRST116') return null;
-            throw new Error(error.message);
+        console.log('Getting verification by ID:', verificationId);
+        
+        if (!ValidationUtils.isValidUUID(verificationId)) {
+            console.error('Invalid verification ID format:', verificationId);
+            throw new Error('Invalid verification ID format');
         }
 
-        // Transform to flat structure to match interface if needed
-        const result: any = { ...data };
-        if (data.Users) {
-            result.UserFullName = data.Users.FullName;
-            result.UserEmail = data.Users.Email;
-            result.UserPhoneNumber = data.Users.PhoneNumber;
-            result.UserRole = data.Users.Role;
-            result.UserAgentStatus = data.Users.AgentStatus;
-            delete result.Users; // Remove nested object
-        }
+        try {
+            console.log('Attempting to fetch verification from agent_verification table...');
+            
+            // Try simple query without joins first
+            const { data, error } = await supabase
+                .from('agent_verification')
+                .select('*')
+                .eq('verification_id', verificationId)
+                .single();
 
-        return result as AgentVerification;
+            console.log('Query result:', { data, error });
+
+            if (error) {
+                console.error('Get verification by ID error:', error);
+                if (error.code === 'PGRST116') {
+                    console.log('Verification not found');
+                    return null;
+                }
+                throw new Error(error.message);
+            }
+
+            if (!data) {
+                console.log('No verification found');
+                return null;
+            }
+
+            // Get user details separately
+            const userData = await this.getUserDetails(data.user_id);
+            const reviewerData = data.reviewed_by ? await this.getUserDetails(data.reviewed_by) : null;
+            
+            const result = this.mapToCamelCase(data) as any;
+            if (userData) {
+                result.UserFullName = userData.FullName || userData.full_name;
+                result.UserEmail = userData.Email || userData.email;
+                result.UserPhoneNumber = userData.PhoneNumber || userData.phone_number;
+                result.UserRole = userData.Role || userData.role;
+                result.UserAgentStatus = userData.AgentStatus || userData.agent_status;
+            }
+
+            if (reviewerData) {
+                result.ReviewerFullName = reviewerData.FullName || reviewerData.full_name;
+            }
+
+            console.log('Returning verification:', result);
+            return result as AgentVerification;
+            
+        } catch (error: any) {
+            console.error('Error in getVerificationById:', error);
+            console.error('Error stack:', error.stack);
+            throw error;
+        }
     }
 
     // Get verification by user ID
     async getVerificationByUserId(userId: string): Promise<AgentVerification | null> {
         if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        const { data, error } = await supabase
-            .from('AgentVerification')
-            .select(`
-                *,
-                Users:UserId (FullName, Email, PhoneNumber, Role, AgentStatus)
-            `)
-            .eq('UserId', userId)
-            .order('SubmittedAt', { ascending: false })
-            .limit(1)
-            .single();
+        try {
+            const { data, error } = await supabase
+                .from('agent_verification')
+                .select('*')
+                .eq('user_id', userId)
+                .order('submitted_at', { ascending: false })
+                .limit(1)
+                .single();
 
-        if (error) {
-            if (error.code === 'PGRST116') return null;
-            throw new Error(error.message);
+            if (error) {
+                if (error.code === 'PGRST116') return null;
+                console.error('Get verification by user ID error:', error);
+                throw new Error(error.message);
+            }
+
+            // Get user details separately
+            const userData = await this.getUserDetails(userId);
+            
+            const result = this.mapToCamelCase(data) as any;
+            if (userData) {
+                result.UserFullName = userData.FullName || userData.full_name;
+                result.UserEmail = userData.Email || userData.email;
+                result.UserPhoneNumber = userData.PhoneNumber || userData.phone_number;
+                result.UserRole = userData.Role || userData.role;
+                result.UserAgentStatus = userData.AgentStatus || userData.agent_status;
+            }
+
+            return result as AgentVerification;
+        } catch (error: any) {
+            console.error('Error in getVerificationByUserId:', error);
+            throw error;
         }
+    }
 
-        const result: any = { ...data };
-        if (data.Users) {
-            result.UserFullName = data.Users.FullName;
-            result.UserEmail = data.Users.Email;
-            result.UserPhoneNumber = data.Users.PhoneNumber;
-            result.UserRole = data.Users.Role;
-            result.UserAgentStatus = data.Users.AgentStatus;
-            delete result.Users;
+    // Helper method to get user details
+    private async getUserDetails(userId: string): Promise<any> {
+        try {
+            // Try Users table first
+            const { data: userData, error: userError } = await supabase
+                .from('Users')
+                .select('UserId, FullName, Email, PhoneNumber, Role, AgentStatus')
+                .eq('UserId', userId)
+                .single();
+
+            if (!userError) return userData;
+
+            // Try lowercase users table
+            const { data: userDataLower, error: userErrorLower } = await supabase
+                .from('users')
+                .select('user_id, full_name, email, phone_number, role, agent_status')
+                .eq('user_id', userId)
+                .single();
+
+            if (!userErrorLower) return userDataLower;
+
+            return null;
+        } catch (error) {
+            console.error('Error getting user details:', error);
+            return null;
         }
-
-        return result as AgentVerification;
     }
 
     // Get all verifications with pagination
@@ -235,47 +341,76 @@ export class AgentVerificationService {
     ): Promise<{ verifications: AgentVerification[]; total: number; page: number; totalPages: number }> {
         const offset = (page - 1) * limit;
 
-        let query = supabase
-            .from('AgentVerification')
-            .select(`
-                *,
-                Users:UserId (FullName, Email, PhoneNumber, Role, AgentStatus),
-                Reviewer:ReviewedBy (FullName)
-            `, { count: 'exact' });
+        try {
+            let query = supabase
+                .from('agent_verification')
+                .select('*', { count: 'exact' });
 
-        if (status) {
-            query = query.eq('ReviewStatus', status);
+            if (status) {
+                query = query.eq('review_status', status);
+            }
+
+            const { data, count, error } = await query
+                .order('submitted_at', { ascending: false })
+                .range(offset, offset + limit - 1);
+
+            if (error) {
+                console.error('Get all verifications error:', error);
+                throw new Error(error.message);
+            }
+
+            // Get user details for each verification
+            const verifications = await Promise.all(
+                (data || []).map(async (verification: any) => {
+                    const result = this.mapToCamelCase(verification) as any;
+                    
+                    // Get user details
+                    const userData = await this.getUserDetails(verification.user_id);
+                    if (userData) {
+                        result.UserFullName = userData.FullName || userData.full_name;
+                        result.UserEmail = userData.Email || userData.email;
+                        result.UserPhoneNumber = userData.PhoneNumber || userData.phone_number;
+                        result.UserRole = userData.Role || userData.role;
+                        result.UserAgentStatus = userData.AgentStatus || userData.agent_status;
+                    }
+
+                    // Get reviewer details if exists
+                    if (verification.reviewed_by) {
+                        const reviewerData = await this.getUserDetails(verification.reviewed_by);
+                        if (reviewerData) {
+                            result.ReviewerFullName = reviewerData.FullName || reviewerData.full_name;
+                        }
+                    }
+
+                    return result as AgentVerification;
+                })
+            );
+
+            return {
+                verifications,
+                total: count || 0,
+                page,
+                totalPages: Math.ceil((count || 0) / limit)
+            };
+        } catch (error: any) {
+            console.error('Error in getAllVerifications:', error);
+            throw error;
         }
+    }
 
-        const { data, count, error } = await query
-            .order('SubmittedAt', { ascending: false })
-            .range(offset, offset + limit - 1);
-
-        if (error) throw new Error(error.message);
-
-        const verifications = data?.map((v: any) => {
-            const result: any = { ...v };
-            if (v.Users) {
-                result.UserFullName = v.Users.FullName;
-                result.UserEmail = v.Users.Email;
-                result.UserPhoneNumber = v.Users.PhoneNumber;
-                result.UserRole = v.Users.Role;
-                result.UserAgentStatus = v.Users.AgentStatus;
-                delete result.Users;
+    // Helper method to map snake_case to camelCase
+    private mapToCamelCase(data: any): any {
+        if (!data) return data;
+        
+        const result: any = {};
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                // Convert snake_case to camelCase
+                const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+                result[camelKey] = data[key];
             }
-            if (v.Reviewer) {
-                result.ReviewerFullName = v.Reviewer.FullName;
-                delete result.Reviewer;
-            }
-            return result;
-        }) || [];
-
-        return {
-            verifications: verifications as AgentVerification[],
-            total: count || 0,
-            page,
-            totalPages: Math.ceil((count || 0) / limit)
-        };
+        }
+        return result;
     }
 
     // Update verification (admin review)
@@ -287,53 +422,76 @@ export class AgentVerificationService {
         if (!ValidationUtils.isValidUUID(verificationId)) throw new Error('Invalid verification ID format');
         if (!ValidationUtils.isValidUUID(reviewerId)) throw new Error('Invalid reviewer ID format');
 
-        // Check if verification exists
-        const { data: verification, error: fetchError } = await supabase
-            .from('AgentVerification')
-            .select('*')
-            .eq('VerificationId', verificationId)
-            .single();
+        try {
+            // Check if verification exists
+            const { data: verification, error: fetchError } = await supabase
+                .from('agent_verification')
+                .select('*')
+                .eq('verification_id', verificationId)
+                .single();
 
-        if (fetchError || !verification) throw new Error('Verification not found');
-
-        const updates: any = {};
-        if (data.reviewStatus) {
-            const validStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
-            if (!validStatuses.includes(data.reviewStatus)) throw new Error('Invalid review status');
-            updates.ReviewStatus = data.reviewStatus;
-        }
-
-        if (data.reviewNotes !== undefined) updates.ReviewNotes = data.reviewNotes;
-
-        // Always set ReviewedBy to the reviewerId
-        updates.ReviewedBy = reviewerId;
-        updates.ReviewedAt = new Date().toISOString();
-
-        const { data: updatedVerification, error: updateError } = await supabase
-            .from('AgentVerification')
-            .update(updates)
-            .eq('VerificationId', verificationId)
-            .select()
-            .single();
-
-        if (updateError) throw new Error(updateError.message);
-
-        // Update user's role and agent status based on verification review
-        if (data.reviewStatus && data.reviewStatus !== 'PENDING') {
-            if (data.reviewStatus === 'APPROVED') {
-                await supabase
-                    .from('Users')
-                    .update({ Role: 'AGENT', AgentStatus: 'APPROVED', UpdatedAt: new Date().toISOString() })
-                    .eq('UserId', verification.UserId);
-            } else if (data.reviewStatus === 'REJECTED') {
-                await supabase
-                    .from('Users')
-                    .update({ AgentStatus: 'REJECTED', UpdatedAt: new Date().toISOString() })
-                    .eq('UserId', verification.UserId);
+            if (fetchError || !verification) {
+                console.error('Verification not found:', fetchError);
+                throw new Error('Verification not found');
             }
-        }
 
-        return updatedVerification as AgentVerification;
+            const updates: any = {};
+            if (data.reviewStatus) {
+                const validStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
+                if (!validStatuses.includes(data.reviewStatus)) throw new Error('Invalid review status');
+                updates.review_status = data.reviewStatus;
+            }
+
+            if (data.reviewNotes !== undefined) updates.review_notes = data.reviewNotes;
+
+            // Always set reviewed_by to the reviewerId
+            updates.reviewed_by = reviewerId;
+            updates.reviewed_at = new Date().toISOString();
+
+            const { data: updatedVerification, error: updateError } = await supabase
+                .from('agent_verification')
+                .update(updates)
+                .eq('verification_id', verificationId)
+                .select()
+                .single();
+
+            if (updateError) {
+                console.error('Update verification error:', updateError);
+                throw new Error(updateError.message);
+            }
+
+            // Update user's role and agent status based on verification review
+            if (data.reviewStatus && data.reviewStatus !== 'PENDING') {
+                const userId = verification.user_id;
+                
+                try {
+                    // Try to update Users table
+                    await supabase
+                        .from('Users')
+                        .update({ 
+                            Role: data.reviewStatus === 'APPROVED' ? 'AGENT' : undefined,
+                            AgentStatus: data.reviewStatus === 'APPROVED' ? 'APPROVED' : 'REJECTED',
+                            UpdatedAt: new Date().toISOString()
+                        })
+                        .eq('UserId', userId);
+                } catch (error) {
+                    // Try lowercase users table
+                    await supabase
+                        .from('users')
+                        .update({ 
+                            role: data.reviewStatus === 'APPROVED' ? 'AGENT' : undefined,
+                            agent_status: data.reviewStatus === 'APPROVED' ? 'APPROVED' : 'REJECTED',
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('user_id', userId);
+                }
+            }
+
+            return this.mapToCamelCase(updatedVerification) as AgentVerification;
+        } catch (error: any) {
+            console.error('Error in updateVerification:', error);
+            throw error;
+        }
     }
 
     // Approve verification (convenience method)
@@ -360,6 +518,161 @@ export class AgentVerificationService {
         }, reviewerId);
     }
 
+    // =============================================
+    // NEW METHODS NEEDED BY CONTROLLER
+    // =============================================
+
+    // Bulk approve verifications
+    async bulkApproveVerifications(
+        verificationIds: string[],
+        reviewerId: string,
+        reviewNotes?: string
+    ): Promise<AgentVerification[]> {
+        console.log('Bulk approving verifications:', verificationIds);
+        
+        const results: AgentVerification[] = [];
+        
+        try {
+            // Process each verification
+            for (const verificationId of verificationIds) {
+                try {
+                    const approved = await this.approveVerification(
+                        verificationId,
+                        reviewerId,
+                        reviewNotes
+                    );
+                    
+                    if (approved) {
+                        results.push(approved);
+                    }
+                } catch (error) {
+                    console.error(`Error approving verification ${verificationId}:`, error);
+                    // Continue with other verifications
+                }
+            }
+            
+            return results;
+        } catch (error: any) {
+            console.error('Error in bulkApproveVerifications:', error);
+            throw new Error('Failed to bulk approve verifications');
+        }
+    }
+
+    // Bulk reject verifications
+    async bulkRejectVerifications(
+        verificationIds: string[],
+        reviewerId: string,
+        reviewNotes?: string
+    ): Promise<AgentVerification[]> {
+        console.log('Bulk rejecting verifications:', verificationIds);
+        
+        const results: AgentVerification[] = [];
+        
+        try {
+            // Process each verification
+            for (const verificationId of verificationIds) {
+                try {
+                    const rejected = await this.rejectVerification(
+                        verificationId,
+                        reviewerId,
+                        reviewNotes
+                    );
+                    
+                    if (rejected) {
+                        results.push(rejected);
+                    }
+                } catch (error) {
+                    console.error(`Error rejecting verification ${verificationId}:`, error);
+                    // Continue with other verifications
+                }
+            }
+            
+            return results;
+        } catch (error: any) {
+            console.error('Error in bulkRejectVerifications:', error);
+            throw new Error('Failed to bulk reject verifications');
+        }
+    }
+
+    // Check user eligibility to apply
+    async checkEligibility(userId: string): Promise<{
+        canApply: boolean;
+        reason: string;
+        currentStatus: {
+            role: string;
+            agentStatus: string;
+            hasVerification: boolean;
+            verificationStatus?: string;
+        };
+    }> {
+        console.log('Checking eligibility for user:', userId);
+        
+        try {
+            // Get user details
+            const userData = await this.getUserDetails(userId);
+            
+            if (!userData) {
+                throw new Error('User not found');
+            }
+
+            const role = userData.Role || userData.role;
+            const agentStatus = userData.AgentStatus || userData.agent_status;
+
+            // Check if user already has a verification
+            const verification = await this.getVerificationByUserId(userId);
+            
+            // Determine eligibility
+            let canApply = true;
+            let reason = '';
+
+            if (role === 'ADMIN') {
+                canApply = false;
+                reason = 'Administrators cannot apply to become agents';
+            } else if (agentStatus === 'APPROVED') {
+                canApply = false;
+                reason = 'You are already an approved agent';
+            } else if (verification?.ReviewStatus === 'PENDING') {
+                canApply = false;
+                reason = 'You already have a pending verification';
+            } else if (verification?.ReviewStatus === 'APPROVED') {
+                canApply = false;
+                reason = 'You already have an approved verification';
+            } else {
+                reason = 'You are eligible to apply';
+            }
+
+            return {
+                canApply,
+                reason,
+                currentStatus: {
+                    role,
+                    agentStatus,
+                    hasVerification: !!verification,
+                    verificationStatus: verification?.ReviewStatus
+                }
+            };
+        } catch (error: any) {
+            console.error('Error checking eligibility:', error);
+            throw new Error('Failed to check eligibility');
+        }
+    }
+
+    // Admin creates verification for a user (alias)
+    async createVerificationForUser(data: CreateVerificationInput): Promise<AgentVerification> {
+        return this.createVerification(data);
+    }
+
+    // Get verification statistics (same as getStatusCounts)
+    async getStatusCounts(): Promise<{
+        total: number;
+        pending: number;
+        approved: number;
+        rejected: number;
+        last30Days: number;
+    }> {
+        return this.getVerificationStatistics();
+    }
+
     // Get verification statistics
     async getVerificationStatistics(): Promise<{
         total: number;
@@ -376,11 +689,11 @@ export class AgentVerificationService {
                 { count: rejected },
                 { count: last30Days }
             ] = await Promise.all([
-                supabase.from('AgentVerification').select('*', { count: 'exact', head: true }),
-                supabase.from('AgentVerification').select('*', { count: 'exact', head: true }).eq('ReviewStatus', 'PENDING'),
-                supabase.from('AgentVerification').select('*', { count: 'exact', head: true }).eq('ReviewStatus', 'APPROVED'),
-                supabase.from('AgentVerification').select('*', { count: 'exact', head: true }).eq('ReviewStatus', 'REJECTED'),
-                supabase.from('AgentVerification').select('*', { count: 'exact', head: true }).gt('SubmittedAt', new Date(Date.now() - 30 * 24 * 3600000).toISOString())
+                supabase.from('agent_verification').select('*', { count: 'exact', head: true }),
+                supabase.from('agent_verification').select('*', { count: 'exact', head: true }).eq('review_status', 'PENDING'),
+                supabase.from('agent_verification').select('*', { count: 'exact', head: true }).eq('review_status', 'APPROVED'),
+                supabase.from('agent_verification').select('*', { count: 'exact', head: true }).eq('review_status', 'REJECTED'),
+                supabase.from('agent_verification').select('*', { count: 'exact', head: true }).gt('submitted_at', new Date(Date.now() - 30 * 24 * 3600000).toISOString())
             ]);
 
             return {
@@ -391,6 +704,7 @@ export class AgentVerificationService {
                 last30Days: last30Days || 0
             };
         } catch (error: any) {
+            console.error('Error in getVerificationStatistics:', error);
             throw new Error(error.message);
         }
     }
@@ -399,78 +713,49 @@ export class AgentVerificationService {
     async deleteVerification(verificationId: string): Promise<boolean> {
         if (!ValidationUtils.isValidUUID(verificationId)) throw new Error('Invalid verification ID format');
 
-        // Get verification first to update user status
-        const { data: verification, error: fetchError } = await supabase
-            .from('AgentVerification')
-            .select('UserId')
-            .eq('VerificationId', verificationId)
-            .single();
+        try {
+            // Get verification first to get user ID
+            const { data: verification, error: fetchError } = await supabase
+                .from('agent_verification')
+                .select('user_id')
+                .eq('verification_id', verificationId)
+                .single();
 
-        if (fetchError || !verification) throw new Error('Verification not found');
+            if (fetchError || !verification) throw new Error('Verification not found');
 
-        const { error: deleteError } = await supabase
-            .from('AgentVerification')
-            .delete()
-            .eq('VerificationId', verificationId);
+            // Delete the verification
+            const { error: deleteError } = await supabase
+                .from('agent_verification')
+                .delete()
+                .eq('verification_id', verificationId);
 
-        if (!deleteError) {
-            // Reset user's agent status to NONE
-            await supabase
-                .from('Users')
-                .update({ AgentStatus: 'NONE', UpdatedAt: new Date().toISOString() })
-                .eq('UserId', verification.UserId);
+            if (deleteError) throw new Error(deleteError.message);
+
+            // Reset user's agent status
+            try {
+                await supabase
+                    .from('Users')
+                    .update({ 
+                        AgentStatus: 'NONE',
+                        UpdatedAt: new Date().toISOString()
+                    })
+                    .eq('UserId', verification.user_id);
+            } catch (error) {
+                // Try lowercase
+                await supabase
+                    .from('users')
+                    .update({ 
+                        agent_status: 'NONE',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('user_id', verification.user_id);
+            }
+
             return true;
+        } catch (error: any) {
+            console.error('Error in deleteVerification:', error);
+            throw error;
         }
-
-        return false;
-    }
-
-    // Bulk approve verifications
-    async bulkApproveVerifications(
-        verificationIds: string[],
-        reviewerId: string,
-        reviewNotes?: string
-    ): Promise<AgentVerification[]> {
-
-        if (!Array.isArray(verificationIds) || verificationIds.length === 0) throw new Error('No verification IDs provided');
-        if (!ValidationUtils.isValidUUID(reviewerId)) throw new Error('Invalid reviewer ID format');
-
-        const results: AgentVerification[] = [];
-        for (const verificationId of verificationIds) {
-            if (ValidationUtils.isValidUUID(verificationId)) {
-                try {
-                    const approved = await this.approveVerification(verificationId, reviewerId, reviewNotes);
-                    if (approved) results.push(approved);
-                } catch (e) {
-                    console.error(`Failed to approve ${verificationId}`, e);
-                }
-            }
-        }
-        return results;
-    }
-
-    // Bulk reject verifications
-    async bulkRejectVerifications(
-        verificationIds: string[],
-        reviewerId: string,
-        reviewNotes?: string
-    ): Promise<AgentVerification[]> {
-
-        if (!Array.isArray(verificationIds) || verificationIds.length === 0) throw new Error('No verification IDs provided');
-        if (!ValidationUtils.isValidUUID(reviewerId)) throw new Error('Invalid reviewer ID format');
-
-        const results: AgentVerification[] = [];
-        for (const verificationId of verificationIds) {
-            if (ValidationUtils.isValidUUID(verificationId)) {
-                try {
-                    const rejected = await this.rejectVerification(verificationId, reviewerId, reviewNotes);
-                    if (rejected) results.push(rejected);
-                } catch (e) {
-                    console.error(`Failed to reject ${verificationId}`, e);
-                }
-            }
-        }
-        return results;
     }
 }
 

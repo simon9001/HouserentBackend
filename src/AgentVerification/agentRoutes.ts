@@ -34,12 +34,15 @@ agentVerificationRoutes.get('/verifications/user/:userId', authenticate, (c) => 
 // User views a specific verification (if they have access)
 agentVerificationRoutes.get('/verifications/:verificationId', authenticate, (c) => agentVerificationControllers.getVerificationById(c as AuthContext));
 
+// User checks eligibility to apply
+agentVerificationRoutes.get('/verifications/check-eligibility/:userId', authenticate, (c) => agentVerificationControllers.checkEligibility(c as AuthContext));
+
 // =============================================
 // ADMIN ROUTES
 // =============================================
 
 // Admin creates verification for a user
-agentVerificationRoutes.post('/verifications/admin/create', authenticate, authorize('ADMIN'), (c) => agentVerificationControllers.createVerification(c as AuthContext));
+agentVerificationRoutes.post('/verifications/admin/create', authenticate, authorize('ADMIN'), (c) => agentVerificationControllers.createVerificationForUser(c as AuthContext));
 
 // Admin views all verifications with filtering
 agentVerificationRoutes.get('/verifications', authenticate, authorize('ADMIN'), (c) => agentVerificationControllers.getAllVerifications(c as AuthContext));
@@ -58,6 +61,9 @@ agentVerificationRoutes.delete('/verifications/:verificationId', authenticate, a
 
 // Admin gets verification statistics
 agentVerificationRoutes.get('/verifications/stats/overview', authenticate, authorize('ADMIN'), (c) => agentVerificationControllers.getVerificationStatistics(c as AuthContext));
+
+// Admin gets status counts for dashboard
+agentVerificationRoutes.get('/verifications/counts/status', authenticate, authorize('ADMIN'), (c) => agentVerificationControllers.getStatusCounts(c as AuthContext));
 
 // Admin bulk approves verifications
 agentVerificationRoutes.post('/verifications/bulk/approve', authenticate, authorize('ADMIN'), (c) => agentVerificationControllers.bulkApproveVerifications(c as AuthContext));
@@ -156,99 +162,6 @@ agentVerificationRoutes.post('/verifications/admin/create-legacy', authenticate,
         return c.json({
             success: false,
             error: 'Failed to create verification'
-        }, 500);
-    }
-});
-
-// User self-check for eligibility
-agentVerificationRoutes.get('/verifications/check-eligibility/:userId', authenticate, async (c: AuthContext) => {
-    try {
-        const userId = c.req.param('userId');
-        
-        if (!ValidationUtils.isValidUUID(userId)) {
-            return c.json({
-                success: false,
-                error: 'Invalid user ID format'
-            }, 400);
-        }
-
-        // Get user info using service method instead of direct DB access
-        
-        // We need a way to get user info - add a method to your service or use existing verification
-        // For now, let's use a different approach:
-        const verification = await agentVerificationService.getVerificationByUserId(userId);
-        
-        if (!verification) {
-            // User has no verification yet
-            return c.json({
-                success: true,
-                data: {
-                    canApply: true,
-                    reason: 'You are eligible to apply',
-                    currentStatus: {
-                        hasVerification: false,
-                        verificationStatus: null
-                    }
-                }
-            });
-        }
-
-        const verificationStatus = verification.ReviewStatus?.toUpperCase();
-        const eligibility = {
-            canApply: false,
-            reason: '',
-            currentStatus: {
-                hasVerification: true,
-                verificationStatus: verificationStatus
-            }
-        };
-
-        // Check eligibility based on status
-        if (verificationStatus === 'PENDING') {
-            eligibility.canApply = false;
-            eligibility.reason = 'You already have a pending agent application';
-        } else if (verificationStatus === 'APPROVED') {
-            eligibility.canApply = false;
-            eligibility.reason = 'Your agent application has already been approved';
-        } else if (verificationStatus === 'REJECTED') {
-            eligibility.canApply = true;
-            eligibility.reason = 'Your previous application was rejected. You can apply again';
-        }
-
-        return c.json({
-            success: true,
-            data: eligibility
-        });
-
-    } catch (error: any) {
-        console.error('Error checking eligibility:', error.message);
-        return c.json({
-            success: false,
-            error: 'Failed to check eligibility'
-        }, 500);
-    }
-});
-
-// Count endpoints for dashboard
-agentVerificationRoutes.get('/verifications/counts/status', authenticate, authorize('ADMIN'), async (c: AuthContext) => {
-    try {
-        const stats = await agentVerificationService.getVerificationStatistics();
-        
-        return c.json({
-            success: true,
-            data: {
-                total: stats.total,
-                pending: stats.pending,
-                approved: stats.approved,
-                rejected: stats.rejected,
-                last30Days: stats.last30Days
-            }
-        });
-    } catch (error: any) {
-        console.error('Error getting verification counts:', error.message);
-        return c.json({
-            success: false,
-            error: 'Failed to get verification counts'
         }, 500);
     }
 });

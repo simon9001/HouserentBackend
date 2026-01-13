@@ -4,138 +4,265 @@ export class NotificationService {
     async getNotificationsByUser(userId) {
         if (!ValidationUtils.isValidUUID(userId))
             return [];
-        const { data, error } = await supabase
-            .from('Notifications')
-            .select('*')
-            .eq('UserId', userId)
-            .order('CreatedAt', { ascending: false });
-        if (error)
-            throw new Error(error.message);
-        return data;
+        try {
+            const { data, error } = await supabase
+                .from('notifications')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
+            if (error) {
+                console.error('Error fetching notifications:', error);
+                throw new Error(error.message);
+            }
+            // Map snake_case to camelCase for interface compatibility
+            return (data || []).map(item => this.mapToCamelCase(item));
+        }
+        catch (error) {
+            console.error('Error in getNotificationsByUser:', error);
+            throw error;
+        }
     }
     async markAsRead(notificationId, userId) {
         if (!ValidationUtils.isValidUUID(notificationId) || !ValidationUtils.isValidUUID(userId))
             return false;
-        const { error } = await supabase
-            .from('Notifications')
-            .update({
-            IsRead: true,
-            UpdatedAt: new Date().toISOString()
-        })
-            .eq('NotificationId', notificationId)
-            .eq('UserId', userId);
-        if (error)
-            throw new Error(error.message);
-        return true;
+        try {
+            const { error } = await supabase
+                .from('notifications')
+                .update({
+                is_read: true,
+                updated_at: new Date().toISOString()
+            })
+                .eq('notification_id', notificationId)
+                .eq('user_id', userId);
+            if (error) {
+                console.error('Error marking notification as read:', error);
+                throw new Error(error.message);
+            }
+            return true;
+        }
+        catch (error) {
+            console.error('Error in markAsRead:', error);
+            throw error;
+        }
     }
     async markAllAsRead(userId) {
         if (!ValidationUtils.isValidUUID(userId))
             return false;
-        const { error } = await supabase
-            .from('Notifications')
-            .update({
-            IsRead: true,
-            UpdatedAt: new Date().toISOString()
-        })
-            .eq('UserId', userId)
-            .eq('IsRead', false);
-        if (error)
-            throw new Error(error.message);
-        return true;
+        try {
+            const { error } = await supabase
+                .from('notifications')
+                .update({
+                is_read: true,
+                updated_at: new Date().toISOString()
+            })
+                .eq('user_id', userId)
+                .eq('is_read', false);
+            if (error) {
+                console.error('Error marking all notifications as read:', error);
+                throw new Error(error.message);
+            }
+            return true;
+        }
+        catch (error) {
+            console.error('Error in markAllAsRead:', error);
+            throw error;
+        }
     }
     async createNotification(input) {
-        const { data, error } = await supabase
-            .from('Notifications')
-            .insert({
-            UserId: input.userId,
-            Title: input.title,
-            Message: input.message,
-            Type: input.type,
-            ReferenceId: input.referenceId || null,
-            IsRead: false,
-            CreatedAt: new Date().toISOString(),
-            UpdatedAt: new Date().toISOString()
-        })
-            .select()
-            .single();
-        if (error)
-            throw new Error(error.message);
-        return data;
+        try {
+            const notificationData = {
+                user_id: input.userId,
+                title: input.title,
+                message: input.message,
+                type: input.type,
+                reference_id: input.referenceId || null,
+                is_read: false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            console.log('Creating notification:', notificationData);
+            const { data, error } = await supabase
+                .from('notifications')
+                .insert(notificationData)
+                .select()
+                .single();
+            if (error) {
+                console.error('Error creating notification:', error);
+                throw new Error(error.message);
+            }
+            console.log('Notification created:', data);
+            return this.mapToCamelCase(data);
+        }
+        catch (error) {
+            console.error('Error in createNotification:', error);
+            throw error;
+        }
     }
     // Helper to get unread count
     async getUnreadCount(userId) {
         if (!ValidationUtils.isValidUUID(userId))
             return 0;
-        const { count, error } = await supabase
-            .from('Notifications')
-            .select('*', { count: 'exact', head: true })
-            .eq('UserId', userId)
-            .eq('IsRead', false);
-        if (error)
-            throw new Error(error.message);
-        return count || 0;
+        try {
+            const { count, error } = await supabase
+                .from('notifications')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userId)
+                .eq('is_read', false);
+            if (error) {
+                console.error('Error getting unread count:', error);
+                throw new Error(error.message);
+            }
+            return count || 0;
+        }
+        catch (error) {
+            console.error('Error in getUnreadCount:', error);
+            throw error;
+        }
     }
     // Broadcast to all users
     async createBroadcastNotification(title, message, type = 'SYSTEM') {
-        // Fetch all active users
-        // Note: For very large user bases, this should be an RPC call or a batched job.
-        // Assuming manageable size for now.
-        const { data: users, error: userError } = await supabase
-            .from('Users')
-            .select('UserId')
-            .eq('IsActive', true);
-        if (userError)
-            throw new Error(userError.message);
-        if (!users || users.length === 0)
-            return 0;
-        const notifications = users.map(user => ({
-            UserId: user.UserId,
-            Title: title,
-            Message: message,
-            Type: type,
-            IsRead: false,
-            CreatedAt: new Date().toISOString(),
-            UpdatedAt: new Date().toISOString()
-        }));
-        // Insert in batches of 1000 if needed, supabase js client handles batching to some extent but good to be safe.
-        // If list is huge we might timeout.
-        const { error: insertError } = await supabase
-            .from('Notifications')
-            .insert(notifications);
-        if (insertError)
-            throw new Error(insertError.message);
-        return notifications.length;
+        try {
+            // Fetch all active users from "Users" table (PascalCase)
+            const { data: users, error: userError } = await supabase
+                .from('"Users"') // ✅ Double quotes for PascalCase table
+                .select('"UserId"') // ✅ PascalCase column name
+                .eq('"IsActive"', true); // ✅ PascalCase column name
+            if (userError) {
+                console.error('Error fetching users for broadcast:', userError);
+                throw new Error(userError.message);
+            }
+            if (!users || users.length === 0)
+                return 0;
+            console.log(`Creating broadcast notification for ${users.length} users`);
+            const notifications = users.map(user => ({
+                user_id: user.UserId, // ✅ snake_case column name in notifications table
+                title: title,
+                message: message,
+                type: type,
+                is_read: false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            }));
+            // Insert in batches to avoid timeout for large user bases
+            const batchSize = 100;
+            let totalInserted = 0;
+            for (let i = 0; i < notifications.length; i += batchSize) {
+                const batch = notifications.slice(i, i + batchSize);
+                const { error: insertError } = await supabase
+                    .from('notifications')
+                    .insert(batch);
+                if (insertError) {
+                    console.error(`Error inserting batch ${i / batchSize + 1}:`, insertError);
+                    throw new Error(insertError.message);
+                }
+                totalInserted += batch.length;
+                console.log(`Inserted batch ${i / batchSize + 1}: ${batch.length} notifications`);
+            }
+            console.log(`Total notifications created: ${totalInserted}`);
+            return totalInserted;
+        }
+        catch (error) {
+            console.error('Error in createBroadcastNotification:', error);
+            throw error;
+        }
     }
     // Send to clients (users who have visited agent's properties)
     async createClientNotification(agentId, title, message) {
-        // Find distinct tenants who have visits with this agent
-        const { data: visits, error: visitError } = await supabase
-            .from('PropertyVisits')
-            .select('TenantId')
-            .eq('AgentId', agentId);
-        if (visitError)
-            throw new Error(visitError.message);
-        if (!visits || visits.length === 0)
-            return 0;
-        // Dedup
-        const distinctTenantIds = [...new Set(visits.map(v => v.TenantId))];
-        const notifications = distinctTenantIds.map(tenantId => ({
-            UserId: tenantId,
-            Title: title,
-            Message: message,
-            Type: 'ALERT',
-            IsRead: false,
-            CreatedAt: new Date().toISOString(),
-            UpdatedAt: new Date().toISOString()
-        }));
-        if (notifications.length === 0)
-            return 0;
-        const { error: insertError } = await supabase
-            .from('Notifications')
-            .insert(notifications);
-        if (insertError)
-            throw new Error(insertError.message);
-        return notifications.length;
+        try {
+            // Find distinct tenants who have visits with this agent
+            const { data: visits, error: visitError } = await supabase
+                .from('property_visits')
+                .select('tenant_id')
+                .eq('agent_id', agentId);
+            if (visitError) {
+                console.error('Error fetching visits:', visitError);
+                throw new Error(visitError.message);
+            }
+            if (!visits || visits.length === 0)
+                return 0;
+            // Dedup
+            const distinctTenantIds = [...new Set(visits.map(v => v.tenant_id))];
+            console.log(`Found ${distinctTenantIds.length} distinct clients for agent ${agentId}`);
+            const notifications = distinctTenantIds.map(tenantId => ({
+                user_id: tenantId,
+                title: title,
+                message: message,
+                type: 'ALERT',
+                is_read: false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            }));
+            if (notifications.length === 0)
+                return 0;
+            const { error: insertError } = await supabase
+                .from('notifications')
+                .insert(notifications);
+            if (insertError) {
+                console.error('Error creating client notifications:', insertError);
+                throw new Error(insertError.message);
+            }
+            console.log(`Created ${notifications.length} client notifications`);
+            return notifications.length;
+        }
+        catch (error) {
+            console.error('Error in createClientNotification:', error);
+            throw error;
+        }
+    }
+    // Delete notification
+    async deleteNotification(notificationId, userId) {
+        if (!ValidationUtils.isValidUUID(notificationId) || !ValidationUtils.isValidUUID(userId))
+            return false;
+        try {
+            const { error } = await supabase
+                .from('notifications')
+                .delete()
+                .eq('notification_id', notificationId)
+                .eq('user_id', userId);
+            if (error) {
+                console.error('Error deleting notification:', error);
+                throw new Error(error.message);
+            }
+            return true;
+        }
+        catch (error) {
+            console.error('Error in deleteNotification:', error);
+            throw error;
+        }
+    }
+    // Clear all notifications for user
+    async clearAllNotifications(userId) {
+        if (!ValidationUtils.isValidUUID(userId))
+            return false;
+        try {
+            const { error } = await supabase
+                .from('notifications')
+                .delete()
+                .eq('user_id', userId);
+            if (error) {
+                console.error('Error clearing notifications:', error);
+                throw new Error(error.message);
+            }
+            return true;
+        }
+        catch (error) {
+            console.error('Error in clearAllNotifications:', error);
+            throw error;
+        }
+    }
+    // Helper method to map snake_case to camelCase
+    mapToCamelCase(data) {
+        if (!data)
+            return data;
+        const result = {};
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                // Convert snake_case to camelCase
+                const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+                result[camelKey] = data[key];
+            }
+        }
+        return result;
     }
 }
 export const notificationService = new NotificationService();

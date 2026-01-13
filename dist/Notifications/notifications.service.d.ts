@@ -24,6 +24,9 @@ export declare class NotificationService {
     getUnreadCount(userId: string): Promise<number>;
     createBroadcastNotification(title: string, message: string, type?: 'SYSTEM' | 'ALERT'): Promise<number>;
     createClientNotification(agentId: string, title: string, message: string): Promise<number>;
+    deleteNotification(notificationId: string, userId: string): Promise<boolean>;
+    clearAllNotifications(userId: string): Promise<boolean>;
+    private mapToCamelCase;
 }
 export declare const notificationService: NotificationService;
 //# sourceMappingURL=notifications.service.d.ts.map

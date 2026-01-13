@@ -33,18 +33,40 @@ export interface UpdateVerificationInput {
 }
 export declare class AgentVerificationService {
     createVerification(data: CreateVerificationInput): Promise<AgentVerification>;
-    createVerificationForUser(data: CreateVerificationInput): Promise<AgentVerification>;
+    private createVerificationWithUserData;
     getVerificationById(verificationId: string): Promise<AgentVerification | null>;
     getVerificationByUserId(userId: string): Promise<AgentVerification | null>;
+    private getUserDetails;
     getAllVerifications(page?: number, limit?: number, status?: 'PENDING' | 'APPROVED' | 'REJECTED'): Promise<{
         verifications: AgentVerification[];
         total: number;
         page: number;
         totalPages: number;
     }>;
+    private mapToCamelCase;
     updateVerification(verificationId: string, data: UpdateVerificationInput, reviewerId: string): Promise<AgentVerification | null>;
     approveVerification(verificationId: string, reviewerId: string, reviewNotes?: string): Promise<AgentVerification | null>;
     rejectVerification(verificationId: string, reviewerId: string, reviewNotes?: string): Promise<AgentVerification | null>;
+    bulkApproveVerifications(verificationIds: string[], reviewerId: string, reviewNotes?: string): Promise<AgentVerification[]>;
+    bulkRejectVerifications(verificationIds: string[], reviewerId: string, reviewNotes?: string): Promise<AgentVerification[]>;
+    checkEligibility(userId: string): Promise<{
+        canApply: boolean;
+        reason: string;
+        currentStatus: {
+            role: string;
+            agentStatus: string;
+            hasVerification: boolean;
+            verificationStatus?: string;
+        };
+    }>;
+    createVerificationForUser(data: CreateVerificationInput): Promise<AgentVerification>;
+    getStatusCounts(): Promise<{
+        total: number;
+        pending: number;
+        approved: number;
+        rejected: number;
+        last30Days: number;
+    }>;
     getVerificationStatistics(): Promise<{
         total: number;
         pending: number;
@@ -53,8 +75,6 @@ export declare class AgentVerificationService {
         last30Days: number;
     }>;
     deleteVerification(verificationId: string): Promise<boolean>;
-    bulkApproveVerifications(verificationIds: string[], reviewerId: string, reviewNotes?: string): Promise<AgentVerification[]>;
-    bulkRejectVerifications(verificationIds: string[], reviewerId: string, reviewNotes?: string): Promise<AgentVerification[]>;
 }
 export declare const agentVerificationService: AgentVerificationService;
 //# sourceMappingURL=agentService.d.ts.map

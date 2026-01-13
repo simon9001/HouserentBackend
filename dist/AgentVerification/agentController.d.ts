@@ -333,4 +333,69 @@ export declare const testAuth: (c: AuthContext) => Promise<(Response & import("h
         role: "AGENT" | "TENANT" | "ADMIN";
     };
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">)>;
+export declare const checkEligibility: (c: AuthContext) => Promise<(Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 400, "json">) | (Response & import("hono").TypedResponse<{
+    success: true;
+    data: {
+        canApply: boolean;
+        reason: string;
+        currentStatus: {
+            role: string;
+            agentStatus: string;
+            hasVerification: boolean;
+            verificationStatus?: string | undefined;
+        };
+    };
+}, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 500, "json">)>;
+export declare const getStatusCounts: (c: AuthContext) => Promise<(Response & import("hono").TypedResponse<{
+    success: true;
+    data: {
+        total: number;
+        pending: number;
+        approved: number;
+        rejected: number;
+        last30Days: number;
+    };
+}, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 500, "json">)>;
+export declare const createVerificationForUser: (c: AuthContext) => Promise<(Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 401, "json">) | (Response & import("hono").TypedResponse<{
+    success: true;
+    message: string;
+    data: {
+        VerificationId: string;
+        UserId: string;
+        NationalId: string;
+        SelfieUrl: string;
+        IdFrontUrl: string;
+        IdBackUrl: string | null;
+        PropertyProofUrl: string | null;
+        ReviewedBy: string | null;
+        ReviewStatus: "PENDING" | "APPROVED" | "REJECTED";
+        ReviewNotes: string | null;
+        SubmittedAt: string;
+        ReviewedAt: string | null;
+        UserFullName?: string | undefined;
+        UserEmail?: string | undefined;
+        UserPhoneNumber?: string | undefined;
+        UserRole?: string | undefined;
+        UserAgentStatus?: string | undefined;
+        ReviewerFullName?: string | undefined;
+    };
+}, 201, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
+    error: any;
+}, 400, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 500, "json">)>;
 //# sourceMappingURL=agentController.d.ts.map

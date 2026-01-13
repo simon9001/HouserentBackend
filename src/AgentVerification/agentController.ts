@@ -566,3 +566,113 @@ export const testAuth = async (c: AuthContext) => {
         }
     });
 };
+
+
+// Add these functions to your agentController.ts
+
+// Check eligibility
+export const checkEligibility = async (c: AuthContext) => {
+    try {
+        const userId = c.req.param('userId');
+        
+        if (!ValidationUtils.isValidUUID(userId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid user ID format'
+            }, 400);
+        }
+
+        const eligibility = await agentVerificationService.checkEligibility(userId);
+
+        return c.json({
+            success: true,
+            data: eligibility
+        });
+
+    } catch (error: any) {
+        console.error('Error checking eligibility:', error.message);
+        return c.json({
+            success: false,
+            error: 'Failed to check eligibility'
+        }, 500);
+    }
+};
+
+// Get status counts
+export const getStatusCounts = async (c: AuthContext) => {
+    try {
+        const stats = await agentVerificationService.getStatusCounts();
+
+        return c.json({
+            success: true,
+            data: stats
+        });
+
+    } catch (error: any) {
+        console.error('Error fetching status counts:', error.message);
+        return c.json({
+            success: false,
+            error: 'Failed to fetch status counts'
+        }, 500);
+    }
+};
+
+// Create verification for user (admin)
+export const createVerificationForUser = async (c: AuthContext) => {
+    try {
+        const user = c.get('user');
+        const body = await c.req.json();
+
+        if (!user) {
+            return c.json({
+                success: false,
+                error: 'Authentication required'
+            }, 401);
+        }
+
+        // Validate required fields
+        const requiredFields = ['userId', 'nationalId', 'selfieUrl', 'idFrontUrl'];
+        const missingFields = requiredFields.filter(field => !body[field]);
+
+        if (missingFields.length > 0) {
+            return c.json({
+                success: false,
+                error: `Missing required fields: ${missingFields.join(', ')}`
+            }, 400);
+        }
+
+        const verificationData: CreateVerificationInput = {
+            userId: body.userId,
+            nationalId: body.nationalId,
+            selfieUrl: body.selfieUrl,
+            idFrontUrl: body.idFrontUrl,
+            idBackUrl: body.idBackUrl,
+            propertyProofUrl: body.propertyProofUrl
+        };
+
+        const verification = await agentVerificationService.createVerificationForUser(verificationData);
+
+        return c.json({
+            success: true,
+            message: 'Agent verification created successfully',
+            data: verification
+        }, 201);
+
+    } catch (error: any) {
+        console.error('Error creating agent verification:', error.message);
+
+        if (error.message.includes('not found') ||
+            error.message.includes('already exists') ||
+            error.message.includes('not an agent')) {
+            return c.json({
+                success: false,
+                error: error.message
+            }, 400);
+        }
+
+        return c.json({
+            success: false,
+            error: 'Failed to create verification'
+        }, 500);
+    }
+};
