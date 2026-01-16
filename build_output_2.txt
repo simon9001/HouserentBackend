@@ -1,0 +1,8 @@
+
+> kajayangu-backend@1.0.0 build
+> tsc
+
+src/admin/adminController.ts(55,10): error TS6133: 'SubscriptionUserDetails' is declared but its value is never read.
+src/admin/adminController.ts(56,10): error TS6133: 'PaymentHistory' is declared but its value is never read.
+src/admin/adminService.ts(964,5): error TS2322: Type '{ planId: any; name: any; displayName: any; description: any; basePrice: any; currency: any; billingCycle: any; trialDays: any; maxProperties: any; maxVisitsPerMonth: any; maxMediaPerProperty: any; ... 14 more ...; updatedAt: any; }[]' is not assignable to type 'SubscriptionPlan[]'.
+  Type '{ planId: any; name: any; displayName: any; description: any; basePrice: any; currency: any; billingCycle: any; trialDays: any; maxProperties: any; maxVisitsPerMonth: any; maxMediaPerProperty: any; ... 14 more ...; updatedAt: any; }' is missing the following properties from type 'SubscriptionPlan': price, features, propertiesLimit, visitsLimit, and 3 more.

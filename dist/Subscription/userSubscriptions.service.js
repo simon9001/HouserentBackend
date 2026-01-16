@@ -2,9 +2,63 @@ import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 import { subscriptionPlansService } from './subscriptionPlans.service.js';
 export class UserSubscriptionsService {
+    // Helper to map DB result to UserSubscription interface
+    mapDBToSubscription(data) {
+        if (!data)
+            return data;
+        return {
+            SubscriptionId: data.subscription_id,
+            UserId: data.user_id,
+            PlanId: data.plan_id,
+            PaymentId: data.payment_id,
+            Price: data.price,
+            Currency: data.currency,
+            BillingCycle: data.billing_cycle,
+            StartDate: data.start_date,
+            EndDate: data.end_date,
+            TrialEndDate: data.trial_end_date,
+            CancelAtPeriodEnd: data.cancel_at_period_end,
+            CancelledDate: data.cancelled_date,
+            Status: data.status,
+            AutoRenew: data.auto_renew,
+            RenewalAttempts: data.renewal_attempts,
+            LastRenewalAttempt: data.last_renewal_attempt,
+            PropertiesUsed: data.properties_used,
+            VisitsUsedThisMonth: data.visits_used_this_month,
+            MediaUsedThisMonth: data.media_used_this_month,
+            AmenitiesUsedThisMonth: data.amenities_used_this_month,
+            BoostsUsedThisMonth: data.boosts_used_this_month,
+            LastUsageReset: data.last_usage_reset,
+            NextUsageReset: data.next_usage_reset,
+            CreatedAt: data.created_at,
+            UpdatedAt: data.updated_at
+        };
+    }
+    // Helper to map DB result to UserSubscriptionWithPlan
+    mapDBToSubscriptionWithPlan(data) {
+        if (!data)
+            return data;
+        const sub = this.mapDBToSubscription(data);
+        const plan = data.subscription_plans; // joined table alias
+        const res = { ...sub };
+        if (plan) {
+            res.PlanName = plan.name;
+            res.DisplayName = plan.display_name;
+            res.MaxProperties = plan.max_properties;
+            res.MaxVisitsPerMonth = plan.max_visits_per_month;
+            res.MaxMediaPerProperty = plan.max_media_per_property;
+            res.MaxAmenitiesPerProperty = plan.max_amenities_per_property;
+            res.AllowBoost = plan.allow_boost;
+            res.MaxBoostsPerMonth = plan.max_boosts_per_month;
+            res.AllowPremiumSupport = plan.allow_premium_support;
+            res.AllowAdvancedAnalytics = plan.allow_advanced_analytics;
+            res.AllowBulkOperations = plan.allow_bulk_operations;
+        }
+        return res;
+    }
     // Create new subscription
     async createSubscription(data) {
-        // Validate user exists
+        // Validate user exists (Users table is PascalCase)
         const { data: user, error: userError } = await supabase
             .from('Users')
             .select('UserId')
@@ -13,33 +67,33 @@ export class UserSubscriptionsService {
             .single();
         if (userError || !user)
             throw new Error('User not found or inactive');
-        // Validate plan exists and is active
+        // Validate plan exists and is active (snake_case)
         const { data: plan, error: planError } = await supabase
-            .from('SubscriptionPlans')
+            .from('subscription_plans')
             .select('*')
-            .eq('PlanId', data.planId)
-            .eq('IsActive', true)
+            .eq('plan_id', data.planId)
+            .eq('is_active', true)
             .single();
         if (planError || !plan)
             throw new Error('Subscription plan not found or inactive');
         // Check for existing active subscription
         const { data: existingSubscription } = await supabase
-            .from('UserSubscriptions')
-            .select('SubscriptionId')
-            .eq('UserId', data.userId)
-            .in('Status', ['TRIAL', 'ACTIVE'])
-            .gt('EndDate', new Date().toISOString())
+            .from('user_subscriptions')
+            .select('subscription_id')
+            .eq('user_id', data.userId)
+            .in('status', ['TRIAL', 'ACTIVE'])
+            .gt('end_date', new Date().toISOString())
             .single();
         if (existingSubscription)
             throw new Error('User already has an active subscription');
         // Calculate dates
         const startDate = data.startDate || new Date();
-        const trialDays = data.trialDays !== undefined ? data.trialDays : plan.TrialDays;
+        const trialDays = data.trialDays !== undefined ? data.trialDays : plan.trial_days;
         const trialEndDate = trialDays > 0 ?
             new Date(startDate.getTime() + trialDays * 24 * 60 * 60 * 1000) : null;
         // Calculate end date based on billing cycle
         let endDate = new Date(startDate);
-        const billingCycle = data.billingCycle || plan.BillingCycle || 'MONTHLY';
+        const billingCycle = data.billingCycle || plan.billing_cycle || 'MONTHLY';
         switch (billingCycle) {
             case 'DAILY':
                 endDate.setDate(endDate.getDate() + 1);
@@ -63,125 +117,93 @@ export class UserSubscriptionsService {
             status = 'TRIAL';
         }
         const { data: newSub, error } = await supabase
-            .from('UserSubscriptions')
+            .from('user_subscriptions')
             .insert({
-            UserId: data.userId,
-            PlanId: data.planId,
-            PaymentId: data.paymentId || null,
-            Price: data.price !== undefined ? data.price : plan.BasePrice,
-            Currency: data.currency || plan.Currency || 'KES',
-            BillingCycle: billingCycle,
-            StartDate: startDate.toISOString(),
-            EndDate: endDate.toISOString(),
-            TrialEndDate: trialEndDate ? trialEndDate.toISOString() : null,
-            Status: status,
-            AutoRenew: data.autoRenew !== undefined ? data.autoRenew : true,
-            LastUsageReset: startDate.toISOString(),
-            NextUsageReset: new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-            CreatedAt: new Date().toISOString(),
-            UpdatedAt: new Date().toISOString()
+            user_id: data.userId,
+            plan_id: data.planId,
+            payment_id: data.paymentId || null,
+            price: data.price !== undefined ? data.price : plan.base_price,
+            currency: data.currency || plan.currency || 'KES',
+            billing_cycle: billingCycle,
+            start_date: startDate.toISOString(),
+            end_date: endDate.toISOString(),
+            trial_end_date: trialEndDate ? trialEndDate.toISOString() : null,
+            status: status,
+            auto_renew: data.autoRenew !== undefined ? data.autoRenew : true,
+            last_usage_reset: startDate.toISOString(),
+            next_usage_reset: new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
         })
             .select()
             .single();
         if (error)
             throw new Error(error.message);
         // Create subscription event
-        await this.createSubscriptionEvent(newSub.SubscriptionId, data.userId, 'SUBSCRIPTION_CREATED', {
+        await this.createSubscriptionEvent(newSub.subscription_id, data.userId, 'SUBSCRIPTION_CREATED', {
             planId: data.planId,
             status: status,
             trialDays: trialDays,
             billingCycle: billingCycle
         });
-        return newSub;
+        return this.mapDBToSubscription(newSub);
     }
     // Get subscription by ID
     async getSubscriptionById(subscriptionId) {
         if (!ValidationUtils.isValidUUID(subscriptionId))
             throw new Error('Invalid subscription ID format');
         const { data, error } = await supabase
-            .from('UserSubscriptions')
+            .from('user_subscriptions')
             .select(`
                 *,
-                SubscriptionPlans:PlanId (*)
+                subscription_plans:plan_id (*)
             `)
-            .eq('SubscriptionId', subscriptionId)
+            .eq('subscription_id', subscriptionId)
             .single();
         if (error) {
             if (error.code === 'PGRST116')
                 return null;
             throw new Error(error.message);
         }
-        const plan = data.SubscriptionPlans;
-        const result = { ...data };
-        delete result.SubscriptionPlans;
-        if (plan) {
-            result.PlanName = plan.DisplayName;
-            result.DisplayName = plan.DisplayName;
-            result.MaxProperties = plan.MaxProperties;
-            result.MaxVisitsPerMonth = plan.MaxVisitsPerMonth;
-            result.MaxMediaPerProperty = plan.MaxMediaPerProperty;
-            result.MaxAmenitiesPerProperty = plan.MaxAmenitiesPerProperty;
-            result.AllowBoost = plan.AllowBoost;
-            result.MaxBoostsPerMonth = plan.MaxBoostsPerMonth;
-            result.AllowPremiumSupport = plan.AllowPremiumSupport;
-            result.AllowAdvancedAnalytics = plan.AllowAdvancedAnalytics;
-            result.AllowBulkOperations = plan.AllowBulkOperations;
-        }
-        return result;
+        return this.mapDBToSubscriptionWithPlan(data);
     }
     // Get active subscription for user
     async getActiveSubscription(userId) {
         if (!ValidationUtils.isValidUUID(userId))
             throw new Error('Invalid user ID format');
         const { data, error } = await supabase
-            .from('UserSubscriptions')
+            .from('user_subscriptions')
             .select(`
                 *,
-                SubscriptionPlans:PlanId (*)
+                subscription_plans:plan_id (*)
             `)
-            .eq('UserId', userId)
-            .in('Status', ['TRIAL', 'ACTIVE'])
-            .gt('EndDate', new Date().toISOString())
+            .eq('user_id', userId)
+            .in('status', ['TRIAL', 'ACTIVE'])
+            .gt('end_date', new Date().toISOString())
             .single();
         if (error) {
             if (error.code === 'PGRST116')
                 return null;
             return null;
         }
-        const plan = data.SubscriptionPlans;
-        const result = { ...data };
-        delete result.SubscriptionPlans;
-        if (plan) {
-            result.PlanName = plan.DisplayName;
-            result.DisplayName = plan.DisplayName;
-            result.MaxProperties = plan.MaxProperties;
-            result.MaxVisitsPerMonth = plan.MaxVisitsPerMonth;
-            result.MaxMediaPerProperty = plan.MaxMediaPerProperty;
-            result.MaxAmenitiesPerProperty = plan.MaxAmenitiesPerProperty;
-            result.AllowBoost = plan.AllowBoost;
-            result.MaxBoostsPerMonth = plan.MaxBoostsPerMonth;
-            result.AllowPremiumSupport = plan.AllowPremiumSupport;
-            result.AllowAdvancedAnalytics = plan.AllowAdvancedAnalytics;
-            result.AllowBulkOperations = plan.AllowBulkOperations;
-        }
-        return result;
+        return this.mapDBToSubscriptionWithPlan(data);
     }
     // Get all subscriptions for user
     async getUserSubscriptions(userId, includeExpired = false) {
         if (!ValidationUtils.isValidUUID(userId))
             throw new Error('Invalid user ID format');
         let query = supabase
-            .from('UserSubscriptions')
+            .from('user_subscriptions')
             .select('*')
-            .eq('UserId', userId)
-            .order('CreatedAt', { ascending: false });
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
         if (!includeExpired) {
-            query = query.gt('EndDate', new Date().toISOString());
+            query = query.gt('end_date', new Date().toISOString());
         }
         const { data, error } = await query;
         if (error)
             throw new Error(error.message);
-        return data;
+        return (data || []).map((s) => this.mapDBToSubscription(s));
     }
     // Update subscription
     async updateSubscription(subscriptionId, data) {
@@ -193,25 +215,25 @@ export class UserSubscriptionsService {
             throw new Error('Subscription not found');
         const updates = {};
         if (data.status !== undefined) {
-            updates.Status = data.status;
+            updates.status = data.status;
             // If cancelling, set cancelled date
             if (data.status === 'CANCELLED' && currentSubscription.Status !== 'CANCELLED') {
-                updates.CancelledDate = new Date().toISOString();
+                updates.cancelled_date = new Date().toISOString();
             }
         }
         if (data.autoRenew !== undefined)
-            updates.AutoRenew = data.autoRenew;
+            updates.auto_renew = data.autoRenew;
         if (data.cancelAtPeriodEnd !== undefined)
-            updates.CancelAtPeriodEnd = data.cancelAtPeriodEnd;
+            updates.cancel_at_period_end = data.cancelAtPeriodEnd;
         if (data.paymentId !== undefined)
-            updates.PaymentId = data.paymentId;
+            updates.payment_id = data.paymentId;
         if (Object.keys(updates).length === 0)
             throw new Error('No fields to update');
-        updates.UpdatedAt = new Date().toISOString();
+        updates.updated_at = new Date().toISOString();
         const { data: updated, error } = await supabase
-            .from('UserSubscriptions')
+            .from('user_subscriptions')
             .update(updates)
-            .eq('SubscriptionId', subscriptionId)
+            .eq('subscription_id', subscriptionId)
             .select()
             .single();
         if (error)
@@ -224,7 +246,7 @@ export class UserSubscriptionsService {
                 subscriptionId: subscriptionId
             });
         }
-        return updated;
+        return this.mapDBToSubscription(updated);
     }
     // Cancel subscription
     async cancelSubscription(subscriptionId, cancelAtPeriodEnd = false) {
@@ -277,19 +299,19 @@ export class UserSubscriptionsService {
                 break;
         }
         const { data: updated, error } = await supabase
-            .from('UserSubscriptions')
+            .from('user_subscriptions')
             .update({
-            StartDate: newStartDate.toISOString(),
-            EndDate: newEndDate.toISOString(),
-            Status: 'ACTIVE',
-            CancelAtPeriodEnd: false,
-            CancelledDate: null,
-            RenewalAttempts: (currentSubscription.RenewalAttempts || 0) + 1,
-            LastRenewalAttempt: new Date().toISOString(),
-            PaymentId: paymentId || null,
-            UpdatedAt: new Date().toISOString()
+            start_date: newStartDate.toISOString(),
+            end_date: newEndDate.toISOString(),
+            status: 'ACTIVE',
+            cancel_at_period_end: false,
+            cancelled_date: null,
+            renewal_attempts: (currentSubscription.RenewalAttempts || 0) + 1,
+            last_renewal_attempt: new Date().toISOString(),
+            payment_id: paymentId || null,
+            updated_at: new Date().toISOString()
         })
-            .eq('SubscriptionId', subscriptionId)
+            .eq('subscription_id', subscriptionId)
             .select()
             .single();
         if (error)
@@ -300,7 +322,7 @@ export class UserSubscriptionsService {
             newEndDate: newEndDate,
             billingCycle: currentSubscription.BillingCycle
         });
-        return updated;
+        return this.mapDBToSubscription(updated);
     }
     // Check usage limit
     async checkUsageLimit(userId, feature, requiredCount = 1) {
@@ -367,9 +389,9 @@ export class UserSubscriptionsService {
         switch (feature) {
             case 'PROPERTY_CREATE': {
                 const { count: c, error } = await supabase
-                    .from('Properties')
+                    .from('properties')
                     .select('*', { count: 'exact', head: true })
-                    .eq('OwnerId', userId);
+                    .eq('owner_id', userId);
                 if (!error)
                     count = c || 0;
                 break;
@@ -379,11 +401,11 @@ export class UserSubscriptionsService {
                 const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
                 const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
                 const { count: c, error } = await supabase
-                    .from('PropertyVisits')
+                    .from('property_visits')
                     .select('*', { count: 'exact', head: true })
-                    .eq('TenantId', userId)
-                    .gte('VisitDate', startOfMonth)
-                    .lte('VisitDate', endOfMonth);
+                    .eq('tenant_id', userId)
+                    .gte('visit_date', startOfMonth)
+                    .lte('visit_date', endOfMonth);
                 if (!error)
                     count = c || 0;
                 break;
@@ -393,12 +415,12 @@ export class UserSubscriptionsService {
                 const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
                 const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
                 const { count: c, error } = await supabase
-                    .from('Properties')
+                    .from('properties')
                     .select('*', { count: 'exact', head: true })
-                    .eq('OwnerId', userId)
-                    .eq('IsBoosted', true)
-                    .gte('CreatedAt', startOfMonth)
-                    .lte('CreatedAt', endOfMonth);
+                    .eq('owner_id', userId)
+                    .eq('is_boosted', true)
+                    .gte('created_at', startOfMonth)
+                    .lte('created_at', endOfMonth);
                 if (!error)
                     count = c || 0;
                 break;
@@ -474,70 +496,71 @@ export class UserSubscriptionsService {
             await this.updateSubscriptionUsage(subscription.SubscriptionId, feature, count);
         }
         const { error } = await supabase
-            .from('SubscriptionUsageLogs')
+            .from('subscription_usage_logs')
             .insert({
-            SubscriptionId: subscription?.SubscriptionId || null,
-            UserId: userId,
-            Feature: feature,
-            ResourceId: resourceId || null,
-            Action: action,
-            UsageCount: count,
-            WasGated: usageCheck.isGated,
-            GateType: usageCheck.gateType || null,
-            OverrideReason: overrideReason || null,
-            IpAddress: ipAddress || null,
-            UserAgent: userAgent || null,
-            Metadata: metadata ? JSON.stringify(metadata) : null,
-            UsageDate: new Date().toISOString()
+            subscription_id: subscription?.SubscriptionId || null,
+            user_id: userId,
+            feature: feature,
+            resource_id: resourceId || null,
+            action: action,
+            usage_count: count,
+            was_gated: usageCheck.isGated,
+            gate_type: usageCheck.gateType || null,
+            override_reason: overrideReason || null,
+            ip_address: ipAddress || null,
+            user_agent: userAgent || null,
+            metadata: metadata ? JSON.stringify(metadata) : null,
+            usage_date: new Date().toISOString()
         });
         if (error)
             console.error('Error logging usage:', error);
     }
     async updateSubscriptionUsage(subscriptionId, feature, count) {
         const { data: current, error: fetchError } = await supabase
-            .from('UserSubscriptions')
+            .from('user_subscriptions')
             .select('*')
-            .eq('SubscriptionId', subscriptionId)
+            .eq('subscription_id', subscriptionId)
             .single();
         if (fetchError || !current)
             return;
-        const updates = { UpdatedAt: new Date().toISOString() };
+        const updates = { updated_at: new Date().toISOString() };
+        // Helper to get raw snake_case column value
         switch (feature) {
             case 'PROPERTY_CREATE':
-                updates.PropertiesUsed = (current.PropertiesUsed || 0) + count;
+                updates.properties_used = (current.properties_used || 0) + count;
                 break;
             case 'VISIT_SCHEDULE':
-                updates.VisitsUsedThisMonth = (current.VisitsUsedThisMonth || 0) + count;
+                updates.visits_used_this_month = (current.visits_used_this_month || 0) + count;
                 break;
             case 'BOOST_PROPERTY':
-                updates.BoostsUsedThisMonth = (current.BoostsUsedThisMonth || 0) + count;
+                updates.boosts_used_this_month = (current.boosts_used_this_month || 0) + count;
                 break;
             case 'MEDIA_UPLOAD':
-                updates.MediaUsedThisMonth = (current.MediaUsedThisMonth || 0) + count;
+                updates.media_used_this_month = (current.media_used_this_month || 0) + count;
                 break;
             case 'AMENITY_ADD':
-                updates.AmenitiesUsedThisMonth = (current.AmenitiesUsedThisMonth || 0) + count;
+                updates.amenities_used_this_month = (current.amenities_used_this_month || 0) + count;
                 break;
             default: return;
         }
         await supabase
-            .from('UserSubscriptions')
+            .from('user_subscriptions')
             .update(updates)
-            .eq('SubscriptionId', subscriptionId);
+            .eq('subscription_id', subscriptionId);
     }
     // Get usage statistics
     async getUsageStatistics(userId, startDate, endDate) {
         if (!ValidationUtils.isValidUUID(userId))
             throw new Error('Invalid user ID format');
         let query = supabase
-            .from('SubscriptionUsageLogs')
-            .select('Feature, UsageCount, WasGated, UsageDate')
-            .eq('UserId', userId)
-            .order('UsageDate', { ascending: false });
+            .from('subscription_usage_logs')
+            .select('feature, usage_count, was_gated, usage_date')
+            .eq('user_id', userId)
+            .order('usage_date', { ascending: false });
         if (startDate)
-            query = query.gte('UsageDate', startDate.toISOString());
+            query = query.gte('usage_date', startDate.toISOString());
         if (endDate)
-            query = query.lte('UsageDate', endDate.toISOString());
+            query = query.lte('usage_date', endDate.toISOString());
         const { data, error } = await query;
         if (error)
             throw new Error(error.message);
@@ -547,12 +570,13 @@ export class UserSubscriptionsService {
             byDay: {},
             gatedActions: 0
         };
-        data.forEach((row) => {
-            statistics.totalUsage += row.UsageCount;
-            statistics.byFeature[row.Feature] = (statistics.byFeature[row.Feature] || 0) + row.UsageCount;
-            const dateKey = new Date(row.UsageDate).toISOString().split('T')[0];
-            statistics.byDay[dateKey] = (statistics.byDay[dateKey] || 0) + row.UsageCount;
-            if (row.WasGated)
+        (data || []).forEach((row) => {
+            const count = row.usage_count || 1;
+            statistics.totalUsage += count;
+            statistics.byFeature[row.feature] = (statistics.byFeature[row.feature] || 0) + count;
+            const dateKey = new Date(row.usage_date).toISOString().split('T')[0];
+            statistics.byDay[dateKey] = (statistics.byDay[dateKey] || 0) + count;
+            if (row.was_gated)
                 statistics.gatedActions += 1;
         });
         return statistics;
@@ -567,32 +591,25 @@ export class UserSubscriptionsService {
         const endDateLimit = new Date();
         endDateLimit.setDate(endDateLimit.getDate() + days);
         const { data, error } = await supabase
-            .from('UserSubscriptions')
+            .from('user_subscriptions')
             .select(`
                 *,
-                SubscriptionPlans:PlanId (*),
-                Users:UserId (Email)
+                subscription_plans:plan_id (*),
+                Users:user_id (Email)
             `)
-            .in('Status', ['TRIAL', 'ACTIVE'])
-            .gt('EndDate', new Date().toISOString())
-            .lte('EndDate', endDateLimit.toISOString())
-            .order('EndDate', { ascending: true });
+            .in('status', ['TRIAL', 'ACTIVE'])
+            .gt('end_date', new Date().toISOString())
+            .lte('end_date', endDateLimit.toISOString())
+            .order('end_date', { ascending: true });
         if (error)
             throw new Error(error.message);
         return data.map((sub) => {
-            const plan = sub.SubscriptionPlans;
-            const user = sub.Users;
-            const res = { ...sub };
-            delete res.SubscriptionPlans;
-            delete res.Users;
-            if (plan) {
-                res.PlanName = plan.DisplayName;
-                res.DisplayName = plan.DisplayName;
+            const mapped = this.mapDBToSubscriptionWithPlan(sub);
+            // manually handle User join mapping as it's specific here
+            if (sub.Users) {
+                mapped.UserEmail = sub.Users.Email;
             }
-            if (user) {
-                res.UserEmail = user.Email;
-            }
-            return res;
+            return mapped;
         });
     }
     // Get trial subscriptions ending soon
@@ -600,109 +617,44 @@ export class UserSubscriptionsService {
         const endDateLimit = new Date();
         endDateLimit.setDate(endDateLimit.getDate() + days);
         const { data, error } = await supabase
-            .from('UserSubscriptions')
+            .from('user_subscriptions')
             .select(`
                 *,
-                SubscriptionPlans:PlanId (*),
-                Users:UserId (Email)
+                subscription_plans:plan_id (*),
+                Users:user_id (Email)
             `)
-            .eq('Status', 'TRIAL')
-            .gt('TrialEndDate', new Date().toISOString())
-            .lte('TrialEndDate', endDateLimit.toISOString())
-            .order('TrialEndDate', { ascending: true });
+            .eq('status', 'TRIAL')
+            .gt('trial_end_date', new Date().toISOString())
+            .lte('trial_end_date', endDateLimit.toISOString())
+            .order('trial_end_date', { ascending: true });
         if (error)
             throw new Error(error.message);
         return data.map((sub) => {
-            const plan = sub.SubscriptionPlans;
-            const user = sub.Users;
-            const res = { ...sub };
-            delete res.SubscriptionPlans;
-            delete res.Users;
-            if (plan) {
-                res.PlanName = plan.DisplayName;
-                res.DisplayName = plan.DisplayName;
+            const mapped = this.mapDBToSubscriptionWithPlan(sub);
+            // manually handle User join mapping
+            if (sub.Users) {
+                mapped.UserEmail = sub.Users.Email;
             }
-            if (user) {
-                res.UserEmail = user.Email;
-            }
-            return res;
+            return mapped;
         });
     }
     // Helper method to create subscription events
     async createSubscriptionEvent(subscriptionId, userId, eventType, eventData) {
         await supabase
-            .from('SubscriptionEvents')
+            .from('subscription_events')
             .insert({
-            EventType: eventType,
-            SubscriptionId: subscriptionId,
-            UserId: userId,
-            EventData: JSON.stringify(eventData),
-            CreatedAt: new Date().toISOString()
+            event_type: eventType,
+            subscription_id: subscriptionId,
+            user_id: userId,
+            event_data: JSON.stringify(eventData),
+            created_at: new Date().toISOString()
         });
     }
     // Get subscription summary for dashboard
     async getSubscriptionSummary(userId) {
-        const subscription = await this.getActiveSubscription(userId);
-        if (!subscription) {
-            // Return free plan summary
-            const freePlan = await subscriptionPlansService.getFreePlan();
-            const nextResetDate = new Date();
-            nextResetDate.setDate(nextResetDate.getDate() + 30);
-            return {
-                subscription: null,
-                usage: {
-                    properties: { used: 0, limit: freePlan?.MaxProperties || 3, remaining: freePlan?.MaxProperties || 3 },
-                    visits: { used: 0, limit: freePlan?.MaxVisitsPerMonth || 5, remaining: freePlan?.MaxVisitsPerMonth || 5 },
-                    boosts: { used: 0, limit: freePlan?.MaxBoostsPerMonth || 0, remaining: freePlan?.MaxBoostsPerMonth || 0 },
-                    media: { used: 0, limit: freePlan?.MaxMediaPerProperty || 5, remaining: freePlan?.MaxMediaPerProperty || 5 },
-                    amenities: { used: 0, limit: freePlan?.MaxAmenitiesPerProperty || 10, remaining: freePlan?.MaxAmenitiesPerProperty || 10 }
-                },
-                features: {
-                    allowBoost: freePlan?.AllowBoost || false,
-                    allowPremiumSupport: freePlan?.AllowPremiumSupport || false,
-                    allowAdvancedAnalytics: freePlan?.AllowAdvancedAnalytics || false,
-                    allowBulkOperations: freePlan?.AllowBulkOperations || false
-                },
-                nextReset: nextResetDate.toISOString()
-            };
-        }
-        return {
-            subscription,
-            usage: {
-                properties: {
-                    used: subscription.PropertiesUsed,
-                    limit: subscription.MaxProperties || 0,
-                    remaining: Math.max(0, (subscription.MaxProperties || 0) - subscription.PropertiesUsed)
-                },
-                visits: {
-                    used: subscription.VisitsUsedThisMonth,
-                    limit: subscription.MaxVisitsPerMonth || 0,
-                    remaining: Math.max(0, (subscription.MaxVisitsPerMonth || 0) - subscription.VisitsUsedThisMonth)
-                },
-                boosts: {
-                    used: subscription.BoostsUsedThisMonth,
-                    limit: subscription.MaxBoostsPerMonth || 0,
-                    remaining: Math.max(0, (subscription.MaxBoostsPerMonth || 0) - subscription.BoostsUsedThisMonth)
-                },
-                media: {
-                    used: subscription.MediaUsedThisMonth,
-                    limit: subscription.MaxMediaPerProperty || 0,
-                    remaining: Math.max(0, (subscription.MaxMediaPerProperty || 0) - subscription.MediaUsedThisMonth)
-                },
-                amenities: {
-                    used: subscription.AmenitiesUsedThisMonth,
-                    limit: subscription.MaxAmenitiesPerProperty || 0,
-                    remaining: Math.max(0, (subscription.MaxAmenitiesPerProperty || 0) - subscription.AmenitiesUsedThisMonth)
-                }
-            },
-            features: {
-                allowBoost: subscription.AllowBoost || false,
-                allowPremiumSupport: subscription.AllowPremiumSupport || false,
-                allowAdvancedAnalytics: subscription.AllowAdvancedAnalytics || false,
-                allowBulkOperations: subscription.AllowBulkOperations || false
-            },
-            nextReset: subscription.NextUsageReset
-        };
+        const sub = await this.getActiveSubscription(userId);
+        const stats = await this.getUsageStatistics(userId);
+        return { subscription: sub, stats };
     }
 }
 export const userSubscriptionsService = new UserSubscriptionsService();

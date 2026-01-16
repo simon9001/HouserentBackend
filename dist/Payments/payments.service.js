@@ -7,12 +7,12 @@ export class PaymentsService {
         if (data.amount <= 0) {
             throw new Error('Amount must be greater than 0');
         }
-        // Validate user exists
+        // Validate user exists (Users table is PascalCase)
         const { data: user, error: userError } = await supabase
-            .from('users')
-            .select('user_id')
-            .eq('user_id', data.userId)
-            .eq('is_active', true)
+            .from('Users')
+            .select('UserId')
+            .eq('UserId', data.userId)
+            .eq('IsActive', true)
             .single();
         if (userError || !user) {
             throw new Error('User not found or inactive');
@@ -65,7 +65,7 @@ export class PaymentsService {
             .from('payments')
             .select(`
                 *,
-                users:user_id (full_name),
+                Users:user_id (FullName),
                 properties:property_id (title)
             `)
             .eq('payment_id', paymentId)
@@ -76,9 +76,9 @@ export class PaymentsService {
             throw new Error(error.message);
         }
         const result = { ...data };
-        if (data.users) {
-            result.user_name = data.users.full_name;
-            delete result.users;
+        if (data.Users) {
+            result.user_name = data.Users.FullName;
+            delete result.Users;
         }
         if (data.properties) {
             result.property_title = data.properties.title;
@@ -121,7 +121,7 @@ export class PaymentsService {
             .from('payments')
             .select(`
                 *,
-                users:user_id (full_name)
+                Users:user_id (FullName)
             `)
             .eq('property_id', propertyId)
             .order('created_at', { ascending: false });
@@ -129,14 +129,14 @@ export class PaymentsService {
             throw new Error(error.message);
         return data.map((p) => {
             const res = { ...p };
-            if (p.users) {
-                res.user_name = p.users.full_name;
-                delete res.users;
+            if (p.Users) {
+                res.user_name = p.Users.FullName;
+                delete res.Users;
             }
             return res;
         });
     }
-    // Update payment status - FIXED
+    // Update payment status
     async updatePayment(paymentId, data) {
         if (!ValidationUtils.isValidUUID(paymentId))
             throw new Error('Invalid payment ID format');
@@ -248,7 +248,7 @@ export class PaymentsService {
             .from('payments')
             .select(`
                 *,
-                users:user_id (full_name),
+                Users:user_id (FullName),
                 properties:property_id (title)
             `)
             .order('created_at', { ascending: false })
@@ -257,11 +257,11 @@ export class PaymentsService {
             throw new Error(error.message);
         return data.map((p) => {
             const res = { ...p };
-            if (p.users)
-                res.user_name = p.users.full_name;
+            if (p.Users)
+                res.user_name = p.Users.FullName;
             if (p.properties)
                 res.property_title = p.properties.title;
-            delete res.users;
+            delete res.Users;
             delete res.properties;
             return res;
         });
@@ -275,7 +275,7 @@ export class PaymentsService {
             .from('payments')
             .select(`
                 *,
-                users:user_id (full_name),
+                Users:user_id (FullName),
                 properties:property_id (title)
             `);
         if (userId) {
@@ -287,11 +287,11 @@ export class PaymentsService {
             throw new Error(error.message);
         return data.map((p) => {
             const res = { ...p };
-            if (p.users)
-                res.user_name = p.users.full_name;
+            if (p.Users)
+                res.user_name = p.Users.FullName;
             if (p.properties)
                 res.property_title = p.properties.title;
-            delete res.users;
+            delete res.Users;
             delete res.properties;
             return res;
         });
@@ -302,7 +302,7 @@ export class PaymentsService {
             .from('payments')
             .select(`
                 *,
-                users:user_id (full_name),
+                Users:user_id (FullName),
                 properties:property_id (title)
             `)
             .eq('purpose', purpose)
@@ -315,11 +315,11 @@ export class PaymentsService {
             throw new Error(error.message);
         return data.map((p) => {
             const res = { ...p };
-            if (p.users)
-                res.user_name = p.users.full_name;
+            if (p.Users)
+                res.user_name = p.Users.FullName;
             if (p.properties)
                 res.property_title = p.properties.title;
-            delete res.users;
+            delete res.Users;
             delete res.properties;
             return res;
         });
@@ -353,19 +353,15 @@ export class PaymentsService {
                 }
                 break;
             case 'ACCESS':
-                // Handle premium access
                 console.log('Payment for access completed:', payment.payment_id);
                 break;
             case 'BOOKING':
-                // Handle booking confirmation
                 console.log('Payment for booking completed:', payment.payment_id);
                 break;
             case 'DEPOSIT':
-                // Handle deposit recording
                 console.log('Payment for deposit completed:', payment.payment_id);
                 break;
             case 'SUBSCRIPTION':
-                // Handle subscription update
                 console.log('Payment for subscription completed:', payment.payment_id);
                 break;
         }

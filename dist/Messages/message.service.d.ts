@@ -53,6 +53,8 @@ export interface Message {
     Reactions?: MessageReaction[] | string;
 }
 export declare class MessageService {
+    private mapDBToConversation;
+    private mapDBToMessage;
     getOrCreateConversation(propertyId: string, agentId: string, userId: string, initialMessage?: string, messageType?: string): Promise<{
         ConversationId: string;
     }>;

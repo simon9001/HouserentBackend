@@ -14,12 +14,21 @@ export interface FollowStats {
 
 export class UserFollowsService {
 
+    // Helper to map DB result to UserFollow interface
+    private mapDBToUserFollow(data: any): UserFollow {
+        if (!data) return data;
+        return {
+            FollowerId: data.follower_id,
+            FollowedId: data.followed_id,
+            CreatedAt: data.created_at
+        };
+    }
+
     // Follow a user
     async followUser(followerId: string, followedId: string): Promise<UserFollow> {
         if (followerId === followedId) throw new Error('Cannot follow yourself');
 
-        // Validate users exist using valid Supabase query
-        // "IN" query for UserId
+        // Validate users exist (Users table is PascalCase)
         const { count, error } = await supabase
             .from('Users')
             .select('UserId', { count: 'exact', head: true })
@@ -29,38 +38,38 @@ export class UserFollowsService {
         if (error) throw new Error(error.message);
         if ((count || 0) !== 2) throw new Error('One or both users not found or inactive');
 
-        // Check if already following
+        // Check if already following (user_follows is snake_case)
         const { data: existingFollow } = await supabase
-            .from('UserFollows')
-            .select('FollowerId')
-            .eq('FollowerId', followerId)
-            .eq('FollowedId', followedId)
+            .from('user_follows')
+            .select('follower_id')
+            .eq('follower_id', followerId)
+            .eq('followed_id', followedId)
             .single();
 
         if (existingFollow) throw new Error('Already following this user');
 
         const { data: newFollow, error: insertError } = await supabase
-            .from('UserFollows')
+            .from('user_follows')
             .insert({
-                FollowerId: followerId,
-                FollowedId: followedId,
-                CreatedAt: new Date().toISOString()
+                follower_id: followerId,
+                followed_id: followedId,
+                created_at: new Date().toISOString()
             })
             .select()
             .single();
 
         if (insertError) throw new Error(insertError.message);
 
-        return newFollow as UserFollow;
+        return this.mapDBToUserFollow(newFollow);
     }
 
     // Unfollow a user
     async unfollowUser(followerId: string, followedId: string): Promise<boolean> {
         const { error, count } = await supabase
-            .from('UserFollows')
+            .from('user_follows')
             .delete({ count: 'exact' })
-            .eq('FollowerId', followerId)
-            .eq('FollowedId', followedId);
+            .eq('follower_id', followerId)
+            .eq('followed_id', followedId);
 
         if (error) throw new Error(error.message);
 
@@ -70,10 +79,10 @@ export class UserFollowsService {
     // Check if following
     async isFollowing(followerId: string, followedId: string): Promise<boolean> {
         const { data, error } = await supabase
-            .from('UserFollows')
-            .select('FollowerId')
-            .eq('FollowerId', followerId)
-            .eq('FollowedId', followedId)
+            .from('user_follows')
+            .select('follower_id')
+            .eq('follower_id', followerId)
+            .eq('followed_id', followedId)
             .single();
 
         return !!data && !error;
@@ -86,22 +95,25 @@ export class UserFollowsService {
     }> {
         if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
+        // Join Users (PascalCase) on FollowerId -> Users.UserId
+        // Mapping: user_follows.follower_id -> Users.UserId
+        // Supabase: Users:follower_id (FullName, Role)
+        // Wait, FK in user_follows is follower_id -> Users(UserId).
         const { data, error, count } = await supabase
-            .from('UserFollows')
+            .from('user_follows')
             .select(`
                 *,
-                Users:FollowerId (FullName, Role)
+                Users:follower_id (FullName, Role)
             `, { count: 'exact' })
-            .eq('FollowedId', userId)
-            .order('CreatedAt', { ascending: false })
+            .eq('followed_id', userId)
+            .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
 
         if (error) throw new Error(error.message);
 
         const followers = data.map((item: any) => {
             const user = item.Users;
-            const res: any = { ...item };
-            delete res.Users;
+            const res: any = this.mapDBToUserFollow(item);
             if (user) {
                 res.UserName = user.FullName;
                 res.UserRole = user.Role;
@@ -123,21 +135,20 @@ export class UserFollowsService {
         if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
         const { data, error, count } = await supabase
-            .from('UserFollows')
+            .from('user_follows')
             .select(`
                 *,
-                Users:FollowedId (FullName, Role)
+                Users:followed_id (FullName, Role)
             `, { count: 'exact' })
-            .eq('FollowerId', userId)
-            .order('CreatedAt', { ascending: false })
+            .eq('follower_id', userId)
+            .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
 
         if (error) throw new Error(error.message);
 
         const following = data.map((item: any) => {
             const user = item.Users;
-            const res: any = { ...item };
-            delete res.Users;
+            const res: any = this.mapDBToUserFollow(item);
             if (user) {
                 res.UserName = user.FullName;
                 res.UserRole = user.Role;
@@ -156,8 +167,8 @@ export class UserFollowsService {
         if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
         const [followerRes, followingRes] = await Promise.all([
-            supabase.from('UserFollows').select('*', { count: 'exact', head: true }).eq('FollowedId', userId),
-            supabase.from('UserFollows').select('*', { count: 'exact', head: true }).eq('FollowerId', userId)
+            supabase.from('user_follows').select('*', { count: 'exact', head: true }).eq('followed_id', userId),
+            supabase.from('user_follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId)
         ]);
 
         return {
@@ -176,35 +187,21 @@ export class UserFollowsService {
             throw new Error('Invalid user ID format');
         }
 
-        // Logic: Find users followed by BOTH userId1 and userId2? 
-        // OR: Users who follow both?
-        // Original MSSQL query:
-        // EXISTS (SELECT 1 FROM UserFollows uf1 WHERE uf1.FollowerId = @userId1 AND uf1.FollowedId = u.UserId)
-        // AND EXISTS (SELECT 1 FROM UserFollows uf2 WHERE uf2.FollowerId = @userId2 AND uf2.FollowedId = u.UserId)
-        // This finds users that BOTH userId1 and userId2 are FOLLOWING. (Common interest)
-
-        // Supabase approach:
-        // 1. Get List of users followed by User1
-        // 2. Get List of users followed by User2
-        // 3. Intersect in JS (or use specialized query)
-
-        // Let's try to fetch IDs only and intersect in JS for simplicity, assuming lists aren't massive.
-
         const { data: user1Following } = await supabase
-            .from('UserFollows')
-            .select('FollowedId')
-            .eq('FollowerId', userId1);
+            .from('user_follows')
+            .select('followed_id')
+            .eq('follower_id', userId1);
 
         const { data: user2Following } = await supabase
-            .from('UserFollows')
-            .select('FollowedId')
-            .eq('FollowerId', userId2);
+            .from('user_follows')
+            .select('followed_id')
+            .eq('follower_id', userId2);
 
         if (!user1Following || !user2Following) return [];
 
-        const set1 = new Set(user1Following.map(u => u.FollowedId));
+        const set1 = new Set(user1Following.map(u => u.followed_id));
         const mutualIds = user2Following
-            .map(u => u.FollowedId)
+            .map(u => u.followed_id)
             .filter(id => set1.has(id));
 
         if (mutualIds.length === 0) return [];
@@ -232,27 +229,13 @@ export class UserFollowsService {
     }>> {
         if (!ValidationUtils.isValidUUID(userId)) throw new Error('Invalid user ID format');
 
-        // Suggest users who are followed by users I follow? (Friends of friends)
-        // Or high trust score users?
-        // Original query:
-        // 1. u.UserId != @userId
-        // 2. Not already following
-        // 3. Sort by MutualFollows DESC, TrustScore DESC
-        // MutualFollows = Count of (You follow X, X follows Target)
-
-        // Implementing this efficiently in Supabase/PostgREST without RPC is hard.
-        // Simplified approach:
-        // 1. Get top trust score users
-        // 2. Filter out already followed
-        // 3. (Optional) Check mutuals for them
-
         // Fetch ID of users I already follow
         const { data: following } = await supabase
-            .from('UserFollows')
-            .select('FollowedId')
-            .eq('FollowerId', userId);
+            .from('user_follows')
+            .select('followed_id')
+            .eq('follower_id', userId);
 
-        const excludeIds = new Set((following || []).map(f => f.FollowedId));
+        const excludeIds = new Set((following || []).map(f => f.followed_id));
         excludeIds.add(userId);
 
         // Fetch top trusted users (limit*2 to allow for filtering)
@@ -266,9 +249,6 @@ export class UserFollowsService {
         if (!candidates) return [];
 
         const filtered = candidates.filter((u: any) => !excludeIds.has(u.UserId)).slice(0, limit);
-
-        // For mutual follows calculation (Client side approximation or skip)
-        // Skip mutual calculation for now as it requires intense querying
 
         return filtered.map((u: any) => ({
             UserId: u.UserId,

@@ -20,6 +20,7 @@ export interface CreateAuditLogInput {
     metadata?: any;
 }
 export declare class AuditLogsService {
+    private mapDBToAuditLog;
     createLog(data: CreateAuditLogInput): Promise<AuditLog>;
     getLogById(logId: string): Promise<AuditLog & {
         UserName?: string;

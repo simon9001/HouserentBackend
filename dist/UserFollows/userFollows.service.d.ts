@@ -8,6 +8,7 @@ export interface FollowStats {
     followingCount: number;
 }
 export declare class UserFollowsService {
+    private mapDBToUserFollow;
     followUser(followerId: string, followedId: string): Promise<UserFollow>;
     unfollowUser(followerId: string, followedId: string): Promise<boolean>;
     isFollowing(followerId: string, followedId: string): Promise<boolean>;

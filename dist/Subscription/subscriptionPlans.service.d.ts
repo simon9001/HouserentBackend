@@ -54,6 +54,7 @@ export interface UpdatePlanInput {
     highlightFeatures?: string[];
 }
 export declare class SubscriptionPlansService {
+    private mapDBToPlan;
     createPlan(data: CreatePlanInput): Promise<SubscriptionPlan>;
     getPlanById(planId: string): Promise<SubscriptionPlan | null>;
     getPlanByName(name: string): Promise<SubscriptionPlan | null>;

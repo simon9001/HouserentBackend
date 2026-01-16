@@ -493,10 +493,18 @@ export declare const getSubscriptionPlans: (c: Context) => Promise<(Response & i
         planId: string;
         name: string;
         displayName: string;
-        description: string;
+        price?: number | undefined;
         basePrice: number;
         currency: string;
+        description: string;
+        features?: string[] | undefined;
+        isActive: boolean;
         billingCycle: string;
+        propertiesLimit?: number | undefined;
+        visitsLimit?: number | undefined;
+        boostsLimit?: number | undefined;
+        mediaLimit?: number | undefined;
+        amenitiesLimit?: number | undefined;
         trialDays: number;
         maxProperties: number;
         maxVisitsPerMonth: number;
@@ -510,7 +518,6 @@ export declare const getSubscriptionPlans: (c: Context) => Promise<(Response & i
         activeSubscribers: number;
         totalRevenue: number;
         avgRating: number;
-        isActive: boolean;
         isVisible: boolean;
         sortOrder: number;
         highlightFeatures: string[];
@@ -525,7 +532,30 @@ export declare const getSubscriptionPlans: (c: Context) => Promise<(Response & i
 export declare const getSubscriptionInvoices: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        invoices: never[];
+        invoices: {
+            invoiceId: string;
+            subscriptionId: string;
+            userId: string;
+            userName: string;
+            invoiceNumber: string;
+            invoiceDate: string;
+            dueDate: string;
+            periodStart: string;
+            periodEnd: string;
+            subtotal: number;
+            taxAmount: number;
+            totalAmount: number;
+            currency: string;
+            status: string;
+            paidAmount: number;
+            paidDate: string | null;
+            paymentId: string | null;
+            lineItems: any[];
+            pdfUrl: string | null;
+            htmlUrl: string | null;
+            createdAt: string;
+            updatedAt: string;
+        }[];
         pagination: {
             page: number;
             limit: number;
@@ -541,7 +571,20 @@ export declare const getSubscriptionInvoices: (c: Context) => Promise<(Response 
 export declare const getSubscriptionEvents: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        events: never[];
+        events: {
+            eventId: string;
+            eventType: string;
+            subscriptionId: string | null;
+            userId: string;
+            userName: string;
+            eventData: any;
+            processed: boolean;
+            processedAt: string | null;
+            errorMessage: string | null;
+            retryCount: number;
+            scheduledFor: string;
+            createdAt: string;
+        }[];
         pagination: {
             page: number;
             limit: number;
@@ -557,7 +600,24 @@ export declare const getSubscriptionEvents: (c: Context) => Promise<(Response & 
 export declare const getSubscriptionUsageLogs: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     data: {
-        logs: never[];
+        logs: {
+            logId: string;
+            subscriptionId: string;
+            userId: string;
+            userName: string;
+            feature: string;
+            resourceId: string | null;
+            action: string;
+            usageCount: number;
+            usageDate: string;
+            wasGated: boolean;
+            gateType: string | null;
+            overrideReason: string | null;
+            ipAddress: string | null;
+            userAgent: string | null;
+            metadata: any;
+            createdAt: string;
+        }[];
         pagination: {
             page: number;
             limit: number;
@@ -599,7 +659,7 @@ export declare const reactivateSubscription: (c: Context) => Promise<(Response &
     message: string;
 }, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
-    data: {};
+    data: any;
     message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -611,7 +671,7 @@ export declare const overrideSubscriptionLimits: (c: Context) => Promise<(Respon
     message: string;
 }, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
-    data: {};
+    data: any;
     message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -623,7 +683,7 @@ export declare const generateInvoice: (c: Context) => Promise<(Response & import
     message: string;
 }, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
-    data: {};
+    data: any;
     message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -635,7 +695,7 @@ export declare const sendSubscriptionNotification: (c: Context) => Promise<(Resp
     message: string;
 }, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
-    data: {};
+    data: any;
     message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
@@ -756,7 +816,7 @@ export declare const getSubscriptionUserDetails: (c: Context) => Promise<(Respon
         nextBillingDate: string | null;
         totalSpent: number;
         joinedDate: string;
-    };
+    } | null;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     message: string;
@@ -893,8 +953,48 @@ export declare const exportSubscriptionData: (c: Context) => Promise<(Response &
             createdAt: string;
             updatedAt: string;
         }[];
-        invoices: never[];
-        usageLogs: never[];
+        invoices: {
+            invoiceId: string;
+            subscriptionId: string;
+            userId: string;
+            userName: string;
+            invoiceNumber: string;
+            invoiceDate: string;
+            dueDate: string;
+            periodStart: string;
+            periodEnd: string;
+            subtotal: number;
+            taxAmount: number;
+            totalAmount: number;
+            currency: string;
+            status: string;
+            paidAmount: number;
+            paidDate: string | null;
+            paymentId: string | null;
+            lineItems: any[];
+            pdfUrl: string | null;
+            htmlUrl: string | null;
+            createdAt: string;
+            updatedAt: string;
+        }[];
+        usageLogs: {
+            logId: string;
+            subscriptionId: string;
+            userId: string;
+            userName: string;
+            feature: string;
+            resourceId: string | null;
+            action: string;
+            usageCount: number;
+            usageDate: string;
+            wasGated: boolean;
+            gateType: string | null;
+            overrideReason: string | null;
+            ipAddress: string | null;
+            userAgent: string | null;
+            metadata: any;
+            createdAt: string;
+        }[];
         exportedAt: string;
         exportFormat: string;
     };

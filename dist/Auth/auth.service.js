@@ -119,11 +119,11 @@ export class AuthService {
         // Hash the token to compare with database
         const tokenHash = this.hashTokenForStorage(refreshToken);
         const { data: sessions, error } = await supabase
-            .from('UserSessions')
+            .from('user_sessions') // snake_case table
             .select('*')
-            .eq('RefreshTokenHash', tokenHash)
-            .eq('IsActive', true)
-            .gt('ExpiresAt', new Date().toISOString());
+            .eq('refresh_token_hash', tokenHash) // snake_case column
+            .eq('is_active', true) // snake_case column
+            .gt('expires_at', new Date().toISOString()); // snake_case column
         if (error || !sessions || sessions.length === 0) {
             throw new Error('Invalid or expired session');
         }
@@ -140,17 +140,17 @@ export class AuthService {
             refreshToken: JWTUtils.generateRefreshToken(newTokenPayload)
         };
         // Update session with new refresh token
-        await this.updateSession(session.SessionId, newTokens.refreshToken);
+        await this.updateSession(session.session_id, newTokens.refreshToken);
         return {
             ...newTokens,
-            sessionId: session.SessionId
+            sessionId: session.session_id
         };
     }
     // Logout
     async logout(userId, sessionId) {
-        let query = supabase.from('UserSessions').update({ IsActive: false }).eq('UserId', userId);
+        let query = supabase.from('user_sessions').update({ is_active: false }).eq('user_id', userId);
         if (sessionId) {
-            query = query.eq('SessionId', sessionId);
+            query = query.eq('session_id', sessionId);
         }
         await query;
     }
@@ -163,26 +163,26 @@ export class AuthService {
         }
         // Check if token exists in database
         const { data: tokens, error } = await supabase
-            .from('EmailVerificationTokens')
+            .from('email_verification_tokens') // snake_case
             .select('*')
-            .eq('VerificationToken', token)
-            .eq('IsUsed', false)
-            .gt('ExpiresAt', new Date().toISOString());
+            .eq('verification_token', token) // snake_case
+            .eq('is_used', false) // snake_case
+            .gt('expires_at', new Date().toISOString());
         if (error || !tokens || tokens.length === 0) {
             throw new Error('Invalid or expired verification token');
         }
         const verificationRecord = tokens[0];
         // Mark token as used
         await supabase
-            .from('EmailVerificationTokens')
-            .update({ IsUsed: true })
-            .eq('TokenId', verificationRecord.TokenId);
+            .from('email_verification_tokens')
+            .update({ is_used: true })
+            .eq('token_id', verificationRecord.token_id);
         // Update user email verification status
         // Using email from payload is safer if the token is valid
         const { error: userError } = await supabase
-            .from('Users')
-            .update({ IsEmailVerified: true })
-            .eq('Email', payload.email);
+            .from('Users') // PascalCase Users
+            .update({ IsEmailVerified: true }) // PascalCase
+            .eq('Email', payload.email); // PascalCase
         return !userError;
     }
     // Request password reset
@@ -199,11 +199,11 @@ export class AuthService {
         const tokenHash = this.hashTokenForStorage(resetToken);
         // Save token to database
         const { error } = await supabase
-            .from('PasswordResetTokens')
+            .from('password_reset_tokens') // snake_case
             .insert({
-            UserId: user.UserId,
-            TokenHash: tokenHash,
-            ExpiresAt: new Date(Date.now() + 3600000).toISOString() // 1 hour
+            user_id: user.UserId, // snake_case
+            token_hash: tokenHash, // snake_case
+            expires_at: new Date(Date.now() + 3600000).toISOString() // 1 hour
         });
         if (error) {
             console.error("Error saving password reset token", error);
@@ -222,11 +222,11 @@ export class AuthService {
         // Hash the token to compare with database
         const tokenHash = this.hashTokenForStorage(token);
         const { data: tokens, error } = await supabase
-            .from('PasswordResetTokens')
+            .from('password_reset_tokens') // snake_case
             .select('*')
-            .eq('TokenHash', tokenHash)
-            .eq('IsUsed', false)
-            .gt('ExpiresAt', new Date().toISOString());
+            .eq('token_hash', tokenHash)
+            .eq('is_used', false)
+            .gt('expires_at', new Date().toISOString());
         if (error || !tokens || tokens.length === 0) {
             throw new Error('Invalid or expired reset token');
         }
@@ -241,9 +241,9 @@ export class AuthService {
         if (success) {
             // Mark token as used
             await supabase
-                .from('PasswordResetTokens')
-                .update({ IsUsed: true })
-                .eq('TokenId', resetRecord.TokenId);
+                .from('password_reset_tokens')
+                .update({ is_used: true })
+                .eq('token_id', resetRecord.token_id);
             // Logout all sessions for security
             await this.logout(payload.userId);
         }
@@ -252,22 +252,28 @@ export class AuthService {
     // Get user sessions
     async getUserSessions(userId) {
         const { data, error } = await supabase
-            .from('UserSessions')
-            .select('SessionId, UserId, DeviceId, ExpiresAt, LastAccessedAt, IsActive')
-            .eq('UserId', userId)
-            .gt('ExpiresAt', new Date().toISOString())
-            .order('LastAccessedAt', { ascending: false });
+            .from('user_sessions') // snake_case
+            .select('session_id, user_id, device_id, expires_at, last_accessed_at')
+            .eq('user_id', userId)
+            .gt('expires_at', new Date().toISOString())
+            .order('last_accessed_at', { ascending: false });
         if (error)
             throw new Error(error.message);
-        return data;
+        return (data || []).map((s) => ({
+            sessionId: s.session_id,
+            userId: s.user_id,
+            deviceId: s.device_id,
+            expiresAt: s.expires_at,
+            lastAccessedAt: s.last_accessed_at
+        }));
     }
     // Revoke specific session
     async revokeSession(userId, sessionId) {
         const { error } = await supabase
-            .from('UserSessions')
-            .update({ IsActive: false })
-            .eq('SessionId', sessionId)
-            .eq('UserId', userId);
+            .from('user_sessions')
+            .update({ is_active: false })
+            .eq('session_id', sessionId)
+            .eq('user_id', userId);
         return !error;
     }
     // Validate access token
@@ -287,13 +293,13 @@ export class AuthService {
                 tokenHashLength: tokenHash.length
             });
             const { error } = await supabase
-                .from('UserSessions')
+                .from('user_sessions') // snake_case
                 .insert({
-                SessionId: sessionId,
-                UserId: userId,
-                DeviceId: deviceId || null,
-                RefreshTokenHash: tokenHash,
-                ExpiresAt: new Date(Date.now() + 7 * 24 * 3600000).toISOString() // 7 days
+                session_id: sessionId,
+                user_id: userId,
+                device_id: deviceId || null,
+                refresh_token_hash: tokenHash,
+                expires_at: new Date(Date.now() + 7 * 24 * 3600000).toISOString() // 7 days
             });
             if (error)
                 throw error;
@@ -312,21 +318,21 @@ export class AuthService {
         // Hash the new token
         const tokenHash = this.hashTokenForStorage(newRefreshToken);
         await supabase
-            .from('UserSessions')
+            .from('user_sessions')
             .update({
-            RefreshTokenHash: tokenHash,
-            LastAccessedAt: new Date().toISOString(),
-            ExpiresAt: new Date(Date.now() + 7 * 24 * 3600000).toISOString()
+            refresh_token_hash: tokenHash,
+            last_accessed_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 7 * 24 * 3600000).toISOString()
         })
-            .eq('SessionId', sessionId);
+            .eq('session_id', sessionId);
     }
     async saveEmailVerificationToken(userId, token) {
         await supabase
-            .from('EmailVerificationTokens')
+            .from('email_verification_tokens') // snake_case
             .insert({
-            UserId: userId,
-            VerificationToken: token,
-            ExpiresAt: new Date(Date.now() + 24 * 3600000).toISOString() // 1 day
+            user_id: userId,
+            verification_token: token,
+            expires_at: new Date(Date.now() + 24 * 3600000).toISOString() // 1 day
         });
     }
     // Change password (authenticated user)

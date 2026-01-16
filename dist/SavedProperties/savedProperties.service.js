@@ -1,16 +1,46 @@
 import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 export class SavedPropertiesService {
+    // Helper to map DB result to SavedProperty interface
+    mapDBToSavedProperty(data) {
+        if (!data)
+            return data;
+        const mapped = {
+            SavedId: data.saved_id,
+            UserId: data.user_id,
+            PropertyId: data.property_id,
+            CreatedAt: data.created_at
+        };
+        if (data.Properties) {
+            mapped.Title = data.Properties.title;
+            mapped.Description = data.Properties.description;
+            mapped.RentAmount = data.Properties.rent_amount;
+            mapped.County = data.Properties.county;
+            mapped.Area = data.Properties.area;
+            mapped.PropertyType = data.Properties.property_type;
+            // Handle Media
+            const media = data.Properties.PropertyMedia;
+            if (media && Array.isArray(media)) {
+                // Find primary or take first. The media table uses snake_case cols based on PropertyMediaService
+                // But PropertyMediaService query returns result.
+                // PropertyMedia table cols: media_url, is_primary
+                const primary = media.find((m) => m.is_primary) || media[0];
+                if (primary)
+                    mapped.PrimaryImageUrl = primary.media_url;
+            }
+        }
+        return mapped;
+    }
     async saveProperty(userId, propertyId) {
         if (!ValidationUtils.isValidUUID(userId) || !ValidationUtils.isValidUUID(propertyId)) {
             throw new Error('Invalid ID format');
         }
         // Check if already saved
         const { data: existing, error: checkError } = await supabase
-            .from('SavedProperties')
-            .select('SavedId')
-            .eq('UserId', userId)
-            .eq('PropertyId', propertyId)
+            .from('saved_properties')
+            .select('saved_id')
+            .eq('user_id', userId)
+            .eq('property_id', propertyId)
             .single();
         if (checkError && checkError.code !== 'PGRST116')
             throw new Error(checkError.message);
@@ -18,11 +48,11 @@ export class SavedPropertiesService {
             return false; // Already saved
         }
         const { error } = await supabase
-            .from('SavedProperties')
+            .from('saved_properties')
             .insert({
-            UserId: userId,
-            PropertyId: propertyId,
-            CreatedAt: new Date().toISOString()
+            user_id: userId,
+            property_id: propertyId,
+            created_at: new Date().toISOString()
         });
         if (error)
             throw new Error(error.message);
@@ -33,10 +63,10 @@ export class SavedPropertiesService {
             throw new Error('Invalid ID format');
         }
         const { error, count } = await supabase
-            .from('SavedProperties')
+            .from('saved_properties')
             .delete({ count: 'exact' })
-            .eq('UserId', userId)
-            .eq('PropertyId', propertyId);
+            .eq('user_id', userId)
+            .eq('property_id', propertyId);
         if (error)
             throw new Error(error.message);
         return (count || 0) > 0;
@@ -44,54 +74,35 @@ export class SavedPropertiesService {
     async getSavedPropertiesByUserId(userId) {
         if (!ValidationUtils.isValidUUID(userId))
             throw new Error('Invalid user ID format');
-        // We need: SavedProperties -> Properties -> PropertyMedia (limit 1)
-        // Query: *, Properties!inner (*, PropertyMedia(MediaUrl))
+        // We need: saved_properties -> properties -> property_media (limit 1)
+        // Join properties on property_id
+        // Join property_media on properties.property_id (nested?)
+        // Supabase syntax: properties:property_id (..., PropertyMedia:property_media(...))
+        // Note: Relation name for property_media might be property_media or inferred.
         const { data, error } = await supabase
-            .from('SavedProperties')
+            .from('saved_properties')
             .select(`
                 *,
-                Properties:PropertyId!inner (
-                    Title, Description, RentAmount, County, Area, PropertyType,
-                    PropertyMedia (MediaUrl, IsPrimary)
+                Properties:property_id!inner (
+                    title, description, rent_amount, county, area, property_type,
+                    PropertyMedia:property_media (media_url, is_primary)
                 )
             `)
-            .eq('UserId', userId)
-            .order('CreatedAt', { ascending: false });
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
         if (error)
             throw new Error(error.message);
-        return data.map((item) => {
-            const prop = item.Properties;
-            let primaryImage = null;
-            if (prop && prop.PropertyMedia && Array.isArray(prop.PropertyMedia)) {
-                // Find primary or take first
-                const primary = prop.PropertyMedia.find((m) => m.IsPrimary) || prop.PropertyMedia[0];
-                if (primary)
-                    primaryImage = primary.MediaUrl;
-            }
-            return {
-                SavedId: item.SavedId,
-                UserId: item.UserId,
-                PropertyId: item.PropertyId,
-                CreatedAt: item.CreatedAt,
-                Title: prop?.Title,
-                Description: prop?.Description,
-                RentAmount: prop?.RentAmount,
-                County: prop?.County,
-                Area: prop?.Area,
-                PropertyType: prop?.PropertyType,
-                PrimaryImageUrl: primaryImage
-            };
-        });
+        return (data || []).map(item => this.mapDBToSavedProperty(item));
     }
     async isPropertySaved(userId, propertyId) {
         if (!ValidationUtils.isValidUUID(userId) || !ValidationUtils.isValidUUID(propertyId)) {
             return false;
         }
         const { data, error } = await supabase
-            .from('SavedProperties')
-            .select('SavedId')
-            .eq('UserId', userId)
-            .eq('PropertyId', propertyId)
+            .from('saved_properties')
+            .select('saved_id')
+            .eq('user_id', userId)
+            .eq('property_id', propertyId)
             .single();
         if (error || !data)
             return false;

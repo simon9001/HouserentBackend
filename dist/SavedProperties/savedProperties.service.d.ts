@@ -12,6 +12,7 @@ export interface SavedProperty {
     PrimaryImageUrl?: string;
 }
 export declare class SavedPropertiesService {
+    private mapDBToSavedProperty;
     saveProperty(userId: string, propertyId: string): Promise<boolean>;
     unsaveProperty(userId: string, propertyId: string): Promise<boolean>;
     getSavedPropertiesByUserId(userId: string): Promise<SavedProperty[]>;

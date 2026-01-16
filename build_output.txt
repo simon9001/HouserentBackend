@@ -1,0 +1,21 @@
+
+> kajayangu-backend@1.0.0 build
+> tsc
+
+src/admin/adminController.ts(55,10): error TS6133: 'SubscriptionUserDetails' is declared but its value is never read.
+src/admin/adminController.ts(56,10): error TS6133: 'PaymentHistory' is declared but its value is never read.
+src/admin/adminService.ts(189,5): error TS2300: Duplicate identifier 'isActive'.
+src/admin/adminService.ts(215,5): error TS2300: Duplicate identifier 'isActive'.
+src/admin/adminService.ts(326,5): error TS2717: Subsequent property declarations must have the same type.  Property 'nextBillingDate' must be of type 'Date', but here has type 'string | null'.
+src/admin/adminService.ts(328,5): error TS2717: Subsequent property declarations must have the same type.  Property 'joinedDate' must be of type 'Date', but here has type 'string'.
+src/admin/adminService.ts(994,5): error TS2322: Type '{ planId: any; name: any; displayName: any; description: any; basePrice: any; currency: any; billingCycle: any; trialDays: any; maxProperties: any; maxVisitsPerMonth: any; maxMediaPerProperty: any; ... 14 more ...; updatedAt: any; }[]' is not assignable to type 'SubscriptionPlan[]'.
+  Type '{ planId: any; name: any; displayName: any; description: any; basePrice: any; currency: any; billingCycle: any; trialDays: any; maxProperties: any; maxVisitsPerMonth: any; maxMediaPerProperty: any; ... 14 more ...; updatedAt: any; }' is missing the following properties from type 'SubscriptionPlan': price, features, propertiesLimit, visitsLimit, and 3 more.
+src/Messages/message.controller.ts(17,34): error TS2551: Property 'OwnerId' does not exist on type 'PropertyWithRelations'. Did you mean 'owner_id'?
+src/Properties/properties.controller.ts(442,56): error TS18047: 'updateData.deposit_amount' is possibly 'null'.
+src/Properties/properties.controller.ts(458,13): error TS2322: Type 'string' is not assignable to type '"APARTMENT" | "HOUSE" | "COMMERCIAL" | "LAND" | "OTHER" | undefined'.
+src/Properties/properties.routes.ts(90,65): error TS2339: Property 'user' does not exist on type 'Context<{ Variables: ContextVariableMap & Record<string, any>; }, any, BlankInput>'.
+src/Properties/properties.routes.ts(94,17): error TS2339: Property 'user' does not exist on type 'Context<{ Variables: ContextVariableMap & Record<string, any>; }, any, BlankInput>'.
+src/Properties/properties.service.ts(452,27): error TS6133: 'property' is declared but its value is never read.
+src/Properties/properties.service.ts(729,17): error TS18047: 'completeProperty' is possibly 'null'.
+src/Properties/properties.service.ts(732,13): error TS2322: Type 'PropertyWithRelations | null' is not assignable to type 'PropertyWithRelations'.
+  Type 'null' is not assignable to type 'PropertyWithRelations'.

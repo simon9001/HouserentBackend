@@ -25,6 +25,7 @@ export interface UpdateReviewInput {
     comment?: string;
 }
 export declare class ReviewsService {
+    private mapDBToReview;
     createReview(data: CreateReviewInput): Promise<Review>;
     getReviewById(reviewId: string): Promise<Review | null>;
     getReviewsByAgentId(agentId: string, reviewType?: string): Promise<Review[]>;

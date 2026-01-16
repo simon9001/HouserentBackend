@@ -33,6 +33,35 @@ export interface UpdateReviewInput {
 
 export class ReviewsService {
 
+    // Helper to map DB result to Review interface
+    private mapDBToReview(data: any): Review {
+        if (!data) return data;
+        const mapped: any = {
+            ReviewId: data.review_id,
+            PropertyId: data.property_id,
+            ReviewerId: data.reviewer_id,
+            AgentId: data.agent_id,
+            ReviewType: data.review_type,
+            Rating: data.rating,
+            Comment: data.comment,
+            CreatedAt: data.created_at,
+            UpdatedAt: data.updated_at
+        };
+
+        // Handle joined data
+        if (data.Reviewer) {
+            mapped.ReviewerName = data.Reviewer.FullName;
+        }
+        if (data.Agent) {
+            mapped.AgentName = data.Agent.FullName;
+        }
+        if (data.Properties) {
+            mapped.PropertyTitle = data.Properties.title;
+        }
+
+        return mapped as Review;
+    }
+
     // Create new review
     async createReview(data: CreateReviewInput): Promise<Review> {
         // Validate rating
@@ -66,11 +95,10 @@ export class ReviewsService {
             if (!data.propertyId) throw new Error('Property ID is required for property reviews');
 
             const { data: property, error: propError } = await supabase
-                .from('Properties')
-                .select('PropertyId')
-                .eq('PropertyId', data.propertyId)
-                .eq('OwnerId', data.agentId) // Ensure property belongs to agent?
-                // Original SQL checked: WHERE PropertyId = @propertyId AND OwnerId = @agentId
+                .from('properties')
+                .select('property_id')
+                .eq('property_id', data.propertyId)
+                .eq('owner_id', data.agentId)
                 .single();
 
             if (propError || !property) {
@@ -80,15 +108,15 @@ export class ReviewsService {
 
         // Check if reviewer has already reviewed this agent/property
         let duplicateCheck = supabase
-            .from('Reviews')
-            .select('ReviewId')
-            .eq('ReviewerId', data.reviewerId)
-            .eq('AgentId', data.agentId);
+            .from('reviews')
+            .select('review_id')
+            .eq('reviewer_id', data.reviewerId)
+            .eq('agent_id', data.agentId);
 
         if (data.propertyId) {
-            duplicateCheck = duplicateCheck.eq('PropertyId', data.propertyId);
+            duplicateCheck = duplicateCheck.eq('property_id', data.propertyId);
         } else {
-            duplicateCheck = duplicateCheck.is('PropertyId', null);
+            duplicateCheck = duplicateCheck.is('property_id', null);
         }
 
         const { data: existingReview } = await duplicateCheck.single();
@@ -98,16 +126,16 @@ export class ReviewsService {
         }
 
         const { data: newReview, error } = await supabase
-            .from('Reviews')
+            .from('reviews')
             .insert({
-                PropertyId: data.propertyId || null,
-                ReviewerId: data.reviewerId,
-                AgentId: data.agentId,
-                ReviewType: data.reviewType,
-                Rating: data.rating,
-                Comment: data.comment || null,
-                CreatedAt: new Date().toISOString(),
-                UpdatedAt: new Date().toISOString()
+                property_id: data.propertyId || null,
+                reviewer_id: data.reviewerId,
+                agent_id: data.agentId,
+                review_type: data.reviewType,
+                rating: data.rating,
+                comment: data.comment || null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             })
             .select()
             .single();
@@ -117,7 +145,7 @@ export class ReviewsService {
         // Update agent's trust score
         await this.updateAgentTrustScore(data.agentId);
 
-        return newReview as Review;
+        return this.mapDBToReview(newReview);
     }
 
     // Get review by ID
@@ -125,14 +153,14 @@ export class ReviewsService {
         if (!ValidationUtils.isValidUUID(reviewId)) throw new Error('Invalid review ID format');
 
         const { data, error } = await supabase
-            .from('Reviews')
+            .from('reviews')
             .select(`
                 *,
-                Reviewer:ReviewerId (FullName),
-                Agent:AgentId (FullName),
-                Properties:PropertyId (Title)
+                Reviewer:reviewer_id (FullName),
+                Agent:agent_id (FullName),
+                Properties:property_id (title)
             `)
-            .eq('ReviewId', reviewId)
+            .eq('review_id', reviewId)
             .single();
 
         if (error) {
@@ -140,21 +168,7 @@ export class ReviewsService {
             throw new Error(error.message);
         }
 
-        const result: any = { ...data };
-        if (data.Reviewer) {
-            result.ReviewerName = data.Reviewer.FullName;
-            delete result.Reviewer;
-        }
-        if (data.Agent) {
-            result.AgentName = data.Agent.FullName;
-            delete result.Agent;
-        }
-        if (data.Properties) {
-            result.PropertyTitle = data.Properties.Title;
-            delete result.Properties;
-        }
-
-        return result as Review;
+        return this.mapDBToReview(data);
     }
 
     // Get reviews by agent ID
@@ -162,34 +176,23 @@ export class ReviewsService {
         if (!ValidationUtils.isValidUUID(agentId)) throw new Error('Invalid agent ID format');
 
         let query = supabase
-            .from('Reviews')
+            .from('reviews')
             .select(`
                 *,
-                Reviewer:ReviewerId (FullName),
-                Properties:PropertyId (Title)
+                Reviewer:reviewer_id (FullName),
+                Properties:property_id (title)
             `)
-            .eq('AgentId', agentId)
-            .order('CreatedAt', { ascending: false });
+            .eq('agent_id', agentId)
+            .order('created_at', { ascending: false });
 
         if (reviewType) {
-            query = query.eq('ReviewType', reviewType);
+            query = query.eq('review_type', reviewType);
         }
 
         const { data, error } = await query;
         if (error) throw new Error(error.message);
 
-        return data.map((r: any) => {
-            const res = { ...r };
-            if (res.Reviewer) {
-                res.ReviewerName = res.Reviewer.FullName;
-                delete res.Reviewer;
-            }
-            if (res.Properties) {
-                res.PropertyTitle = res.Properties.Title;
-                delete res.Properties;
-            }
-            return res;
-        });
+        return (data || []).map(r => this.mapDBToReview(r));
     }
 
     // Get reviews by property ID
@@ -197,29 +200,18 @@ export class ReviewsService {
         if (!ValidationUtils.isValidUUID(propertyId)) throw new Error('Invalid property ID format');
 
         const { data, error } = await supabase
-            .from('Reviews')
+            .from('reviews')
             .select(`
                 *,
-                Reviewer:ReviewerId (FullName),
-                Agent:AgentId (FullName)
+                Reviewer:reviewer_id (FullName),
+                Agent:agent_id (FullName)
             `)
-            .eq('PropertyId', propertyId)
-            .order('CreatedAt', { ascending: false });
+            .eq('property_id', propertyId)
+            .order('created_at', { ascending: false });
 
         if (error) throw new Error(error.message);
 
-        return data.map((r: any) => {
-            const res = { ...r };
-            if (res.Reviewer) {
-                res.ReviewerName = res.Reviewer.FullName;
-                delete res.Reviewer;
-            }
-            if (res.Agent) {
-                res.AgentName = res.Agent.FullName;
-                delete res.Agent;
-            }
-            return res;
-        });
+        return (data || []).map(r => this.mapDBToReview(r));
     }
 
     // Update review
@@ -232,34 +224,34 @@ export class ReviewsService {
 
         // Get current review
         const { data: currentReview, error: fetchError } = await supabase
-            .from('Reviews')
-            .select('AgentId')
-            .eq('ReviewId', reviewId)
+            .from('reviews')
+            .select('agent_id')
+            .eq('review_id', reviewId)
             .single();
 
         if (fetchError || !currentReview) throw new Error('Review not found');
 
         const updates: any = {};
-        if (data.rating !== undefined) updates.Rating = data.rating;
-        if (data.comment !== undefined) updates.Comment = data.comment;
+        if (data.rating !== undefined) updates.rating = data.rating;
+        if (data.comment !== undefined) updates.comment = data.comment;
 
         if (Object.keys(updates).length === 0) throw new Error('No fields to update');
 
-        updates.UpdatedAt = new Date().toISOString();
+        updates.updated_at = new Date().toISOString();
 
         const { data: updated, error } = await supabase
-            .from('Reviews')
+            .from('reviews')
             .update(updates)
-            .eq('ReviewId', reviewId)
+            .eq('review_id', reviewId)
             .select()
             .single();
 
         if (error) throw new Error(error.message);
 
         // Update agent's trust score
-        await this.updateAgentTrustScore(currentReview.AgentId);
+        await this.updateAgentTrustScore(currentReview.agent_id);
 
-        return updated as Review;
+        return this.mapDBToReview(updated);
     }
 
     // Delete review
@@ -268,22 +260,22 @@ export class ReviewsService {
 
         // Get review before deleting to update trust score
         const { data: review } = await supabase
-            .from('Reviews')
-            .select('AgentId')
-            .eq('ReviewId', reviewId)
+            .from('reviews')
+            .select('agent_id')
+            .eq('review_id', reviewId)
             .single();
 
         if (!review) return false;
 
         const { error } = await supabase
-            .from('Reviews')
+            .from('reviews')
             .delete()
-            .eq('ReviewId', reviewId);
+            .eq('review_id', reviewId);
 
         if (error) throw new Error(error.message);
 
         // Update agent's trust score
-        await this.updateAgentTrustScore(review.AgentId);
+        await this.updateAgentTrustScore(review.agent_id);
 
         return true;
     }
@@ -299,13 +291,13 @@ export class ReviewsService {
         // Client-side aggregation
         // Fetch only ratings
         const { data, error } = await supabase
-            .from('Reviews')
-            .select('Rating')
-            .eq('AgentId', agentId);
+            .from('reviews')
+            .select('rating')
+            .eq('agent_id', agentId);
 
         if (error) throw new Error(error.message);
 
-        const ratings = data?.map(r => r.Rating) || [];
+        const ratings = data?.map(r => r.rating) || [];
         return this.calculateRatingStats(ratings);
     }
 
@@ -318,13 +310,13 @@ export class ReviewsService {
         if (!ValidationUtils.isValidUUID(propertyId)) throw new Error('Invalid property ID format');
 
         const { data, error } = await supabase
-            .from('Reviews')
-            .select('Rating')
-            .eq('PropertyId', propertyId);
+            .from('reviews')
+            .select('rating')
+            .eq('property_id', propertyId);
 
         if (error) throw new Error(error.message);
 
-        const ratings = data?.map(r => r.Rating) || [];
+        const ratings = data?.map(r => r.rating) || [];
         return this.calculateRatingStats(ratings);
     }
 
@@ -348,50 +340,35 @@ export class ReviewsService {
     // Get recent reviews
     async getRecentReviews(limit: number = 10): Promise<Review[]> {
         const { data, error } = await supabase
-            .from('Reviews')
+            .from('reviews')
             .select(`
                 *,
-                Reviewer:ReviewerId (FullName),
-                Agent:AgentId (FullName),
-                Properties:PropertyId (Title)
+                Reviewer:reviewer_id (FullName),
+                Agent:agent_id (FullName),
+                Properties:property_id (title)
             `)
-            .order('CreatedAt', { ascending: false })
+            .order('created_at', { ascending: false })
             .limit(limit);
 
         if (error) throw new Error(error.message);
 
-        return data.map((r: any) => {
-            const res = { ...r };
-            if (res.Reviewer) {
-                res.ReviewerName = res.Reviewer.FullName;
-                delete res.Reviewer;
-            }
-            if (res.Agent) {
-                res.AgentName = res.Agent.FullName;
-                delete res.Agent;
-            }
-            if (res.Properties) {
-                res.PropertyTitle = res.Properties.Title;
-                delete res.Properties;
-            }
-            return res;
-        });
+        return (data || []).map(r => this.mapDBToReview(r));
     }
 
     // Helper method to update agent's trust score
     private async updateAgentTrustScore(agentId: string): Promise<void> {
         // Calculate average
         const { data, error } = await supabase
-            .from('Reviews')
-            .select('Rating')
-            .eq('AgentId', agentId);
+            .from('reviews')
+            .select('rating')
+            .eq('agent_id', agentId);
 
         if (error) {
             console.error('Error fetching reviews for trust score:', error);
             return;
         }
 
-        const ratings = data?.map(r => r.Rating) || [];
+        const ratings = data?.map(r => r.rating) || [];
         const total = ratings.reduce((a, b) => a + b, 0);
         const avg = ratings.length > 0 ? total / ratings.length : 0;
 

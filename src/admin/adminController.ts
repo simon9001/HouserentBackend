@@ -52,8 +52,8 @@ import {
     // type SubscriptionEvent,
     // type UsageLog,
     type SubscriptionStats,
-    type SubscriptionUserDetails,
-    type PaymentHistory
+    // type SubscriptionUserDetails,
+    // type PaymentHistory
 } from "./adminService.js";
 
 // Get complete admin dashboard data
@@ -79,44 +79,44 @@ export const getAdminDashboard = async (c: Context) => {
             expiringSubscriptions,
             subscriptionStats
         ]: [
-            DashboardStats,
-            RecentActivity[],
-            UserAnalytics[],
-            PropertyAnalytics[],
-            RevenueAnalytics[],
-            RoleSummary[],
-            AgentStatusSummary[],
-            PopularLocation[],
-            VerificationAnalytics[],
-            SubscriptionAnalytics,
-            PlanDistribution[],
-            SubscriptionGrowth[],
-            UsageAnalytics[],
-            ChurnAnalytics[],
-            RevenueBreakdown[],
-            ActiveSubscription[],
-            ActiveSubscription[],
-            SubscriptionStats
-        ] = await Promise.all([
-            getDashboardStatsService(),
-            getRecentActivitiesService(15),
-            getUserRegistrationAnalyticsService(30),
-            getPropertyAnalyticsService(30),
-            getRevenueAnalyticsService(30),
-            getUserRoleSummaryService(),
-            getAgentStatusSummaryService(),
-            getPopularLocationsService(10),
-            getVerificationAnalyticsService(),
-            getSubscriptionAnalyticsService(),
-            getPlanDistributionService(),
-            getSubscriptionGrowthService(30),
-            getUsageAnalyticsService(),
-            getChurnAnalyticsService(30),
-            getRevenueBreakdownService(),
-            getExpiringTrialsService(7),
-            getExpiringSubscriptionsService(7),
-            getSubscriptionStatsService()
-        ]);
+                DashboardStats,
+                RecentActivity[],
+                UserAnalytics[],
+                PropertyAnalytics[],
+                RevenueAnalytics[],
+                RoleSummary[],
+                AgentStatusSummary[],
+                PopularLocation[],
+                VerificationAnalytics[],
+                SubscriptionAnalytics,
+                PlanDistribution[],
+                SubscriptionGrowth[],
+                UsageAnalytics[],
+                ChurnAnalytics[],
+                RevenueBreakdown[],
+                ActiveSubscription[],
+                ActiveSubscription[],
+                SubscriptionStats
+            ] = await Promise.all([
+                getDashboardStatsService(),
+                getRecentActivitiesService(15),
+                getUserRegistrationAnalyticsService(30),
+                getPropertyAnalyticsService(30),
+                getRevenueAnalyticsService(30),
+                getUserRoleSummaryService(),
+                getAgentStatusSummaryService(),
+                getPopularLocationsService(10),
+                getVerificationAnalyticsService(),
+                getSubscriptionAnalyticsService(),
+                getPlanDistributionService(),
+                getSubscriptionGrowthService(30),
+                getUsageAnalyticsService(),
+                getChurnAnalyticsService(30),
+                getRevenueBreakdownService(),
+                getExpiringTrialsService(7),
+                getExpiringSubscriptionsService(7),
+                getSubscriptionStatsService()
+            ]);
 
         return c.json({
             success: true,
@@ -161,7 +161,7 @@ export const getAdminDashboard = async (c: Context) => {
 export const getDashboardStats = async (c: Context) => {
     try {
         const stats: DashboardStats = await getDashboardStatsService();
-        
+
         return c.json({
             success: true,
             data: stats
@@ -181,7 +181,7 @@ export const getRecentActivities = async (c: Context) => {
     try {
         const limit = parseInt(c.req.query('limit') || '15');
         const activities: RecentActivity[] = await getRecentActivitiesService(limit);
-        
+
         return c.json({
             success: true,
             data: activities
@@ -201,7 +201,7 @@ export const getUserAnalytics = async (c: Context) => {
     try {
         const days = parseInt(c.req.query('days') || '30');
         const analytics: UserAnalytics[] = await getUserRegistrationAnalyticsService(days);
-        
+
         return c.json({
             success: true,
             data: analytics
@@ -221,7 +221,7 @@ export const getPropertyAnalytics = async (c: Context) => {
     try {
         const days = parseInt(c.req.query('days') || '30');
         const analytics: PropertyAnalytics[] = await getPropertyAnalyticsService(days);
-        
+
         return c.json({
             success: true,
             data: analytics
@@ -241,7 +241,7 @@ export const getRevenueAnalytics = async (c: Context) => {
     try {
         const days = parseInt(c.req.query('days') || '30');
         const analytics: RevenueAnalytics[] = await getRevenueAnalyticsService(days);
-        
+
         return c.json({
             success: true,
             data: analytics
@@ -260,7 +260,7 @@ export const getRevenueAnalytics = async (c: Context) => {
 export const getUserRoleSummary = async (c: Context) => {
     try {
         const summary: RoleSummary[] = await getUserRoleSummaryService();
-        
+
         return c.json({
             success: true,
             data: summary
@@ -279,7 +279,7 @@ export const getUserRoleSummary = async (c: Context) => {
 export const getAgentStatusSummary = async (c: Context) => {
     try {
         const summary: AgentStatusSummary[] = await getAgentStatusSummaryService();
-        
+
         return c.json({
             success: true,
             data: summary
@@ -299,7 +299,7 @@ export const getPopularLocations = async (c: Context) => {
     try {
         const limit = parseInt(c.req.query('limit') || '10');
         const locations: PopularLocation[] = await getPopularLocationsService(limit);
-        
+
         return c.json({
             success: true,
             data: locations
@@ -318,7 +318,7 @@ export const getPopularLocations = async (c: Context) => {
 export const getVerificationAnalytics = async (c: Context) => {
     try {
         const analytics: VerificationAnalytics[] = await getVerificationAnalyticsService();
-        
+
         return c.json({
             success: true,
             data: analytics
@@ -339,7 +339,7 @@ export const getVerificationAnalytics = async (c: Context) => {
 export const getSubscriptionAnalytics = async (c: Context) => {
     try {
         const analytics: SubscriptionAnalytics = await getSubscriptionAnalyticsService();
-        
+
         return c.json({
             success: true,
             data: analytics
@@ -358,7 +358,7 @@ export const getSubscriptionAnalytics = async (c: Context) => {
 export const getPlanDistribution = async (c: Context) => {
     try {
         const distribution: PlanDistribution[] = await getPlanDistributionService();
-        
+
         return c.json({
             success: true,
             data: distribution
@@ -378,7 +378,7 @@ export const getSubscriptionGrowth = async (c: Context) => {
     try {
         const days = parseInt(c.req.query('days') || '90');
         const growth: SubscriptionGrowth[] = await getSubscriptionGrowthService(days);
-        
+
         return c.json({
             success: true,
             data: growth
@@ -397,7 +397,7 @@ export const getSubscriptionGrowth = async (c: Context) => {
 export const getUsageAnalytics = async (c: Context) => {
     try {
         const analytics: UsageAnalytics[] = await getUsageAnalyticsService();
-        
+
         return c.json({
             success: true,
             data: analytics
@@ -417,7 +417,7 @@ export const getChurnAnalytics = async (c: Context) => {
     try {
         const days = parseInt(c.req.query('days') || '30');
         const analytics: ChurnAnalytics[] = await getChurnAnalyticsService(days);
-        
+
         return c.json({
             success: true,
             data: analytics
@@ -436,7 +436,7 @@ export const getChurnAnalytics = async (c: Context) => {
 export const getRevenueBreakdown = async (c: Context) => {
     try {
         const breakdown: RevenueBreakdown[] = await getRevenueBreakdownService();
-        
+
         return c.json({
             success: true,
             data: breakdown
@@ -458,9 +458,9 @@ export const getActiveSubscriptions = async (c: Context) => {
         const limit = parseInt(c.req.query('limit') || '20');
         const status = c.req.query('status') || undefined;
         const planId = c.req.query('planId') || undefined;
-        
+
         const result = await getActiveSubscriptionsService(page, limit, status, planId);
-        
+
         return c.json({
             success: true,
             data: {
@@ -488,7 +488,7 @@ export const getExpiringTrials = async (c: Context) => {
     try {
         const days = parseInt(c.req.query('days') || '7');
         const trials: ActiveSubscription[] = await getExpiringTrialsService(days);
-        
+
         return c.json({
             success: true,
             data: trials
@@ -508,7 +508,7 @@ export const getExpiringSubscriptions = async (c: Context) => {
     try {
         const days = parseInt(c.req.query('days') || '7');
         const subscriptions: ActiveSubscription[] = await getExpiringSubscriptionsService(days);
-        
+
         return c.json({
             success: true,
             data: subscriptions
@@ -527,7 +527,7 @@ export const getExpiringSubscriptions = async (c: Context) => {
 export const getSubscriptionPlans = async (c: Context) => {
     try {
         const plans: SubscriptionPlan[] = await getSubscriptionPlansService();
-        
+
         return c.json({
             success: true,
             data: plans
@@ -549,9 +549,9 @@ export const getSubscriptionInvoices = async (c: Context) => {
         const limit = parseInt(c.req.query('limit') || '20');
         const status = c.req.query('status') || undefined;
         const userId = c.req.query('userId') || undefined;
-        
+
         const result = await getSubscriptionInvoicesService(page, limit, status, userId);
-        
+
         return c.json({
             success: true,
             data: {
@@ -581,9 +581,9 @@ export const getSubscriptionEvents = async (c: Context) => {
         const limit = parseInt(c.req.query('limit') || '20');
         const eventType = c.req.query('eventType') || undefined;
         const processed = c.req.query('processed') || undefined;
-        
+
         const result = await getSubscriptionEventsService(page, limit, eventType, processed);
-        
+
         return c.json({
             success: true,
             data: {
@@ -615,16 +615,16 @@ export const getSubscriptionUsageLogs = async (c: Context) => {
         const feature = c.req.query('feature') || undefined;
         const startDate = c.req.query('startDate');
         const endDate = c.req.query('endDate');
-        
+
         const result = await getSubscriptionUsageLogsService(
-            page, 
-            limit, 
-            userId, 
+            page,
+            limit,
+            userId,
             feature,
             startDate ? new Date(startDate) : undefined,
             endDate ? new Date(endDate) : undefined
         );
-        
+
         return c.json({
             success: true,
             data: {
@@ -653,14 +653,14 @@ export const updateSubscriptionPlan = async (c: Context) => {
     try {
         const body = await c.req.json();
         const { subscriptionId, planId, newEndDate, priceOverride, notes } = body;
-        
+
         if (!subscriptionId || !planId) {
             return c.json({
                 success: false,
                 message: "subscriptionId and planId are required"
             }, 400);
         }
-        
+
         const result = await updateSubscriptionPlanService(
             subscriptionId,
             planId,
@@ -668,7 +668,7 @@ export const updateSubscriptionPlan = async (c: Context) => {
             priceOverride,
             notes
         );
-        
+
         return c.json({
             success: true,
             data: result,
@@ -689,26 +689,26 @@ export const cancelSubscription = async (c: Context) => {
     try {
         const body = await c.req.json();
         const { subscriptionId, cancelImmediately, refundAmount, reason } = body;
-        
+
         if (!subscriptionId) {
             return c.json({
                 success: false,
                 message: "subscriptionId is required"
             }, 400);
         }
-        
+
         const result = await cancelSubscriptionService(
             subscriptionId,
             cancelImmediately || false,
             refundAmount,
             reason
         );
-        
+
         return c.json({
             success: true,
             data: result,
-            message: cancelImmediately ? 
-                "Subscription cancelled immediately" : 
+            message: cancelImmediately ?
+                "Subscription cancelled immediately" :
                 "Subscription will cancel at period end"
         });
     } catch (error) {
@@ -726,14 +726,14 @@ export const reactivateSubscription = async (c: Context) => {
     try {
         const body = await c.req.json();
         const { subscriptionId, newPlanId, startDate, price, notes } = body;
-        
+
         if (!subscriptionId) {
             return c.json({
                 success: false,
                 message: "subscriptionId is required"
             }, 400);
         }
-        
+
         const result = await reactivateSubscriptionService(
             subscriptionId,
             newPlanId,
@@ -741,7 +741,7 @@ export const reactivateSubscription = async (c: Context) => {
             price,
             notes
         );
-        
+
         return c.json({
             success: true,
             data: result,
@@ -761,24 +761,24 @@ export const reactivateSubscription = async (c: Context) => {
 export const overrideSubscriptionLimits = async (c: Context) => {
     try {
         const body = await c.req.json();
-        const { 
-            subscriptionId, 
-            propertiesLimit, 
-            visitsLimit, 
+        const {
+            subscriptionId,
+            propertiesLimit,
+            visitsLimit,
             boostsLimit,
             mediaLimit,
             amenitiesLimit,
             expiryDate,
-            notes 
+            notes
         } = body;
-        
+
         if (!subscriptionId) {
             return c.json({
                 success: false,
                 message: "subscriptionId is required"
             }, 400);
         }
-        
+
         const result = await overrideSubscriptionLimitsService(
             subscriptionId,
             propertiesLimit,
@@ -789,7 +789,7 @@ export const overrideSubscriptionLimits = async (c: Context) => {
             expiryDate ? new Date(expiryDate) : undefined,
             notes
         );
-        
+
         return c.json({
             success: true,
             data: result,
@@ -809,21 +809,21 @@ export const overrideSubscriptionLimits = async (c: Context) => {
 export const generateInvoice = async (c: Context) => {
     try {
         const body = await c.req.json();
-        const { 
-            subscriptionId, 
-            amount, 
+        const {
+            subscriptionId,
+            amount,
             description,
             dueDate,
-            items 
+            items
         } = body;
-        
+
         if (!subscriptionId || !amount) {
             return c.json({
                 success: false,
                 message: "subscriptionId and amount are required"
             }, 400);
         }
-        
+
         const result = await generateInvoiceService(
             subscriptionId,
             amount,
@@ -831,7 +831,7 @@ export const generateInvoice = async (c: Context) => {
             dueDate ? new Date(dueDate) : undefined,
             items
         );
-        
+
         return c.json({
             success: true,
             data: result,
@@ -851,21 +851,21 @@ export const generateInvoice = async (c: Context) => {
 export const sendSubscriptionNotification = async (c: Context) => {
     try {
         const body = await c.req.json();
-        const { 
-            subscriptionId, 
+        const {
+            subscriptionId,
             notificationType,
             subject,
             message,
-            includeInvoice 
+            includeInvoice
         } = body;
-        
+
         if (!subscriptionId || !notificationType) {
             return c.json({
                 success: false,
                 message: "subscriptionId and notificationType are required"
             }, 400);
         }
-        
+
         const result = await sendSubscriptionNotificationService(
             subscriptionId,
             notificationType,
@@ -873,7 +873,7 @@ export const sendSubscriptionNotification = async (c: Context) => {
             message,
             includeInvoice || false
         );
-        
+
         return c.json({
             success: true,
             data: result,
@@ -893,7 +893,7 @@ export const sendSubscriptionNotification = async (c: Context) => {
 export const getSubscriptionStats = async (c: Context) => {
     try {
         const stats: SubscriptionStats = await getSubscriptionStatsService();
-        
+
         return c.json({
             success: true,
             data: stats
@@ -913,19 +913,19 @@ export const getSubscriptionUserDetails = async (c: Context) => {
     try {
         const userId = c.req.query('userId') || undefined;
         const subscriptionId = c.req.query('subscriptionId') || undefined;
-        
+
         if (!userId && !subscriptionId) {
             return c.json({
                 success: false,
                 message: "Either userId or subscriptionId is required"
             }, 400);
         }
-        
-        const details: SubscriptionUserDetails = await getSubscriptionUserDetailsService(
+
+        const details = await getSubscriptionUserDetailsService(
             userId,
             subscriptionId
         );
-        
+
         return c.json({
             success: true,
             data: details
@@ -945,19 +945,19 @@ export const getSubscriptionPaymentHistory = async (c: Context) => {
     try {
         const subscriptionId = c.req.query('subscriptionId') || undefined;
         const userId = c.req.query('userId') || undefined;
-        
+
         if (!subscriptionId && !userId) {
             return c.json({
                 success: false,
                 message: "Either subscriptionId or userId is required"
             }, 400);
         }
-        
-        const history: PaymentHistory[] = await getSubscriptionPaymentHistoryService(
+
+        const history = await getSubscriptionPaymentHistoryService(
             subscriptionId,
             userId
         );
-        
+
         return c.json({
             success: true,
             data: history
@@ -983,20 +983,20 @@ export const getQuickStats = async (c: Context) => {
             expiringTrials,
             expiringSubscriptions
         ]: [
-            DashboardStats,
-            RecentActivity[],
-            AgentStatusSummary[],
-            SubscriptionStats,
-            ActiveSubscription[],
-            ActiveSubscription[]
-        ] = await Promise.all([
-            getDashboardStatsService(),
-            getRecentActivitiesService(5),
-            getAgentStatusSummaryService(),
-            getSubscriptionStatsService(),
-            getExpiringTrialsService(7),
-            getExpiringSubscriptionsService(7)
-        ]);
+                DashboardStats,
+                RecentActivity[],
+                AgentStatusSummary[],
+                SubscriptionStats,
+                ActiveSubscription[],
+                ActiveSubscription[]
+            ] = await Promise.all([
+                getDashboardStatsService(),
+                getRecentActivitiesService(5),
+                getAgentStatusSummaryService(),
+                getSubscriptionStatsService(),
+                getExpiringTrialsService(7),
+                getExpiringSubscriptionsService(7)
+            ]);
 
         const pendingCount = pendingVerifications.find(v => v.status === 'PENDING')?.count || 0;
 
@@ -1040,22 +1040,22 @@ export const getSystemOverview = async (c: Context) => {
             planDistribution,
             churnAnalytics
         ]: [
-            DashboardStats,
-            RoleSummary[],
-            AgentStatusSummary[],
-            VerificationAnalytics[],
-            SubscriptionAnalytics,
-            PlanDistribution[],
-            ChurnAnalytics[]
-        ] = await Promise.all([
-            getDashboardStatsService(),
-            getUserRoleSummaryService(),
-            getAgentStatusSummaryService(),
-            getVerificationAnalyticsService(),
-            getSubscriptionAnalyticsService(),
-            getPlanDistributionService(),
-            getChurnAnalyticsService(30)
-        ]);
+                DashboardStats,
+                RoleSummary[],
+                AgentStatusSummary[],
+                VerificationAnalytics[],
+                SubscriptionAnalytics,
+                PlanDistribution[],
+                ChurnAnalytics[]
+            ] = await Promise.all([
+                getDashboardStatsService(),
+                getUserRoleSummaryService(),
+                getAgentStatusSummaryService(),
+                getVerificationAnalyticsService(),
+                getSubscriptionAnalyticsService(),
+                getPlanDistributionService(),
+                getChurnAnalyticsService(30)
+            ]);
 
         return c.json({
             success: true,
@@ -1083,16 +1083,16 @@ export const getSystemOverview = async (c: Context) => {
 export const exportSubscriptionData = async (c: Context) => {
     try {
         const format = c.req.query('format') || 'csv';
-        
+
         // This would typically generate a CSV/Excel file
         // For now, return JSON data that can be converted
-        
+
         const [subscriptions, invoices, usageLogs] = await Promise.all([
             getActiveSubscriptionsService(1, 1000), // Get all subscriptions
             getSubscriptionInvoicesService(1, 1000),
             getSubscriptionUsageLogsService(1, 1000)
         ]);
-        
+
         const data = {
             subscriptions: subscriptions.subscriptions,
             invoices: invoices.invoices,
@@ -1100,21 +1100,21 @@ export const exportSubscriptionData = async (c: Context) => {
             exportedAt: new Date().toISOString(),
             exportFormat: format
         };
-        
+
         if (format === 'csv') {
             // Set CSV headers
             c.header('Content-Type', 'text/csv');
             c.header('Content-Disposition', `attachment; filename="subscriptions_export_${Date.now()}.csv"`);
-            
+
             // Generate CSV (simplified example)
             let csv = 'Subscription ID,User ID,User Name,Plan Name,Status,Start Date,End Date,Price\n';
             for (const sub of subscriptions.subscriptions) {
                 csv += `"${sub.subscriptionId}","${sub.userId}","${sub.userName}","${sub.planName}","${sub.status}","${sub.startDate}","${sub.endDate}",${sub.price}\n`;
             }
-            
+
             return c.text(csv);
         }
-        
+
         return c.json({
             success: true,
             data: data,
@@ -1139,30 +1139,30 @@ export const getSubscriptionHealthCheck = async (c: Context) => {
             getExpiringSubscriptionsService(3), // Subscriptions expiring in 3 days
             getSubscriptionEventsService(1, 50, 'PAYMENT_FAILED', '0') // Recent failed payments
         ]);
-        
+
         const health = {
             status: 'HEALTHY',
             issues: [] as string[],
             warnings: [] as string[],
             stats: stats
         };
-        
+
         // Check for issues
         if (expiringTrials.length > 10) {
             health.status = 'WARNING';
             health.warnings.push(`High number of expiring trials: ${expiringTrials.length}`);
         }
-        
+
         if (expiringSubscriptions.length > 5) {
             health.status = 'WARNING';
             health.warnings.push(`High number of expiring subscriptions: ${expiringSubscriptions.length}`);
         }
-        
+
         if (failedPayments.total > 10) {
             health.status = 'ISSUE';
             health.issues.push(`Multiple failed payments detected: ${failedPayments.total}`);
         }
-        
+
         if (stats.churnRate > 15) {
             health.status = 'ISSUE';
             health.issues.push(`High churn rate detected: ${stats.churnRate}%`);
@@ -1170,7 +1170,7 @@ export const getSubscriptionHealthCheck = async (c: Context) => {
             health.status = 'WARNING';
             health.warnings.push(`Elevated churn rate: ${stats.churnRate}%`);
         }
-        
+
         return c.json({
             success: true,
             data: health

@@ -13,6 +13,7 @@ export interface BulkAmenityInput {
     amenities: string[];
 }
 export declare class PropertyAmenitiesService {
+    private mapDBToAmenity;
     createAmenity(data: CreateAmenityInput): Promise<PropertyAmenity>;
     bulkCreateAmenities(data: BulkAmenityInput): Promise<PropertyAmenity[]>;
     createBulkAmenities(data: BulkAmenityInput): Promise<PropertyAmenity[]>;

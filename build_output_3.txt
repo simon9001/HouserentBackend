@@ -1,0 +1,7 @@
+
+> kajayangu-backend@1.0.0 build
+> tsc
+
+src/admin/adminController.ts(99,17): error TS2304: Cannot find name 'SubscriptionStats'.
+src/admin/adminController.ts(895,22): error TS2304: Cannot find name 'SubscriptionStats'.
+src/admin/adminController.ts(989,17): error TS2304: Cannot find name 'SubscriptionStats'.

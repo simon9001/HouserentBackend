@@ -4,40 +4,35 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ============================================================================
 -- CORE TABLES
 -- ============================================================================
+SELECT * FROM "Users"
 
+UPDATE "Users"
+SET "Role" = 'ADMIN',
+    "UpdatedAt" = NOW()
+WHERE "Email" = 'maiyumusyoka4@gmail.com';
 -- Users table with Username for login
-CREATE TABLE users (
-    user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    
-    -- Login credentials
-    username VARCHAR(50) NOT NULL UNIQUE,
-    password_hash VARCHAR(500) NOT NULL,
-    
-    -- Personal information
-    full_name VARCHAR(150) NOT NULL,
-    phone_number VARCHAR(20) NOT NULL UNIQUE,
-    email VARCHAR(150) NOT NULL UNIQUE,
-    bio VARCHAR(500),
-    address VARCHAR(255),
-    avatar_url VARCHAR(500),
-    
-    -- User role and status
-    role VARCHAR(20) NOT NULL DEFAULT 'TENANT' CHECK (role IN ('TENANT', 'AGENT', 'ADMIN')),
-    agent_status VARCHAR(20) NOT NULL DEFAULT 'NONE' CHECK (agent_status IN ('NONE', 'PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED')),
-    
-    -- Account metrics
-    trust_score INTEGER NOT NULL DEFAULT 0,
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    login_attempts INTEGER NOT NULL DEFAULT 0,
-    last_login TIMESTAMPTZ,
-    locked_until TIMESTAMPTZ,
-    
-    -- Timestamps
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    is_email_verified BOOLEAN NOT NULL DEFAULT false
+DROP TABLE IF EXISTS users CASCADE;
+CREATE TABLE "Users" (
+    "UserId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "Username" VARCHAR(50) NOT NULL UNIQUE,
+    "PasswordHash" VARCHAR(500) NOT NULL,
+    "FullName" VARCHAR(150) NOT NULL,
+    "PhoneNumber" VARCHAR(20) NOT NULL UNIQUE,
+    "Email" VARCHAR(150) NOT NULL UNIQUE,
+    "Bio" VARCHAR(500),
+    "Address" VARCHAR(255),
+    "AvatarUrl" VARCHAR(500),
+    "Role" VARCHAR(20) NOT NULL DEFAULT 'TENANT' CHECK ("Role" IN ('TENANT', 'AGENT', 'ADMIN')),
+    "AgentStatus" VARCHAR(20) NOT NULL DEFAULT 'NONE' CHECK ("AgentStatus" IN ('NONE', 'PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED')),
+    "TrustScore" INTEGER NOT NULL DEFAULT 0,
+    "IsActive" BOOLEAN NOT NULL DEFAULT true,
+    "LoginAttempts" INTEGER NOT NULL DEFAULT 0,
+    "LastLogin" TIMESTAMPTZ,
+    "LockedUntil" TIMESTAMPTZ,
+    "CreatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "UpdatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "IsEmailVerified" BOOLEAN NOT NULL DEFAULT false
 );
-
 -- Indexes for users
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_email ON users(email);
@@ -1858,10 +1853,16 @@ CREATE TABLE property_verifications (
 -- Complete property info view
 CREATE VIEW vw_property_complete AS
 SELECT 
-    p.*,
-    u.full_name as landlord_name,
-    u.phone_number as landlord_phone,
-    u.trust_score as landlord_trust_score,
+    p.property_id,
+    p.title,
+    p.description,
+    p.area,
+    p.owner_id,
+    p.created_at,
+    
+    u.full_name AS landlord_name,
+    u.phone_number AS landlord_phone,
+    u.trust_score AS landlord_trust_score,
     
     -- Costs
     pc.monthly_rent,
@@ -1872,7 +1873,7 @@ SELECT
     -- Security
     sf.has_security_guard,
     sf.has_cctv,
-    asr.overall_safety_rating as area_safety,
+    asr.overall_safety_rating AS area_safety,
     
     -- Utilities
     ui.water_availability,
@@ -1885,9 +1886,9 @@ SELECT
     ta.walking_minutes_to_stage,
     
     -- Ratings
-    (SELECT AVG(rating) FROM reviews WHERE property_id = p.property_id) as avg_rating,
-    (SELECT COUNT(*) FROM reviews WHERE property_id = p.property_id) as total_reviews
-    
+    (SELECT AVG(r.rating) FROM reviews r WHERE r.property_id = p.property_id) AS avg_rating,
+    (SELECT COUNT(*) FROM reviews r WHERE r.property_id = p.property_id) AS total_reviews
+
 FROM properties p
 LEFT JOIN users u ON p.owner_id = u.user_id
 LEFT JOIN property_costs pc ON p.property_id = pc.property_id
@@ -1899,3 +1900,499 @@ LEFT JOIN area_security_ratings asr ON p.area = asr.area_name;
 COMMENT ON DATABASE postgres IS 'Rent Me A Keja - Helping Kenyans find 
 
 
+
+
+
+
+
+
+
+
+
+
+-- ============================================================================
+-- ADD "SAMILAS" HOUSE PROPERTY
+-- ============================================================================
+
+-- First, let's assume we have a user/agent who will own this property
+-- If you don't have a user yet, create one first (or use existing user ID)
+
+-- Step 1: Insert the main property record
+INSERT INTO "properties" (
+    "property_id", 
+    "owner_id",
+    "title", 
+    "description", 
+    "rent_amount", 
+    "deposit_amount",
+    "county", 
+    "constituency", 
+    "area", 
+    "street_address",
+    "latitude", 
+    "longitude",
+    "property_type", 
+    "bedrooms", 
+    "bathrooms",
+    "rules",
+    "is_available", 
+    "is_verified",
+    "created_at", 
+    "updated_at"
+) VALUES (
+    'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, -- You can generate a new UUID or use this one
+    (SELECT "UserId" FROM "Users" WHERE "Username" = 'agent123' LIMIT 1), -- Replace with actual agent username or ID
+    'Samilas Luxury Villa',
+    'A stunning 4-bedroom luxury villa located in a secure, serene neighborhood. Features modern finishes, spacious living areas, and a beautiful garden. Perfect for a family looking for comfort and style. The property comes with 24/7 security, ample parking, and reliable utilities.',
+    85000.00, -- Monthly rent in KES
+    85000.00, -- Deposit (1 month rent)
+    'Nairobi',
+    'Westlands',
+    'Lavington',
+    'Lavington Green, Off James Gichuru Road',
+    -1.270860, -- Latitude for Lavington, Nairobi
+    36.777820, -- Longitude for Lavington, Nairobi
+    'HOUSE',
+    4, -- Bedrooms
+    3, -- Bathrooms
+    'No smoking inside the house. Pets allowed with prior approval. Maximum 6 occupants. Quiet hours from 10 PM to 6 AM.',
+    true, -- is_available
+    true, -- is_verified
+    NOW(),
+    NOW()
+)
+ON CONFLICT ("property_id") DO NOTHING;
+
+-- Step 2: Add property costs (transparent pricing)
+INSERT INTO "property_costs" (
+    "property_id",
+    "monthly_rent",
+    "deposit_months",
+    "deposit_amount",
+    "service_charge",
+    "garbage_fee",
+    "security_fee",
+    "water_included",
+    "electricity_included",
+    "internet_included",
+    "estimated_total_monthly",
+    "agent_fee",
+    "agent_fee_description",
+    "total_move_in_cost"
+) VALUES (
+    'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID,
+    85000.00,
+    1,
+    85000.00,
+    5000.00, -- Service charge
+    1000.00, -- Garbage fee
+    2000.00, -- Security fee
+    true, -- Water included
+    false, -- Electricity not included
+    false, -- Internet not included
+    93000.00, -- Rent + service charge + garbage + security
+    42500.00, -- Agent fee (half month rent)
+    'Standard agent commission - 50% of one month''s rent',
+    222500.00 -- Deposit + 1st month + agent fee
+);
+
+-- Step 3: Add property amenities
+INSERT INTO "property_amenities" ("property_id", "amenity_name", "created_at") VALUES
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'Swimming Pool', NOW()),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'Garden', NOW()),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'Parking (4 cars)', NOW()),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'Security System', NOW()),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'Gym', NOW()),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'Balcony', NOW()),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'Fireplace', NOW()),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'Laundry Room', NOW()),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'Storage', NOW()),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'Tiled Floors', NOW());
+
+-- Step 4: Add property media (using real image URLs from the internet)
+INSERT INTO "property_media" ("property_id", "media_type", "media_url", "thumbnail_url", "is_primary", "created_at") VALUES
+-- Primary image
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'IMAGE', 'https://images.unsplash.com/photo-1613977257363-707ba9348227?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80', 'https://images.unsplash.com/photo-1613977257363-707ba9348227?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', true, NOW()),
+-- Additional images
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'IMAGE', 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80', 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', false, NOW()),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'IMAGE', 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80', 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', false, NOW()),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'IMAGE', 'https://images.unsplash.com/photo-1600566752355-35792bedcfea?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80', 'https://images.unsplash.com/photo-1600566752355-35792bedcfea?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', false, NOW()),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'IMAGE', 'https://images.unsplash.com/photo-1600573472550-8090d91c5c01?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80', 'https://images.unsplash.com/photo-1600573472550-8090d91c5c01?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', false, NOW());
+
+-- Step 5: Add security features
+INSERT INTO "security_features" (
+    "property_id",
+    "has_security_guard",
+    "guard_hours",
+    "has_cctv",
+    "has_perimeter_wall",
+    "has_gate",
+    "has_electric_fence",
+    "has_security_lights",
+    "requires_visitor_registration",
+    "has_intercom",
+    "police_station_distance_km"
+) VALUES (
+    'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID,
+    true,
+    '24/7',
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    2.5
+);
+
+-- Step 6: Add transport access information
+INSERT INTO "transport_access" (
+    "property_id",
+    "nearest_matatu_stage",
+    "matatu_routes",
+    "walking_minutes_to_stage",
+    "nearest_main_road",
+    "distance_to_main_road_meters",
+    "road_access_quality",
+    "nearest_boda_stage",
+    "boda_fare_to_main_road",
+    "uber_accessible"
+) VALUES (
+    'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID,
+    'Lavington Stage',
+    '46, 111, 125, 126',
+    8,
+    'James Gichuru Road',
+    500,
+    'TARMAC',
+    'Gate B',
+    50.00,
+    true
+);
+
+-- Step 7: Add nearby places
+INSERT INTO "nearby_places" ("property_id", "place_type", "place_name", "distance_km", "walking_minutes", "driving_minutes") VALUES
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'SUPERMARKET', 'Naivas Lavington', 0.8, 10, 3),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'HOSPITAL', 'Aga Khan Hospital', 3.2, NULL, 8),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'SCHOOL', 'St. Mary''s School', 1.5, 20, 5),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'SHOPPING_MALL', 'Yaya Centre', 2.0, NULL, 6),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'BANK', 'Equity Bank Lavington', 0.7, 9, 2),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'RESTAURANT', 'Artcaffe Lavington', 0.5, 6, 2),
+('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID, 'GYM', 'Fitness First Lavington', 1.2, 15, 4);
+
+-- Step 8: Add utility information
+INSERT INTO "utility_info" (
+    "property_id",
+    "water_source",
+    "water_availability",
+    "water_schedule",
+    "has_water_tank",
+    "tank_capacity_litres",
+    "water_bill_included",
+    "electricity_provider",
+    "has_prepaid_meter",
+    "has_postpaid_meter",
+    "frequent_power_outages",
+    "outage_frequency",
+    "has_generator",
+    "has_solar_backup",
+    "electricity_bill_included",
+    "fiber_available",
+    "fiber_providers",
+    "garbage_collection_available",
+    "garbage_collection_schedule"
+) VALUES (
+    'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID,
+    'BOTH', -- NAIROBI_WATER and BOREHOLE
+    '24/7',
+    'Continuous supply with backup',
+    true,
+    10000,
+    true, -- Water bill included in rent
+    'KPLC',
+    true,
+    false,
+    false,
+    'Rare',
+    true,
+    false,
+    false, -- Electricity bill not included
+    true,
+    'Safaricom, Zuku, Faiba',
+    true,
+    'Monday, Wednesday, Friday - 7 AM'
+);
+
+-- Step 9: Add house rules
+INSERT INTO "house_rules" (
+    "property_id",
+    "max_occupants",
+    "children_allowed",
+    "pets_allowed",
+    "overnight_visitors_allowed",
+    "visitor_curfew_time",
+    "home_business_allowed",
+    "airbnb_allowed",
+    "smoking_allowed",
+    "loud_music_allowed",
+    "quiet_hours",
+    "parking_available",
+    "parking_spaces",
+    "parking_fee",
+    "visitor_parking",
+    "notice_period_days",
+    "other_rules"
+) VALUES (
+    'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID,
+    6,
+    true,
+    true,
+    true,
+    '22:00:00',
+    false,
+    false,
+    false,
+    false,
+    '10PM - 6AM',
+    true,
+    4,
+    0.00,
+    true,
+    30,
+    'No parties without prior approval. Maintain cleanliness of common areas. Report any maintenance issues immediately.'
+);
+
+-- Step 10: Add property condition details
+INSERT INTO "property_condition" (
+    "property_id",
+    "overall_condition",
+    "year_built",
+    "last_renovated",
+    "has_kitchen",
+    "kitchen_has_cabinets",
+    "kitchen_has_sink",
+    "kitchen_has_gas_connection",
+    "number_of_bathrooms",
+    "bathroom_has_shower",
+    "bathroom_has_bathtub",
+    "bathroom_has_hot_water",
+    "hot_water_type",
+    "floor_type",
+    "wall_finish",
+    "has_ceiling",
+    "has_curtains_rails",
+    "has_light_fixtures",
+    "has_built_in_wardrobe",
+    "has_balcony",
+    "has_backyard",
+    "has_compound"
+) VALUES (
+    'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID,
+    'EXCELLENT',
+    2020,
+    2023,
+    true,
+    true,
+    true,
+    true,
+    3,
+    true,
+    true,
+    true,
+    'INSTANT',
+    'TILES',
+    'PAINTED',
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+);
+
+-- Step 11: Add property verification
+INSERT INTO "property_verifications" (
+    "property_id",
+    "has_title_deed",
+    "has_landlord_id",
+    "has_recent_photos",
+    "photos_date",
+    "physically_verified",
+    "verified_by",
+    "verification_date",
+    "verification_notes",
+    "photos_match_description",
+    "rent_price_reasonable",
+    "landlord_contactable",
+    "verification_status"
+) VALUES (
+    'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::UUID,
+    true,
+    true,
+    true,
+    '2024-01-15',
+    true,
+    (SELECT "UserId" FROM "Users" WHERE "Role" = 'ADMIN' LIMIT 1),
+    '2024-01-20',
+    'Property physically verified. All documents in order. Photos match actual property.',
+    true,
+    true,
+    true,
+    'VERIFIED'
+);
+
+-- Step 12: Add area security rating for Lavington
+INSERT INTO "area_security_ratings" (
+    "area_name",
+    "county",
+    "overall_safety_rating",
+    "day_safety_rating",
+    "night_safety_rating",
+    "total_ratings",
+    "nearest_police_station",
+    "police_response_time_minutes",
+    "has_community_policing"
+) VALUES (
+    'Lavington',
+    'Nairobi',
+    4.2,
+    4.5,
+    3.8,
+    47,
+    'Kilimani Police Station',
+    10,
+    true
+)
+ON CONFLICT ("area_name", "county") 
+DO UPDATE SET 
+    "overall_safety_rating" = 4.2,
+    "day_safety_rating" = 4.5,
+    "night_safety_rating" = 3.8,
+    "updated_at" = NOW();
+
+-- Step 13: Refresh the materialized search view
+SELECT refresh_property_search_index();
+
+-- ============================================================================
+-- VERIFICATION QUERY - Check if property was added successfully
+-- ============================================================================
+
+-- Query to verify the property was added
+SELECT 
+    p."property_id",
+    p."title",
+    p."area",
+    p."county",
+    p."rent_amount",
+    p."bedrooms",
+    p."bathrooms",
+    (SELECT COUNT(*) FROM "property_media" pm WHERE pm."property_id" = p."property_id") as photo_count,
+    (SELECT COUNT(*) FROM "property_amenities" pa WHERE pa."property_id" = p."property_id") as amenities_count,
+    p."is_verified",
+    p."created_at"
+FROM "properties" p
+WHERE p."title" LIKE '%Samilas%'
+LIMIT 1;
+
+-- Query to see complete property information
+SELECT 
+    p."title",
+    p."description",
+    p."rent_amount",
+    p."bedrooms",
+    p."bathrooms",
+    pc."estimated_total_monthly",
+    pc."total_move_in_cost",
+    sf."has_security_guard",
+    sf."has_cctv",
+    ui."water_availability",
+    ui."fiber_available",
+    ta."nearest_matatu_stage",
+    ta."walking_minutes_to_stage",
+    asr."overall_safety_rating"
+FROM "properties" p
+LEFT JOIN "property_costs" pc ON p."property_id" = pc."property_id"
+LEFT JOIN "security_features" sf ON p."property_id" = sf."property_id"
+LEFT JOIN "utility_info" ui ON p."property_id" = ui."property_id"
+LEFT JOIN "transport_access" ta ON p."property_id" = ta."property_id"
+LEFT JOIN "area_security_ratings" asr ON p."area" = asr."area_name" AND p."county" = asr."county"
+WHERE p."title" LIKE '%Samilas%';
+
+-- ============================================================================
+-- SIMPLIFIED INSERT SCRIPT (if you want a quick insert without all details)
+-- ============================================================================
+
+/*
+-- Quick insert with minimal details
+INSERT INTO "properties" (
+    "property_id", 
+    "owner_id",
+    "title", 
+    "description", 
+    "rent_amount", 
+    "county", 
+    "area", 
+    "property_type", 
+    "bedrooms", 
+    "bathrooms",
+    "is_available", 
+    "is_verified"
+) VALUES (
+    uuid_generate_v4(), -- Auto-generate UUID
+    (SELECT "UserId" FROM "Users" LIMIT 1), -- Use first user as owner
+    'Samilas Luxury Villa',
+    'Beautiful 4-bedroom house in Lavington with modern amenities and security.',
+    85000.00,
+    'Nairobi',
+    'Lavington',
+    'HOUSE',
+    4,
+    3,
+    true,
+    true
+);
+
+-- Add at least one image
+INSERT INTO "property_media" ("property_id", "media_type", "media_url", "is_primary") VALUES
+(
+    (SELECT "property_id" FROM "properties" WHERE "title" LIKE '%Samilas%' LIMIT 1),
+    'IMAGE',
+    'https://images.unsplash.com/photo-1613977257363-707ba9348227?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80',
+    true
+);
+*/
+
+-- ============================================================================
+-- HELPFUL NOTES
+-- ============================================================================
+
+/*
+1. Before running this script:
+   - Make sure you have at least one user in the "Users" table
+   - Update the owner_id to match an actual user ID
+   - You can generate a new UUID or use the provided one
+
+2. Image URLs used:
+   - All images are from Unsplash (free, high-quality stock photos)
+   - Links are to actual house/villa images
+   - You can replace these with your own images if needed
+
+3. Property details:
+   - Name: Samilas Luxury Villa
+   - Location: Lavington, Nairobi
+   - Type: House
+   - Bedrooms: 4
+   - Bathrooms: 3
+   - Rent: KES 85,000/month
+   - Features: Pool, Garden, Security, Gym, etc.
+
+4. To modify:
+   - Change any values as needed
+   - Add/remove amenities
+   - Update location details
+   - Adjust pricing
+*/
+
+COMMENT ON TABLE "properties" IS 'Includes Samilas Luxury Villa property for demonstration';

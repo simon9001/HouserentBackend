@@ -1,6 +1,22 @@
 import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 export class NotificationService {
+    // Helper to map DB result to Notification interface (PascalCase)
+    mapDBToNotification(data) {
+        if (!data)
+            return data;
+        return {
+            NotificationId: data.notification_id,
+            UserId: data.user_id,
+            Title: data.title,
+            Message: data.message,
+            Type: data.type,
+            ReferenceId: data.reference_id,
+            IsRead: data.is_read,
+            CreatedAt: new Date(data.created_at),
+            UpdatedAt: new Date(data.updated_at)
+        };
+    }
     async getNotificationsByUser(userId) {
         if (!ValidationUtils.isValidUUID(userId))
             return [];
@@ -14,8 +30,7 @@ export class NotificationService {
                 console.error('Error fetching notifications:', error);
                 throw new Error(error.message);
             }
-            // Map snake_case to camelCase for interface compatibility
-            return (data || []).map(item => this.mapToCamelCase(item));
+            return (data || []).map(item => this.mapDBToNotification(item));
         }
         catch (error) {
             console.error('Error in getNotificationsByUser:', error);
@@ -80,7 +95,6 @@ export class NotificationService {
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
-            console.log('Creating notification:', notificationData);
             const { data, error } = await supabase
                 .from('notifications')
                 .insert(notificationData)
@@ -90,8 +104,7 @@ export class NotificationService {
                 console.error('Error creating notification:', error);
                 throw new Error(error.message);
             }
-            console.log('Notification created:', data);
-            return this.mapToCamelCase(data);
+            return this.mapDBToNotification(data);
         }
         catch (error) {
             console.error('Error in createNotification:', error);
@@ -124,9 +137,9 @@ export class NotificationService {
         try {
             // Fetch all active users from "Users" table (PascalCase)
             const { data: users, error: userError } = await supabase
-                .from('"Users"') // ✅ Double quotes for PascalCase table
-                .select('"UserId"') // ✅ PascalCase column name
-                .eq('"IsActive"', true); // ✅ PascalCase column name
+                .from('"Users"')
+                .select('"UserId"')
+                .eq('"IsActive"', true);
             if (userError) {
                 console.error('Error fetching users for broadcast:', userError);
                 throw new Error(userError.message);
@@ -135,7 +148,7 @@ export class NotificationService {
                 return 0;
             console.log(`Creating broadcast notification for ${users.length} users`);
             const notifications = users.map(user => ({
-                user_id: user.UserId, // ✅ snake_case column name in notifications table
+                user_id: user.UserId,
                 title: title,
                 message: message,
                 type: type,
@@ -156,9 +169,7 @@ export class NotificationService {
                     throw new Error(insertError.message);
                 }
                 totalInserted += batch.length;
-                console.log(`Inserted batch ${i / batchSize + 1}: ${batch.length} notifications`);
             }
-            console.log(`Total notifications created: ${totalInserted}`);
             return totalInserted;
         }
         catch (error) {
@@ -201,7 +212,6 @@ export class NotificationService {
                 console.error('Error creating client notifications:', insertError);
                 throw new Error(insertError.message);
             }
-            console.log(`Created ${notifications.length} client notifications`);
             return notifications.length;
         }
         catch (error) {
@@ -249,20 +259,6 @@ export class NotificationService {
             console.error('Error in clearAllNotifications:', error);
             throw error;
         }
-    }
-    // Helper method to map snake_case to camelCase
-    mapToCamelCase(data) {
-        if (!data)
-            return data;
-        const result = {};
-        for (const key in data) {
-            if (Object.prototype.hasOwnProperty.call(data, key)) {
-                // Convert snake_case to camelCase
-                const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
-                result[camelKey] = data[key];
-            }
-        }
-        return result;
     }
 }
 export const notificationService = new NotificationService();

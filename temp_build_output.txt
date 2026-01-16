@@ -1,0 +1,48 @@
+
+> kajayangu-backend@1.0.0 build
+> tsc
+
+src/admin/adminController.ts(462,81): error TS2554: Expected 0-3 arguments, but got 4.
+src/admin/adminController.ts(832,13): error TS2554: Expected 3-4 arguments, but got 5.
+src/admin/adminController.ts(873,13): error TS2554: Expected 3 arguments, but got 5.
+src/admin/adminController.ts(924,15): error TS2322: Type 'SubscriptionUserDetails | null' is not assignable to type 'SubscriptionUserDetails'.
+  Type 'null' is not assignable to type 'SubscriptionUserDetails'.
+src/admin/adminController.ts(926,13): error TS2554: Expected 1 arguments, but got 2.
+src/admin/adminController.ts(958,13): error TS2554: Expected 1 arguments, but got 2.
+src/admin/adminService.ts(986,54): error TS6133: 'page' is declared but its value is never read.
+src/admin/adminService.ts(986,68): error TS6133: 'limit' is declared but its value is never read.
+src/admin/adminService.ts(986,83): error TS6133: 'status' is declared but its value is never read.
+src/admin/adminService.ts(986,100): error TS6133: 'userId' is declared but its value is never read.
+src/admin/adminService.ts(990,52): error TS6133: 'page' is declared but its value is never read.
+src/admin/adminService.ts(990,66): error TS6133: 'limit' is declared but its value is never read.
+src/admin/adminService.ts(990,81): error TS6133: 'eventType' is declared but its value is never read.
+src/admin/adminService.ts(990,101): error TS6133: 'processed' is declared but its value is never read.
+src/admin/adminService.ts(994,55): error TS6133: 'page' is declared but its value is never read.
+src/admin/adminService.ts(994,69): error TS6133: 'limit' is declared but its value is never read.
+src/admin/adminService.ts(994,84): error TS6133: 'userId' is declared but its value is never read.
+src/admin/adminService.ts(994,101): error TS6133: 'feature' is declared but its value is never read.
+src/admin/adminService.ts(994,119): error TS6133: 'startDate' is declared but its value is never read.
+src/admin/adminService.ts(994,137): error TS6133: 'endDate' is declared but its value is never read.
+src/admin/adminService.ts(998,136): error TS6133: 'notes' is declared but its value is never read.
+src/admin/adminService.ts(1008,101): error TS6133: 'refundAmount' is declared but its value is never read.
+src/admin/adminService.ts(1008,124): error TS6133: 'reason' is declared but its value is never read.
+src/admin/adminService.ts(1021,97): error TS6133: 'startDate' is declared but its value is never read.
+src/admin/adminService.ts(1021,115): error TS6133: 'price' is declared but its value is never read.
+src/admin/adminService.ts(1021,131): error TS6133: 'notes' is declared but its value is never read.
+src/admin/adminService.ts(1033,57): error TS6133: 'subscriptionId' is declared but its value is never read.
+src/admin/adminService.ts(1033,81): error TS6133: 'propertiesLimit' is declared but its value is never read.
+src/admin/adminService.ts(1033,107): error TS6133: 'visitsLimit' is declared but its value is never read.
+src/admin/adminService.ts(1033,129): error TS6133: 'boostsLimit' is declared but its value is never read.
+src/admin/adminService.ts(1033,151): error TS6133: 'mediaLimit' is declared but its value is never read.
+src/admin/adminService.ts(1033,172): error TS6133: 'amenitiesLimit' is declared but its value is never read.
+src/admin/adminService.ts(1033,197): error TS6133: 'expiryDate' is declared but its value is never read.
+src/admin/adminService.ts(1033,216): error TS6133: 'notes' is declared but its value is never read.
+src/admin/adminService.ts(1037,46): error TS6133: 'subscriptionId' is declared but its value is never read.
+src/admin/adminService.ts(1037,70): error TS6133: 'amount' is declared but its value is never read.
+src/admin/adminService.ts(1037,86): error TS6133: 'dueDate' is declared but its value is never read.
+src/admin/adminService.ts(1037,101): error TS6133: 'notes' is declared but its value is never read.
+src/admin/adminService.ts(1041,59): error TS6133: 'subscriptionId' is declared but its value is never read.
+src/admin/adminService.ts(1041,83): error TS6133: 'type' is declared but its value is never read.
+src/admin/adminService.ts(1041,97): error TS6133: 'message' is declared but its value is never read.
+src/admin/adminService.ts(1063,57): error TS6133: 'userId' is declared but its value is never read.
+src/admin/adminService.ts(1067,60): error TS6133: 'userId' is declared but its value is never read.

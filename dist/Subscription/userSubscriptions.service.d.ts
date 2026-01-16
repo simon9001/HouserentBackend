@@ -66,6 +66,8 @@ export interface UsageCheckResult {
     planId?: string;
 }
 export declare class UserSubscriptionsService {
+    private mapDBToSubscription;
+    private mapDBToSubscriptionWithPlan;
     createSubscription(data: CreateSubscriptionInput): Promise<UserSubscription>;
     getSubscriptionById(subscriptionId: string): Promise<UserSubscriptionWithPlan | null>;
     getActiveSubscription(userId: string): Promise<UserSubscriptionWithPlan | null>;
@@ -95,40 +97,7 @@ export declare class UserSubscriptionsService {
     private createSubscriptionEvent;
     getSubscriptionSummary(userId: string): Promise<{
         subscription: UserSubscriptionWithPlan | null;
-        usage: {
-            properties: {
-                used: number;
-                limit: number;
-                remaining: number;
-            };
-            visits: {
-                used: number;
-                limit: number;
-                remaining: number;
-            };
-            boosts: {
-                used: number;
-                limit: number;
-                remaining: number;
-            };
-            media: {
-                used: number;
-                limit: number;
-                remaining: number;
-            };
-            amenities: {
-                used: number;
-                limit: number;
-                remaining: number;
-            };
-        };
-        features: {
-            allowBoost: boolean;
-            allowPremiumSupport: boolean;
-            allowAdvancedAnalytics: boolean;
-            allowBulkOperations: boolean;
-        };
-        nextReset: string;
+        stats: any;
     }>;
 }
 export declare const userSubscriptionsService: UserSubscriptionsService;

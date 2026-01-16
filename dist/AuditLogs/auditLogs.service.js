@@ -1,6 +1,22 @@
 import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 export class AuditLogsService {
+    mapDBToAuditLog(data) {
+        if (!data)
+            return data;
+        return {
+            LogId: data.log_id,
+            UserId: data.user_id,
+            Action: data.action,
+            Entity: data.entity,
+            EntityId: data.entity_id,
+            IpAddress: data.ip_address,
+            UserAgent: data.user_agent,
+            Metadata: data.metadata,
+            CreatedAt: data.created_at,
+            UserName: data.Users?.FullName
+        };
+    }
     // Create audit log
     async createLog(data) {
         // Validate user exists if provided
@@ -11,92 +27,80 @@ export class AuditLogsService {
                 .eq('UserId', data.userId)
                 .single();
             if (error || !user) {
-                throw new Error('User not found');
+                console.warn('User not found for audit log, logging without user');
             }
         }
         const { data: newLog, error } = await supabase
-            .from('AuditLogs')
+            .from('audit_logs')
             .insert({
-            UserId: data.userId || null,
-            Action: data.action,
-            Entity: data.entity,
-            EntityId: data.entityId || null,
-            IpAddress: data.ipAddress || null,
-            UserAgent: data.userAgent || null,
-            Metadata: data.metadata ? JSON.stringify(data.metadata) : null
+            user_id: data.userId || null,
+            action: data.action,
+            entity: data.entity,
+            entity_id: data.entityId || null,
+            ip_address: data.ipAddress || null,
+            user_agent: data.userAgent || null,
+            metadata: data.metadata ? JSON.stringify(data.metadata) : null
         })
             .select()
             .single();
         if (error)
             throw new Error(error.message);
-        return newLog;
+        return this.mapDBToAuditLog(newLog);
     }
     // Get log by ID
     async getLogById(logId) {
         if (!ValidationUtils.isValidUUID(logId))
             throw new Error('Invalid log ID format');
         const { data, error } = await supabase
-            .from('AuditLogs')
+            .from('audit_logs')
             .select(`
                 *,
-                Users:UserId (FullName)
+                Users:user_id (FullName)
             `)
-            .eq('LogId', logId)
+            .eq('log_id', logId)
             .single();
         if (error) {
             if (error.code === 'PGRST116')
                 return null;
             throw new Error(error.message);
         }
-        const result = { ...data };
-        if (data.Users) {
-            result.UserName = data.Users.FullName;
-            delete result.Users;
-        }
-        return result;
+        return this.mapDBToAuditLog(data);
     }
     // Get logs by user ID
     async getLogsByUserId(userId, limit = 100, offset = 0) {
         if (!ValidationUtils.isValidUUID(userId))
             throw new Error('Invalid user ID format');
         const { data, count, error } = await supabase
-            .from('AuditLogs')
+            .from('audit_logs')
             .select('*', { count: 'exact' })
-            .eq('UserId', userId)
-            .order('CreatedAt', { ascending: false })
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
         if (error)
             throw new Error(error.message);
         return {
-            logs: data,
+            logs: (data || []).map((l) => this.mapDBToAuditLog(l)),
             total: count || 0
         };
     }
     // Get logs by entity
     async getLogsByEntity(entity, entityId, limit = 100, offset = 0) {
         let query = supabase
-            .from('AuditLogs')
+            .from('audit_logs')
             .select(`
                 *,
-                Users:UserId (FullName)
+                Users:user_id (FullName)
             `, { count: 'exact' })
-            .eq('Entity', entity);
+            .eq('entity', entity);
         if (entityId) {
-            query = query.eq('EntityId', entityId);
+            query = query.eq('entity_id', entityId);
         }
         const { data, count, error } = await query
-            .order('CreatedAt', { ascending: false })
+            .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
         if (error)
             throw new Error(error.message);
-        const logs = data?.map((log) => {
-            const result = { ...log };
-            if (log.Users) {
-                result.UserName = log.Users.FullName;
-                delete log.Users;
-            }
-            return result;
-        }) || [];
+        const logs = (data || []).map((l) => this.mapDBToAuditLog(l));
         return {
             logs,
             total: count || 0
@@ -108,38 +112,26 @@ export class AuditLogsService {
             throw new Error('Search term must be at least 2 characters');
         }
         let query = supabase
-            .from('AuditLogs')
+            .from('audit_logs')
             .select(`
                 *,
-                Users:UserId (FullName)
+                Users:user_id (FullName)
             `, { count: 'exact' });
-        // Supabase OR filter with foreign table search is tricky.
-        // We will search on local fields mainly. Searching Users.FullName via OR in Supabase JS is hard if not joined.
-        // We can use the text search syntax if enabled, but simple OR is safer: Action, Entity.
-        // For User Name, we might depend on joins filters which are stricter (AND). 
-        // Let's implement OR for local fields.
-        query = query.or(`Action.ilike.%${searchTerm}%,Entity.ilike.%${searchTerm}%`);
+        query = query.or(`action.ilike.%${searchTerm}%,entity.ilike.%${searchTerm}%`);
         if (userId)
-            query = query.eq('UserId', userId);
+            query = query.eq('user_id', userId);
         if (entity)
-            query = query.eq('Entity', entity);
+            query = query.eq('entity', entity);
         if (startDate)
-            query = query.gte('CreatedAt', startDate.toISOString());
+            query = query.gte('created_at', startDate.toISOString());
         if (endDate)
-            query = query.lte('CreatedAt', endDate.toISOString());
+            query = query.lte('created_at', endDate.toISOString());
         const { data, count, error } = await query
-            .order('CreatedAt', { ascending: false })
+            .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
         if (error)
             throw new Error(error.message);
-        const logs = data?.map((log) => {
-            const result = { ...log };
-            if (log.Users) {
-                result.UserName = log.Users.FullName;
-                delete log.Users;
-            }
-            return result;
-        }) || [];
+        const logs = (data || []).map((l) => this.mapDBToAuditLog(l));
         return {
             logs,
             total: count || 0
@@ -149,30 +141,27 @@ export class AuditLogsService {
     async getAuditStatistics(startDate, endDate) {
         try {
             // 1. Total Logs
-            let baseQuery = supabase.from('AuditLogs').select('*', { count: 'exact', head: true });
+            let baseQuery = supabase.from('audit_logs').select('*', { count: 'exact', head: true });
             if (startDate)
-                baseQuery = baseQuery.gte('CreatedAt', startDate.toISOString());
+                baseQuery = baseQuery.gte('created_at', startDate.toISOString());
             if (endDate)
-                baseQuery = baseQuery.lte('CreatedAt', endDate.toISOString());
+                baseQuery = baseQuery.lte('created_at', endDate.toISOString());
             const { count: totalLogs } = await baseQuery;
-            // For aggregation, since we can't do GROUP BY easily with JS client without downloading data,
-            // we will sample the recent data (e.g. last 1000 logs) to provide "Trends". works for small to medium apps.
-            // A better way would be creating Database Views (rpc) for stats.
             let statsQuery = supabase
-                .from('AuditLogs')
+                .from('audit_logs')
                 .select(`
-                    UserId,
-                    Action,
-                    Entity,
-                    CreatedAt,
-                    Users:UserId (FullName)
+                    user_id,
+                    action,
+                    entity,
+                    created_at,
+                    Users:user_id (FullName)
                 `)
-                .order('CreatedAt', { ascending: false })
+                .order('created_at', { ascending: false })
                 .limit(1000); // Analyze last 1000 logs for stats
             if (startDate)
-                statsQuery = statsQuery.gte('CreatedAt', startDate.toISOString());
+                statsQuery = statsQuery.gte('created_at', startDate.toISOString());
             if (endDate)
-                statsQuery = statsQuery.lte('CreatedAt', endDate.toISOString());
+                statsQuery = statsQuery.lte('created_at', endDate.toISOString());
             const { data: logs } = await statsQuery;
             if (!logs) {
                 return { totalLogs: 0, logsByUser: [], logsByEntity: [], logsByAction: [], dailyActivity: [] };
@@ -184,23 +173,23 @@ export class AuditLogsService {
             const dateMap = new Map();
             logs.forEach((log) => {
                 // By User
-                if (log.UserId) {
+                if (log.user_id) {
                     const userName = log.Users?.FullName || 'Unknown';
-                    const key = log.UserId;
+                    const key = log.user_id;
                     const existing = userMap.get(key) || { userId: key, userName, count: 0 };
                     existing.count++;
                     userMap.set(key, existing);
                 }
                 // By Entity
-                if (log.Entity) {
-                    entityMap.set(log.Entity, (entityMap.get(log.Entity) || 0) + 1);
+                if (log.entity) {
+                    entityMap.set(log.entity, (entityMap.get(log.entity) || 0) + 1);
                 }
                 // By Action
-                if (log.Action) {
-                    actionMap.set(log.Action, (actionMap.get(log.Action) || 0) + 1);
+                if (log.action) {
+                    actionMap.set(log.action, (actionMap.get(log.action) || 0) + 1);
                 }
                 // Daily Activity
-                const dateKey = new Date(log.CreatedAt).toISOString().split('T')[0];
+                const dateKey = new Date(log.created_at).toISOString().split('T')[0];
                 dateMap.set(dateKey, (dateMap.get(dateKey) || 0) + 1);
             });
             // Format results
@@ -217,7 +206,7 @@ export class AuditLogsService {
                 .slice(0, 10);
             const dailyActivity = Array.from(dateMap.entries())
                 .map(([date, count]) => ({ date, count }))
-                .sort((a, b) => b.date.localeCompare(a.date)); // Sort by date descending usually, but charts often want asc or desc. Original was desc.
+                .sort((a, b) => b.date.localeCompare(a.date));
             return {
                 totalLogs: totalLogs || 0,
                 logsByUser,
@@ -238,10 +227,10 @@ export class AuditLogsService {
         const dateThreshold = new Date();
         dateThreshold.setDate(dateThreshold.getDate() - daysToKeep);
         const { data, error } = await supabase
-            .from('AuditLogs')
+            .from('audit_logs')
             .delete()
-            .lt('CreatedAt', dateThreshold.toISOString())
-            .select('LogId'); // Select ID to count rows
+            .lt('created_at', dateThreshold.toISOString())
+            .select('log_id'); // Select ID to count rows
         if (error)
             throw new Error(error.message);
         return data?.length || 0;

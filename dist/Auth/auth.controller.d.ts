@@ -5,9 +5,9 @@ export declare const register: (c: Context) => Promise<(Response & import("hono"
     data: {
         user: {
             IsActive: boolean;
-            CreatedAt: string;
             UserId: string;
             FullName: string;
+            CreatedAt: string;
             Role: "TENANT" | "AGENT" | "ADMIN";
             AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
             Email: string;
@@ -48,9 +48,9 @@ export declare const login: (c: Context) => Promise<(Response & import("hono").T
     data: {
         user: {
             IsActive: boolean;
-            CreatedAt: string;
             UserId: string;
             FullName: string;
+            CreatedAt: string;
             Role: "TENANT" | "AGENT" | "ADMIN";
             AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
             Email: string;
@@ -186,9 +186,9 @@ export declare const getAuthProfile: (c: Context) => Promise<(Response & import(
     success: true;
     data: {
         IsActive: boolean;
-        CreatedAt: string;
         UserId: string;
         FullName: string;
+        CreatedAt: string;
         Role: "TENANT" | "AGENT" | "ADMIN";
         AgentStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
         Email: string;

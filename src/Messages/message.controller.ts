@@ -14,7 +14,7 @@ export const getOrCreateConversation = async (c: AuthContext) => {
         const property = await propertiesService.getPropertyById(propertyId);
         if (!property) return c.json({ success: false, error: 'Property not found' }, 404);
 
-        const agentId = property.OwnerId;
+        const agentId = property.owner_id;
 
         // If user is the agent, they shouldn't start a conversation with themselves
         if (userId === agentId) {
