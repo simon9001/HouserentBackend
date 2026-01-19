@@ -27,6 +27,7 @@ app.use('*', cors({
     origin: [
         'https://getkeja.netlify.app',
         'http://localhost:5173',
+        'https://www.getkeja.online'
     ],
     allowHeaders: ['Content-Type', 'Authorization'],
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
