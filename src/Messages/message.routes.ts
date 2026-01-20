@@ -7,18 +7,28 @@ const messageRoutes = new Hono();
 // All messaging routes require authentication
 messageRoutes.use('*', authenticate);
 
-// Conversation management
+// Get user conversations
 messageRoutes.get('/conversations', messageController.getUserConversations);
+
+// Get or create conversation
 messageRoutes.post('/conversation', messageController.getOrCreateConversation);
 
-// Advanced Conversation management
+// Get messages for a conversation
+messageRoutes.get('/:conversationId', messageController.getMessages);
+
+// Send message
+messageRoutes.post('/:conversationId', messageController.sendMessage);
+
+// Archive conversation
 messageRoutes.post('/:conversationId/archive', messageController.toggleArchive);
+
+// Block conversation
 messageRoutes.post('/:conversationId/block', messageController.toggleBlock);
 
-// Message management
-messageRoutes.get('/:conversationId', messageController.getMessages);
-messageRoutes.post('/:conversationId', messageController.sendMessage);
+// Delete message
 messageRoutes.delete('/message/:messageId', messageController.deleteMessage);
+
+// Add reaction to message
 messageRoutes.post('/message/:messageId/reaction', messageController.addReaction);
 
 export default messageRoutes;

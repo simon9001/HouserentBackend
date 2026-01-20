@@ -38,6 +38,12 @@ export interface SessionData {
     lastAccessedAt: Date;
 }
 
+export interface VerificationResult {
+    success: boolean;
+    email?: string;
+    message?: string;
+}
+
 export class AuthService {
 
     // Helper method to hash tokens for storage
@@ -107,7 +113,7 @@ export class AuthService {
         }
     }
 
-    // Login user
+    // Login user - UPDATED with email verification check
     async login(data: LoginInput): Promise<AuthResponse> {
         // Check if account is locked
         const { data: users, error } = await supabase
@@ -125,6 +131,13 @@ export class AuthService {
         // Check if account is locked
         if (user.LockedUntil && new Date(user.LockedUntil) > new Date()) {
             throw new Error('Account is temporarily locked. Please try again later.');
+        }
+
+        // Check if email is verified - IMPORTANT SECURITY CHECK
+        if (!user.IsEmailVerified) {
+            // Log the attempt
+            console.log('❌ Login attempt with unverified email:', user.Email);
+            throw new Error('Please verify your email before logging in. Check your email inbox or click the resend verification link.');
         }
 
         // Verify password
@@ -166,7 +179,7 @@ export class AuthService {
         };
     }
 
-    // Refresh token
+    // Refresh token - UPDATED with email verification check
     async refreshToken(refreshToken: string): Promise<{
         accessToken: string;
         refreshToken: string;
@@ -176,6 +189,14 @@ export class AuthService {
         const payload = JWTUtils.verifyRefreshToken(refreshToken);
         if (!payload) {
             throw new Error('Invalid refresh token');
+        }
+
+        // Check if user email is verified when refreshing token
+        // This prevents bypassing email verification through token refresh
+        const user = await usersService.getUserById(payload.userId);
+        if (user && !user.IsEmailVerified) {
+            console.log('❌ Token refresh attempt for unverified user:', user.Email);
+            throw new Error('Please verify your email to access your account');
         }
 
         // Hash the token to compare with database
@@ -227,42 +248,59 @@ export class AuthService {
         await query;
     }
 
-    // Verify email
-    async verifyEmail(token: string): Promise<boolean> {
-        // Verify token
-        const payload = JWTUtils.verifyEmailVerificationToken(token);
-        if (!payload) {
-            throw new Error('Invalid or expired verification token');
+    // Verify email - UPDATED to return VerificationResult
+    async verifyEmail(token: string): Promise<VerificationResult> {
+        try {
+            // Verify token
+            const payload = JWTUtils.verifyEmailVerificationToken(token);
+            if (!payload) {
+                throw new Error('Invalid or expired verification token');
+            }
+
+            // Check if token exists in database
+            const { data: tokens, error } = await supabase
+                .from('email_verification_tokens') // snake_case
+                .select('*')
+                .eq('verification_token', token) // snake_case
+                .eq('is_used', false) // snake_case
+                .gt('expires_at', new Date().toISOString());
+
+            if (error || !tokens || tokens.length === 0) {
+                throw new Error('Invalid or expired verification token');
+            }
+
+            const verificationRecord = tokens[0];
+
+            // Mark token as used
+            await supabase
+                .from('email_verification_tokens')
+                .update({ is_used: true })
+                .eq('token_id', verificationRecord.token_id);
+
+            // Update user email verification status
+            const { error: userError } = await supabase
+                .from('Users') // PascalCase Users
+                .update({ IsEmailVerified: true }) // PascalCase
+                .eq('Email', payload.email); // PascalCase
+
+            if (userError) {
+                throw new Error('Failed to update user verification status');
+            }
+
+            console.log('✅ Email verified successfully for:', payload.email);
+            return {
+                success: true,
+                email: payload.email,
+                message: 'Email verified successfully'
+            };
+
+        } catch (error: any) {
+            console.error('🔥 Error verifying email:', error.message);
+            return {
+                success: false,
+                message: error.message || 'Email verification failed'
+            };
         }
-
-        // Check if token exists in database
-        const { data: tokens, error } = await supabase
-            .from('email_verification_tokens') // snake_case
-            .select('*')
-            .eq('verification_token', token) // snake_case
-            .eq('is_used', false) // snake_case
-            .gt('expires_at', new Date().toISOString());
-
-        if (error || !tokens || tokens.length === 0) {
-            throw new Error('Invalid or expired verification token');
-        }
-
-        const verificationRecord = tokens[0];
-
-        // Mark token as used
-        await supabase
-            .from('email_verification_tokens')
-            .update({ is_used: true })
-            .eq('token_id', verificationRecord.token_id);
-
-        // Update user email verification status
-        // Using email from payload is safer if the token is valid
-        const { error: userError } = await supabase
-            .from('Users') // PascalCase Users
-            .update({ IsEmailVerified: true }) // PascalCase
-            .eq('Email', payload.email); // PascalCase
-
-        return !userError;
     }
 
     // Request password reset
@@ -298,40 +336,49 @@ export class AuthService {
         await EmailUtils.sendPasswordResetEmail(email, resetToken);
     }
 
-    // Reset password
-    async resetPassword(token: string, newPassword: string): Promise<boolean> {
-        // Verify token
-        const payload = JWTUtils.verifyPasswordResetToken(token);
-        if (!payload) {
-            throw new Error('Invalid or expired reset token');
-        }
+    // Reset password - UPDATED to return VerificationResult
+    async resetPassword(token: string, newPassword: string): Promise<VerificationResult> {
+        try {
+            // Verify token
+            const payload = JWTUtils.verifyPasswordResetToken(token);
+            if (!payload) {
+                throw new Error('Invalid or expired reset token');
+            }
 
-        // Hash the token to compare with database
-        const tokenHash = this.hashTokenForStorage(token);
+            // Hash the token to compare with database
+            const tokenHash = this.hashTokenForStorage(token);
 
-        const { data: tokens, error } = await supabase
-            .from('password_reset_tokens') // snake_case
-            .select('*')
-            .eq('token_hash', tokenHash)
-            .eq('is_used', false)
-            .gt('expires_at', new Date().toISOString());
+            const { data: tokens, error } = await supabase
+                .from('password_reset_tokens') // snake_case
+                .select('*')
+                .eq('token_hash', tokenHash)
+                .eq('is_used', false)
+                .gt('expires_at', new Date().toISOString());
 
-        if (error || !tokens || tokens.length === 0) {
-            throw new Error('Invalid or expired reset token');
-        }
+            if (error || !tokens || tokens.length === 0) {
+                throw new Error('Invalid or expired reset token');
+            }
 
-        const resetRecord = tokens[0];
+            const resetRecord = tokens[0];
 
-        // Validate new password
-        const passwordValidation = UserValidators.validatePassword(newPassword);
-        if (!passwordValidation.isValid) {
-            throw new Error(passwordValidation.error);
-        }
+            // Validate new password
+            const passwordValidation = UserValidators.validatePassword(newPassword);
+            if (!passwordValidation.isValid) {
+                throw new Error(passwordValidation.error);
+            }
 
-        // Update user password
-        const success = await usersService.updateUserPassword(payload.userId, newPassword);
+            // Add password length validation
+            if (newPassword.length > 100) {
+                throw new Error('Password must be 100 characters or less');
+            }
 
-        if (success) {
+            // Update user password
+            const success = await usersService.updateUserPassword(payload.userId, newPassword);
+
+            if (!success) {
+                throw new Error('Failed to update password');
+            }
+
             // Mark token as used
             await supabase
                 .from('password_reset_tokens')
@@ -340,9 +387,25 @@ export class AuthService {
 
             // Logout all sessions for security
             await this.logout(payload.userId);
-        }
 
-        return success;
+            // Get user email for response
+            const user = await usersService.getUserById(payload.userId);
+            const userEmail = user?.Email || '';
+
+            console.log('✅ Password reset successfully for:', userEmail);
+            return {
+                success: true,
+                email: userEmail,
+                message: 'Password reset successfully'
+            };
+
+        } catch (error: any) {
+            console.error('🔥 Error resetting password:', error.message);
+            return {
+                success: false,
+                message: error.message || 'Password reset failed'
+            };
+        }
     }
 
     // Get user sessions
@@ -444,7 +507,7 @@ export class AuthService {
             });
     }
 
-    // Change password (authenticated user)
+    // Change password (authenticated user) - UPDATED with password length validation
     async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<boolean> {
         // Get user with password hash
         const user = await usersService.getUserById(userId);
@@ -462,30 +525,57 @@ export class AuthService {
             throw new Error('Current password is incorrect');
         }
 
+        // Add password length validation
+        if (newPassword.length > 100) {
+            throw new Error('New password must be 100 characters or less');
+        }
+
         // Update password
         return await usersService.updateUserPassword(userId, newPassword);
     }
 
-    // Resend verification email
-    async resendVerificationEmail(email: string): Promise<void> {
-        const user = await usersService.getUserByEmail(email);
-        if (!user) {
-            // Don't reveal that user doesn't exist
-            return;
+    // Resend verification email - UPDATED to return VerificationResult
+    async resendVerificationEmail(email: string): Promise<VerificationResult> {
+        try {
+            const user = await usersService.getUserByEmail(email);
+            if (!user) {
+                // Don't reveal that user doesn't exist
+                return {
+                    success: true,
+                    message: 'If an account exists with this email and is not verified, a new verification email has been sent'
+                };
+            }
+
+            if (user.IsEmailVerified) {
+                return {
+                    success: false,
+                    message: 'Email is already verified'
+                };
+            }
+
+            // Generate new verification token
+            const verificationToken = JWTUtils.generateEmailVerificationToken(user.Email);
+
+            // Save new token
+            await this.saveEmailVerificationToken(user.UserId, verificationToken);
+
+            // Send email
+            await EmailUtils.sendVerificationEmail(user.Email, verificationToken);
+
+            console.log('✅ Verification email resent to:', user.Email);
+            return {
+                success: true,
+                email: user.Email,
+                message: 'Verification email sent successfully'
+            };
+
+        } catch (error: any) {
+            console.error('🔥 Error resending verification email:', error.message);
+            return {
+                success: true,
+                message: 'If an account exists with this email and is not verified, a new verification email has been sent'
+            };
         }
-
-        if (user.IsEmailVerified) {
-            throw new Error('Email is already verified');
-        }
-
-        // Generate new verification token
-        const verificationToken = JWTUtils.generateEmailVerificationToken(user.Email);
-
-        // Save new token
-        await this.saveEmailVerificationToken(user.UserId, verificationToken);
-
-        // Send email
-        await EmailUtils.sendVerificationEmail(user.Email, verificationToken);
     }
 
     // Get auth user profile
@@ -569,6 +659,32 @@ export class AuthService {
         } catch (error: any) {
             console.error('Error testing JWT generation:', error.message);
             throw error;
+        }
+    }
+
+    // NEW: Get user by email for verification flows
+    async getUserByEmail(email: string): Promise<Pick<User, 'UserId' | 'Email' | 'Username' | 'IsEmailVerified'> | null> {
+        try {
+            const { data, error } = await supabase
+                .from('Users')
+                .select('UserId, Email, Username, IsEmailVerified')
+                .eq('Email', email)
+                .eq('IsActive', true)
+                .single();
+
+            if (error || !data) {
+                return null;
+            }
+
+            return {
+                UserId: data.UserId,
+                Email: data.Email,
+                Username: data.Username,
+                IsEmailVerified: data.IsEmailVerified
+            };
+        } catch (error) {
+            console.error('Error getting user by email:', error);
+            return null;
         }
     }
 }
