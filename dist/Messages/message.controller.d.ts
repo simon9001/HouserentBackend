@@ -13,6 +13,7 @@ export declare const getOrCreateConversation: (c: AuthContext) => Promise<(Respo
     data: {
         ConversationId: string;
     };
+    message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
@@ -45,7 +46,9 @@ export declare const getUserConversations: (c: AuthContext) => Promise<(Response
         BlockReason?: string | undefined;
         UserRoleInConversation?: "AGENT" | "TENANT" | undefined;
         UnreadCountForUser?: number | undefined;
+        CreatedAt: string;
     }[];
+    count: number;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
@@ -54,6 +57,9 @@ export declare const getMessages: (c: AuthContext) => Promise<(Response & import
     success: false;
     error: string;
 }, 401, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     data: {
         MessageId: string;
@@ -78,12 +84,13 @@ export declare const getMessages: (c: AuthContext) => Promise<(Response & import
         DeletedAt?: string | undefined;
         DeletedBy?: string | undefined;
         HasUserReacted?: boolean | undefined;
-        Reactions?: string | {
+        Reactions?: {
             ReactionType: string;
             UserName: string;
             UserAvatar?: string | undefined;
         }[] | undefined;
     }[];
+    count: number;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
@@ -119,12 +126,13 @@ export declare const sendMessage: (c: AuthContext) => Promise<(Response & import
         DeletedAt?: string | undefined;
         DeletedBy?: string | undefined;
         HasUserReacted?: boolean | undefined;
-        Reactions?: string | {
+        Reactions?: {
             ReactionType: string;
             UserName: string;
             UserAvatar?: string | undefined;
         }[] | undefined;
     };
+    message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
@@ -165,6 +173,7 @@ export declare const addReaction: (c: AuthContext) => Promise<(Response & import
 }, 401, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     action: string;
+    message: string;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;

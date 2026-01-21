@@ -1,84 +1,74 @@
 import { supabase } from '../Database/config.js';
 import { ValidationUtils } from '../utils/validators.js';
 export class MessageService {
-    // Helper to map DB result to Conversation interface
-    mapDBToConversation(data) {
-        if (!data)
-            return data;
-        // Process property image
-        let propertyImage = null;
-        if (data.properties?.images) { // properties joined as snake_case -> properties.images (assuming properties table is snake_case properties, column images)
-            // But properties table usually has `images` as array or string
-            // Wait, properties table cols are `images` (snake_case).
-            const imgs = typeof data.properties.images === 'string' ? JSON.parse(data.properties.images) : data.properties.images;
-            propertyImage = Array.isArray(imgs) ? imgs[0] : imgs;
-        }
+    // Map database conversation to frontend interface
+    async mapDBToConversation(dbData) {
         return {
-            ConversationId: data.conversation_id,
-            PropertyId: data.property_id,
-            AgentId: data.agent_id,
-            TenantId: data.tenant_id,
-            PropertyTitle: data.properties?.title,
-            RentAmount: data.properties?.rent_amount,
-            PropertyImage: propertyImage,
-            AgentName: data.agents?.FullName, // Joined Users table (PascalCase) -> Agents alias
-            AgentAvatar: data.agents?.AvatarUrl,
-            TenantName: data.tenants?.FullName,
-            TenantAvatar: data.tenants?.AvatarUrl,
-            LastMessageAt: data.last_message_at,
-            LastMessagePreview: data.last_message_preview,
-            UnreadCountForTenant: data.unread_count_for_tenant || 0,
-            UnreadCountForAgent: data.unread_count_for_agent || 0,
-            IsArchivedByTenant: data.is_archived_by_tenant || false,
-            IsArchivedByAgent: data.is_archived_by_agent || false,
-            IsBlocked: data.is_blocked || false,
-            BlockedBy: data.blocked_by,
-            BlockReason: data.block_reason
+            ConversationId: dbData.conversation_id,
+            PropertyId: dbData.property_id,
+            AgentId: dbData.agent_id,
+            TenantId: dbData.user_id,
+            PropertyTitle: dbData.property?.title || '',
+            RentAmount: dbData.property?.rent_amount || 0,
+            PropertyImage: dbData.property_image,
+            AgentName: dbData.agent_name || 'Unknown Agent',
+            AgentAvatar: dbData.agent_avatar,
+            TenantName: dbData.tenant_name || 'Unknown Tenant',
+            TenantAvatar: dbData.tenant_avatar,
+            LastMessageAt: dbData.last_message_at,
+            LastMessagePreview: dbData.last_message_preview,
+            UnreadCountForTenant: dbData.unread_count_for_tenant || 0,
+            UnreadCountForAgent: dbData.unread_count_for_agent || 0,
+            IsArchivedByTenant: dbData.is_archived_by_tenant || false,
+            IsArchivedByAgent: dbData.is_archived_by_agent || false,
+            IsBlocked: dbData.is_blocked || false,
+            BlockedBy: dbData.blocked_by,
+            BlockReason: dbData.block_reason,
+            CreatedAt: dbData.created_at
         };
     }
-    // Helper to map DB result to Message interface
-    mapDBToMessage(data) {
-        if (!data)
-            return data;
+    // Map database message to frontend interface
+    mapDBToMessage(dbData) {
         return {
-            MessageId: data.message_id,
-            ConversationId: data.conversation_id,
-            SenderId: data.sender_id,
-            Content: data.content,
-            MessageType: data.message_type,
-            MediaUrl: data.media_url,
-            ThumbnailUrl: data.thumbnail_url,
-            FileName: data.file_name,
-            FileSize: data.file_size,
-            MimeType: data.mime_type,
-            CreatedAt: data.created_at,
-            ReadAt: data.read_at,
-            DeliveredAt: data.delivered_at,
-            IsEdited: data.is_edited,
-            EditedAt: data.edited_at,
-            IsDeleted: data.is_deleted,
-            DeletedAt: data.deleted_at,
-            DeletedBy: data.deleted_by,
-            SenderName: data.senders?.FullName,
-            SenderAvatar: data.senders?.AvatarUrl,
-            SenderRole: data.senders?.Role,
-            Reactions: data.reactions ? (typeof data.reactions === 'string' ? JSON.parse(data.reactions) : data.reactions) : []
+            MessageId: dbData.message_id,
+            ConversationId: dbData.conversation_id,
+            SenderId: dbData.sender_id,
+            Content: dbData.content,
+            MessageType: (dbData.message_type || 'TEXT'),
+            MediaUrl: dbData.media_url,
+            ThumbnailUrl: dbData.thumbnail_url,
+            FileName: dbData.file_name,
+            FileSize: dbData.file_size,
+            MimeType: dbData.mime_type,
+            CreatedAt: dbData.created_at,
+            ReadAt: dbData.read_at,
+            DeliveredAt: dbData.delivered_at,
+            IsEdited: dbData.is_edited,
+            EditedAt: dbData.edited_at,
+            IsDeleted: dbData.is_deleted,
+            DeletedAt: dbData.deleted_at,
+            DeletedBy: dbData.deleted_by,
+            SenderName: dbData.sender_name,
+            SenderAvatar: dbData.sender_avatar,
+            SenderRole: dbData.sender_role
         };
     }
+    // Get or create conversation
     async getOrCreateConversation(propertyId, agentId, userId, initialMessage, messageType) {
+        console.log('Creating conversation:', { propertyId, agentId, userId, initialMessage });
         if (!ValidationUtils.isValidUUID(propertyId) || !ValidationUtils.isValidUUID(agentId) || !ValidationUtils.isValidUUID(userId)) {
             throw new Error('Invalid ID format');
         }
-        // Check for existing conversation
+        // Check existing conversation
         const { data: existing } = await supabase
             .from('conversations')
             .select('conversation_id')
             .eq('property_id', propertyId)
             .eq('agent_id', agentId)
-            .eq('tenant_id', userId)
-            .single();
+            .eq('user_id', userId)
+            .maybeSingle();
         if (existing) {
-            // If initial message provided, send it
+            console.log('Existing conversation found:', existing.conversation_id);
             if (initialMessage) {
                 await this.sendMessage({
                     conversationId: existing.conversation_id,
@@ -90,254 +80,384 @@ export class MessageService {
             return { ConversationId: existing.conversation_id };
         }
         // Create new conversation
-        const { data: newConv, error: createError } = await supabase
+        const { data: newConversation, error: createError } = await supabase
             .from('conversations')
             .insert({
             property_id: propertyId,
             agent_id: agentId,
-            tenant_id: userId,
+            user_id: userId,
             last_message_at: new Date().toISOString(),
-            last_message_preview: initialMessage || 'Started conversation'
+            last_message_preview: initialMessage ? initialMessage.substring(0, 200) : 'Started conversation',
+            unread_count_for_tenant: 1,
+            unread_count_for_agent: 0,
+            is_archived_by_tenant: false,
+            is_archived_by_agent: false,
+            is_blocked: false,
+            created_at: new Date().toISOString()
         })
             .select('conversation_id')
             .single();
-        if (createError)
-            throw new Error(createError.message);
-        // If initial message provided, send it
+        if (createError) {
+            console.error('Error creating conversation:', createError);
+            throw new Error(`Failed to create conversation: ${createError.message}`);
+        }
+        console.log('New conversation created:', newConversation.conversation_id);
         if (initialMessage) {
             await this.sendMessage({
-                conversationId: newConv.conversation_id,
+                conversationId: newConversation.conversation_id,
                 senderId: userId,
                 content: initialMessage,
                 messageType: messageType || 'TEXT'
             });
         }
-        return { ConversationId: newConv.conversation_id };
+        return { ConversationId: newConversation.conversation_id };
     }
-    async getConversationById(conversationId) {
-        if (!ValidationUtils.isValidUUID(conversationId))
-            return null;
-        // Simulate `vw_ConversationDetails` with joins
-        // agents and tenants are aliases for Users table via FKs usually named agent_id, tenant_id
-        const { data, error } = await supabase
-            .from('conversations')
-            .select(`
-                *,
-                properties:property_id (title, rent_amount, images),
-                agents:agent_id!inner (FullName, AvatarUrl),
-                tenants:tenant_id!inner (FullName, AvatarUrl)
-            `)
-            .eq('conversation_id', conversationId)
-            .single();
-        if (error) {
-            if (error.code === 'PGRST116')
-                return null;
-            throw error;
-        }
-        return this.mapDBToConversation(data);
-    }
+    // Get user conversations - USING THE VIEW YOU CREATED
     async getUserConversations(userId, role, includeArchived = false) {
+        console.log('Getting conversations for user:', userId, 'role:', role);
         if (!ValidationUtils.isValidUUID(userId))
             return [];
+        // USE THE DATABASE VIEW vw_conversation_list
         let query = supabase
-            .from('conversations')
-            .select(`
-                *,
-                properties:property_id (title, rent_amount, images),
-                agents:agent_id!inner (FullName, AvatarUrl),
-                tenants:tenant_id!inner (FullName, AvatarUrl)
-            `)
+            .from('vw_conversation_list')
+            .select('*')
             .order('last_message_at', { ascending: false });
+        // Apply filters
         if (role === 'AGENT') {
             query = query.eq('agent_id', userId);
-            if (!includeArchived)
+            if (!includeArchived) {
                 query = query.eq('is_archived_by_agent', false);
+            }
         }
         else if (role === 'TENANT') {
             query = query.eq('tenant_id', userId);
-            if (!includeArchived)
+            if (!includeArchived) {
                 query = query.eq('is_archived_by_tenant', false);
+            }
         }
         else {
-            // Check both columns
+            // Get all conversations where user is either agent or tenant
             query = query.or(`agent_id.eq.${userId},tenant_id.eq.${userId}`);
         }
         const { data, error } = await query;
-        if (error)
-            throw error;
-        return data.map((d) => {
-            const mapped = this.mapDBToConversation(d);
-            // Determine user role and unread count dynamically
-            const userRoleInConv = d.agent_id === userId ? 'AGENT' : 'TENANT';
-            const unreadCount = userRoleInConv === 'AGENT' ? (d.unread_count_for_agent || 0) : (d.unread_count_for_tenant || 0);
-            mapped.UserRoleInConversation = userRoleInConv;
-            mapped.UnreadCountForUser = unreadCount;
-            return mapped;
-        });
-    }
-    async sendMessage(params) {
-        // Insert message
-        const { data: message, error } = await supabase
-            .from('messages')
-            .insert({
-            conversation_id: params.conversationId,
-            sender_id: params.senderId,
-            content: params.content,
-            message_type: params.messageType || 'TEXT',
-            media_url: params.mediaUrl,
-            thumbnail_url: params.thumbnailUrl,
-            file_name: params.fileName,
-            file_size: params.fileSize,
-            mime_type: params.mimeType,
-            created_at: new Date().toISOString(),
-            is_deleted: false,
-            is_edited: false
-        })
-            .select('*')
-            .single();
-        if (error)
-            throw error;
-        // Update conversation LastMessageAt, LastMessagePreview, and increment unread counts
-        const { data: conv } = await supabase.from('conversations').select('agent_id, tenant_id').eq('conversation_id', params.conversationId).single();
-        if (conv) {
-            const updates = {
-                last_message_at: new Date().toISOString(),
-                last_message_preview: params.messageType === 'TEXT' ? params.content : `Sent a ${params.messageType?.toLowerCase()}`
-            };
-            // If sender is Agent, increment Tenant unread. If sender is Tenant, increment Agent unread.
-            if (params.senderId === conv.agent_id) {
-                const { data: current } = await supabase.from('conversations').select('unread_count_for_tenant').eq('conversation_id', params.conversationId).single();
-                if (current) {
-                    updates.unread_count_for_tenant = (current.unread_count_for_tenant || 0) + 1;
-                }
-            }
-            else {
-                const { data: current } = await supabase.from('conversations').select('unread_count_for_agent').eq('conversation_id', params.conversationId).single();
-                if (current) {
-                    updates.unread_count_for_agent = (current.unread_count_for_agent || 0) + 1;
-                }
-            }
-            await supabase.from('conversations').update(updates).eq('conversation_id', params.conversationId);
+        if (error) {
+            console.error('Error fetching conversations:', error);
+            throw new Error(`Failed to fetch conversations: ${error.message}`);
         }
-        return this.mapDBToMessage(message);
+        console.log(`Found ${data?.length || 0} conversations`);
+        // Map and enhance conversations
+        const conversations = await Promise.all((data || []).map(async (dbConv) => {
+            const conversation = await this.mapDBToConversation(dbConv);
+            // Determine user's role
+            const isAgent = dbConv.agent_id === userId;
+            conversation.UserRoleInConversation = isAgent ? 'AGENT' : 'TENANT';
+            // Set unread count for user
+            conversation.UnreadCountForUser = isAgent
+                ? dbConv.unread_count_for_agent
+                : dbConv.unread_count_for_tenant;
+            return conversation;
+        }));
+        return conversations;
     }
+    // Get messages for a conversation
     async getMessages(conversationId, userId, beforeMessageId) {
+        console.log('Getting messages for conversation:', conversationId);
         if (!ValidationUtils.isValidUUID(conversationId))
             return [];
-        // 1. Mark as read
-        const { data: conv } = await supabase.from('conversations').select('agent_id, tenant_id').eq('conversation_id', conversationId).single();
-        if (conv) {
+        try {
+            // Mark as read for this user
+            await this.markMessagesAsRead(conversationId, userId);
+            // Fetch messages with sender info using PROPER JOIN syntax
+            let query = supabase
+                .from('messages')
+                .select(`
+                    *,
+                    sender:sender_id (
+                        "FullName",
+                        "AvatarUrl",
+                        "Role"
+                    )
+                `)
+                .eq('conversation_id', conversationId)
+                .eq('is_deleted', false)
+                .order('created_at', { ascending: true })
+                .limit(100);
+            if (beforeMessageId) {
+                const { data: beforeMsg } = await supabase
+                    .from('messages')
+                    .select('created_at')
+                    .eq('message_id', beforeMessageId)
+                    .single();
+                if (beforeMsg) {
+                    query = query.lt('created_at', beforeMsg.created_at);
+                }
+            }
+            const { data: messages, error } = await query;
+            if (error) {
+                console.error('Supabase error:', error);
+                throw new Error(`Failed to fetch messages: ${error.message}`);
+            }
+            console.log(`Found ${messages?.length || 0} messages`);
+            // Get reactions for each message
+            const messagesWithReactions = await Promise.all((messages || []).map(async (msg) => {
+                const message = this.mapDBToMessage({
+                    ...msg,
+                    sender_name: msg.sender?.FullName,
+                    sender_avatar: msg.sender?.AvatarUrl,
+                    sender_role: msg.sender?.Role
+                });
+                // Get reactions
+                const { data: reactions } = await supabase
+                    .from('message_reactions')
+                    .select(`
+                            reaction_type,
+                            user:user_id (
+                                "FullName",
+                                "AvatarUrl"
+                            )
+                        `)
+                    .eq('message_id', msg.message_id);
+                message.Reactions = (reactions || []).map((reaction) => ({
+                    ReactionType: reaction.reaction_type,
+                    UserName: reaction.user?.FullName || 'Unknown',
+                    UserAvatar: reaction.user?.AvatarUrl
+                }));
+                return message;
+            }));
+            return messagesWithReactions;
+        }
+        catch (error) {
+            console.error('Error fetching messages:', error);
+            throw error;
+        }
+    }
+    // Send a message
+    async sendMessage(params) {
+        console.log('Sending message:', params);
+        try {
+            // Validate conversation exists
+            const { data: conversation } = await supabase
+                .from('conversations')
+                .select('agent_id, user_id, is_blocked, unread_count_for_tenant')
+                .eq('conversation_id', params.conversationId)
+                .single();
+            if (!conversation) {
+                throw new Error('Conversation not found');
+            }
+            if (conversation.is_blocked) {
+                throw new Error('This conversation is blocked');
+            }
+            // Insert message
+            const { data: message, error: insertError } = await supabase
+                .from('messages')
+                .insert({
+                conversation_id: params.conversationId,
+                sender_id: params.senderId,
+                content: params.content,
+                message_type: params.messageType || 'TEXT',
+                media_url: params.mediaUrl,
+                thumbnail_url: params.thumbnailUrl,
+                file_name: params.fileName,
+                file_size: params.fileSize,
+                mime_type: params.mimeType,
+                created_at: new Date().toISOString(),
+                delivered_at: new Date().toISOString(),
+                is_edited: false,
+                is_deleted: false
+            })
+                .select(`
+                    *,
+                    sender:sender_id (
+                        "FullName",
+                        "AvatarUrl",
+                        "Role"
+                    )
+                `)
+                .single();
+            if (insertError) {
+                console.error('Insert error:', insertError);
+                throw new Error(`Failed to send message: ${insertError.message}`);
+            }
+            // Update conversation
+            const updates = {
+                last_message_at: new Date().toISOString(),
+                last_message_preview: params.content.substring(0, 200)
+            };
+            // Update unread count
+            if (params.senderId === conversation.agent_id) {
+                // Sender is agent, increment tenant's unread count
+                updates.unread_count_for_tenant = (conversation.unread_count_for_tenant || 0) + 1;
+            }
+            else {
+                // Sender is tenant, increment agent's unread count
+                updates.unread_count_for_agent = (conversation.unread_count_for_tenant || 0) + 1;
+            }
+            await supabase
+                .from('conversations')
+                .update(updates)
+                .eq('conversation_id', params.conversationId);
+            console.log('Message sent successfully');
+            return this.mapDBToMessage({
+                ...message,
+                sender_name: message.sender?.FullName,
+                sender_avatar: message.sender?.AvatarUrl,
+                sender_role: message.sender?.Role
+            });
+        }
+        catch (error) {
+            console.error('Error sending message:', error);
+            throw error;
+        }
+    }
+    // Mark messages as read
+    async markMessagesAsRead(conversationId, userId) {
+        try {
+            const { data: conversation } = await supabase
+                .from('conversations')
+                .select('agent_id, user_id')
+                .eq('conversation_id', conversationId)
+                .single();
+            if (!conversation)
+                return;
             const updates = {};
-            if (userId === conv.agent_id) {
+            if (userId === conversation.agent_id) {
                 updates.unread_count_for_agent = 0;
             }
-            else if (userId === conv.tenant_id) {
+            else if (userId === conversation.user_id) {
                 updates.unread_count_for_tenant = 0;
             }
             if (Object.keys(updates).length > 0) {
-                await supabase.from('conversations').update(updates).eq('conversation_id', conversationId);
+                await supabase
+                    .from('conversations')
+                    .update(updates)
+                    .eq('conversation_id', conversationId);
             }
+            // Mark all messages as read
+            await supabase
+                .from('messages')
+                .update({ read_at: new Date().toISOString() })
+                .eq('conversation_id', conversationId)
+                .neq('sender_id', userId) // Only mark messages not sent by user as read
+                .is('read_at', null);
         }
-        // 2. Fetch messages
-        let query = supabase
-            .from('messages')
-            .select(`
-                *,
-                senders:sender_id (FullName, AvatarUrl, Role)
-            `)
-            .eq('conversation_id', conversationId)
-            .order('created_at', { ascending: false })
-            .limit(50);
-        if (beforeMessageId) {
-            const { data: beforeMsg } = await supabase.from('messages').select('created_at').eq('message_id', beforeMessageId).single();
-            if (beforeMsg) {
-                query = query.lt('created_at', beforeMsg.created_at);
-            }
+        catch (error) {
+            console.error('Error marking messages as read:', error);
         }
-        const { data, error } = await query;
-        if (error) {
-            console.error('❌ Error in getMessages:', error);
-            throw error;
-        }
-        return data.map((msg) => this.mapDBToMessage(msg));
     }
-    async markAsRead(conversationId, userId) {
-        if (!ValidationUtils.isValidUUID(conversationId) || !ValidationUtils.isValidUUID(userId))
-            return 0;
-        const { data: conv } = await supabase.from('conversations').select('agent_id, tenant_id').eq('conversation_id', conversationId).single();
-        if (!conv)
-            return 0;
-        const updates = {};
-        if (userId === conv.agent_id) {
-            updates.unread_count_for_agent = 0;
-        }
-        else if (userId === conv.tenant_id) {
-            updates.unread_count_for_tenant = 0;
-        }
-        else {
-            return 0; // Not a participant
-        }
-        const { error } = await supabase.from('conversations').update(updates).eq('conversation_id', conversationId);
-        if (error)
-            throw error;
-        return 1;
-    }
+    // Toggle archive
     async toggleArchive(conversationId, userId, archive) {
-        const { data: conv } = await supabase.from('conversations').select('agent_id, tenant_id').eq('conversation_id', conversationId).single();
-        if (!conv)
-            throw new Error('Conversation not found');
-        const updates = {};
-        if (userId === conv.agent_id) {
-            updates.is_archived_by_agent = archive;
+        try {
+            const { data: conversation } = await supabase
+                .from('conversations')
+                .select('agent_id, user_id')
+                .eq('conversation_id', conversationId)
+                .single();
+            if (!conversation)
+                throw new Error('Conversation not found');
+            const updates = {};
+            if (userId === conversation.agent_id) {
+                updates.is_archived_by_agent = archive;
+            }
+            else if (userId === conversation.user_id) {
+                updates.is_archived_by_tenant = archive;
+            }
+            else {
+                throw new Error('User is not a participant');
+            }
+            await supabase
+                .from('conversations')
+                .update(updates)
+                .eq('conversation_id', conversationId);
         }
-        else if (userId === conv.tenant_id) {
-            updates.is_archived_by_tenant = archive;
+        catch (error) {
+            console.error('Error toggling archive:', error);
+            throw error;
         }
-        else {
-            throw new Error('User is not a participant');
-        }
-        await supabase.from('conversations').update(updates).eq('conversation_id', conversationId);
     }
+    // Toggle block
     async toggleBlock(conversationId, userId, block, reason) {
-        const updates = {
-            is_blocked: block,
-            blocked_by: block ? userId : null,
-            block_reason: block ? reason : null
-        };
-        await supabase.from('conversations').update(updates).eq('conversation_id', conversationId);
+        try {
+            const updates = {
+                is_blocked: block,
+                blocked_by: block ? userId : null,
+                block_reason: block ? reason : null
+            };
+            await supabase
+                .from('conversations')
+                .update(updates)
+                .eq('conversation_id', conversationId);
+        }
+        catch (error) {
+            console.error('Error toggling block:', error);
+            throw error;
+        }
     }
+    // Delete message
     async deleteMessage(messageId, userId, forEveryone = false) {
-        if (forEveryone) {
-            const { data: msg } = await supabase.from('messages').select('sender_id').eq('message_id', messageId).single();
-            if (msg && msg.sender_id === userId) {
-                await supabase.from('messages').update({ is_deleted: true, deleted_at: new Date().toISOString(), content: 'This message was deleted' }).eq('message_id', messageId);
+        try {
+            if (forEveryone) {
+                await supabase
+                    .from('messages')
+                    .update({
+                    is_deleted: true,
+                    deleted_at: new Date().toISOString(),
+                    content: 'This message was deleted',
+                    deleted_by: userId
+                })
+                    .eq('message_id', messageId);
+            }
+            else {
+                // Soft delete for the user
+                await supabase
+                    .from('messages')
+                    .update({
+                    is_deleted: true,
+                    deleted_at: new Date().toISOString(),
+                    deleted_by: userId
+                })
+                    .eq('message_id', messageId);
             }
         }
-        else {
-            // Soft delete for default
-            await supabase.from('messages').update({ is_deleted: true, deleted_at: new Date().toISOString(), deleted_by: userId }).eq('message_id', messageId);
+        catch (error) {
+            console.error('Error deleting message:', error);
+            throw error;
         }
     }
+    // Add reaction
     async addReaction(messageId, userId, reactionType) {
-        const { data: existing } = await supabase
-            .from('message_reactions')
-            .select('reaction_id')
-            .eq('message_id', messageId)
-            .eq('user_id', userId)
-            .eq('reaction_type', reactionType)
-            .single();
-        if (existing) {
-            await supabase.from('message_reactions').delete().eq('reaction_id', existing.reaction_id);
-            return 'REMOVED';
+        try {
+            // Check existing reaction
+            const { data: existing } = await supabase
+                .from('message_reactions')
+                .select('reaction_id')
+                .eq('message_id', messageId)
+                .eq('user_id', userId)
+                .eq('reaction_type', reactionType)
+                .maybeSingle();
+            if (existing) {
+                // Remove existing
+                await supabase
+                    .from('message_reactions')
+                    .delete()
+                    .eq('reaction_id', existing.reaction_id);
+                return 'REMOVED';
+            }
+            else {
+                // Add new
+                await supabase
+                    .from('message_reactions')
+                    .insert({
+                    message_id: messageId,
+                    user_id: userId,
+                    reaction_type: reactionType,
+                    created_at: new Date().toISOString()
+                });
+                return 'ADDED';
+            }
         }
-        else {
-            await supabase.from('message_reactions').insert({
-                message_id: messageId,
-                user_id: userId,
-                reaction_type: reactionType,
-                created_at: new Date().toISOString()
-            });
-            return 'ADDED';
+        catch (error) {
+            console.error('Error adding reaction:', error);
+            throw error;
         }
     }
 }

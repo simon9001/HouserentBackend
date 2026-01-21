@@ -1,1 +1,1 @@
-{"version":3,"file":"propertyMedia.routes.d.ts","sourceRoot":"","sources":["../../src/PropertyMedia/propertyMedia.routes.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,EAAE,MAAM,MAAM,CAAC;AAI5B,QAAA,MAAM,mBAAmB,4EAAa,CAAC;AAiBvC,eAAe,mBAAmB,CAAC"}
+{"version":3,"file":"propertyMedia.routes.d.ts","sourceRoot":"","sources":["../../src/PropertyMedia/propertyMedia.routes.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,EAAE,MAAM,MAAM,CAAC;AAI5B,QAAA,MAAM,mBAAmB,4EAAa,CAAC;AA8BvC,eAAe,mBAAmB,CAAC"}

@@ -27,6 +27,11 @@ export interface SessionData {
     expiresAt: Date;
     lastAccessedAt: Date;
 }
+export interface VerificationResult {
+    success: boolean;
+    email?: string;
+    message?: string;
+}
 export declare class AuthService {
     private hashTokenForStorage;
     private generateTokenPayload;
@@ -38,9 +43,9 @@ export declare class AuthService {
         sessionId: string;
     }>;
     logout(userId: string, sessionId?: string): Promise<void>;
-    verifyEmail(token: string): Promise<boolean>;
+    verifyEmail(token: string): Promise<VerificationResult>;
     requestPasswordReset(email: string): Promise<void>;
-    resetPassword(token: string, newPassword: string): Promise<boolean>;
+    resetPassword(token: string, newPassword: string): Promise<VerificationResult>;
     getUserSessions(userId: string): Promise<SessionData[]>;
     revokeSession(userId: string, sessionId: string): Promise<boolean>;
     validateAccessToken(token: string): Promise<TokenPayload | null>;
@@ -48,7 +53,7 @@ export declare class AuthService {
     private updateSession;
     private saveEmailVerificationToken;
     changePassword(userId: string, currentPassword: string, newPassword: string): Promise<boolean>;
-    resendVerificationEmail(email: string): Promise<void>;
+    resendVerificationEmail(email: string): Promise<VerificationResult>;
     getAuthProfile(userId: string): Promise<Omit<User, 'PasswordHash'> | null>;
     getUserIdFromToken(token: string): Promise<string | null>;
     debugTokenStructure(token: string): Promise<any>;
@@ -58,6 +63,7 @@ export declare class AuthService {
         decoded: any;
         fieldCheck: any;
     }>;
+    getUserByEmail(email: string): Promise<Pick<User, 'UserId' | 'Email' | 'Username' | 'IsEmailVerified'> | null>;
 }
 export declare const authService: AuthService;
 //# sourceMappingURL=auth.service.d.ts.map

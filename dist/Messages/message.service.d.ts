@@ -10,7 +10,7 @@ export interface Conversation {
     AgentAvatar?: string;
     TenantName: string;
     TenantAvatar?: string;
-    LastMessageAt?: Date;
+    LastMessageAt?: string;
     LastMessagePreview?: string;
     UnreadCountForTenant: number;
     UnreadCountForAgent: number;
@@ -21,6 +21,7 @@ export interface Conversation {
     BlockReason?: string;
     UserRoleInConversation?: 'AGENT' | 'TENANT';
     UnreadCountForUser?: number;
+    CreatedAt: string;
 }
 export interface MessageReaction {
     ReactionType: string;
@@ -41,16 +42,16 @@ export interface Message {
     FileName?: string;
     FileSize?: number;
     MimeType?: string;
-    CreatedAt: Date;
-    ReadAt?: Date;
-    DeliveredAt?: Date;
+    CreatedAt: string;
+    ReadAt?: string;
+    DeliveredAt?: string;
     IsEdited: boolean;
-    EditedAt?: Date;
+    EditedAt?: string;
     IsDeleted: boolean;
-    DeletedAt?: Date;
+    DeletedAt?: string;
     DeletedBy?: string;
     HasUserReacted?: boolean;
-    Reactions?: MessageReaction[] | string;
+    Reactions?: MessageReaction[];
 }
 export declare class MessageService {
     private mapDBToConversation;
@@ -58,8 +59,8 @@ export declare class MessageService {
     getOrCreateConversation(propertyId: string, agentId: string, userId: string, initialMessage?: string, messageType?: string): Promise<{
         ConversationId: string;
     }>;
-    getConversationById(conversationId: string): Promise<Conversation | null>;
     getUserConversations(userId: string, role?: string, includeArchived?: boolean): Promise<Conversation[]>;
+    getMessages(conversationId: string, userId: string, beforeMessageId?: string): Promise<Message[]>;
     sendMessage(params: {
         conversationId: string;
         senderId: string;
@@ -71,8 +72,7 @@ export declare class MessageService {
         fileSize?: number;
         mimeType?: string;
     }): Promise<Message>;
-    getMessages(conversationId: string, userId: string, beforeMessageId?: string): Promise<Message[]>;
-    markAsRead(conversationId: string, userId: string): Promise<number>;
+    markMessagesAsRead(conversationId: string, userId: string): Promise<void>;
     toggleArchive(conversationId: string, userId: string, archive: boolean): Promise<void>;
     toggleBlock(conversationId: string, userId: string, block: boolean, reason?: string): Promise<void>;
     deleteMessage(messageId: string, userId: string, forEveryone?: boolean): Promise<void>;

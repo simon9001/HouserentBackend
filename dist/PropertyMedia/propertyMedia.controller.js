@@ -1,6 +1,265 @@
 import { propertyMediaService } from './propertyMedia.service.js';
 import { ValidationUtils } from '../utils/validators.js';
-// Create new property media
+import { CloudinaryService } from '../services/cloudinary.service.js';
+// ==================== FILE UPLOAD ENDPOINTS ====================
+// Create media with file upload (backend handles Cloudinary)
+export const createMediaWithUpload = async (c) => {
+    try {
+        const body = await c.req.parseBody();
+        const file = body.file;
+        // Fix: Proper type checking for file
+        if (!file || typeof file === 'boolean' || !(file instanceof File)) {
+            return c.json({
+                success: false,
+                error: 'Valid file is required'
+            }, 400);
+        }
+        // Fix: Type assertion for body fields
+        const propertyId = body.propertyId;
+        const mediaTypeValue = body.mediaType;
+        const requiredFields = ['propertyId', 'mediaType'];
+        const missingFields = requiredFields.filter(field => {
+            const value = body[field];
+            return !value || (typeof value === 'string' && value.trim() === '');
+        });
+        if (missingFields.length > 0) {
+            return c.json({
+                success: false,
+                error: `Missing required fields: ${missingFields.join(', ')}`
+            }, 400);
+        }
+        // Validate UUID
+        if (!ValidationUtils.isValidUUID(propertyId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid property ID format'
+            }, 400);
+        }
+        // Validate media type
+        const validMediaTypes = ['IMAGE', 'VIDEO', 'DOCUMENT'];
+        const mediaType = mediaTypeValue.toUpperCase();
+        if (!validMediaTypes.includes(mediaType)) {
+            return c.json({
+                success: false,
+                error: 'Invalid media type. Must be one of: IMAGE, VIDEO, DOCUMENT'
+            }, 400);
+        }
+        // Convert File to Buffer
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        // Upload to Cloudinary
+        const cloudinaryResult = await CloudinaryService.uploadFile(buffer, {
+            folder: `Csrrentalsystem/properties/${propertyId}`,
+            resourceType: mediaType.toLowerCase(),
+            publicId: `${Date.now()}_${file.name.replace(/\.[^/.]+$/, '')}`,
+            tags: ['Csrrentalsystem', 'property', `property_${propertyId}`],
+        });
+        // Fix: Properly handle isPrimary - check both string and boolean
+        const isPrimaryValue = body.isPrimary;
+        const isPrimary = typeof isPrimaryValue === 'boolean'
+            ? isPrimaryValue
+            : isPrimaryValue === 'true';
+        // Create media record in database
+        const mediaData = {
+            propertyId,
+            mediaType: mediaType,
+            mediaUrl: cloudinaryResult.url,
+            thumbnailUrl: cloudinaryResult.thumbnailUrl,
+            isPrimary,
+            cloudinaryPublicId: cloudinaryResult.publicId,
+            fileSize: cloudinaryResult.bytes,
+            format: cloudinaryResult.format,
+            dimensions: cloudinaryResult.width && cloudinaryResult.height
+                ? `${cloudinaryResult.width}x${cloudinaryResult.height}`
+                : null,
+        };
+        const media = await propertyMediaService.createMedia(mediaData);
+        return c.json({
+            success: true,
+            message: 'Media uploaded and added successfully',
+            data: {
+                ...media,
+                cloudinaryInfo: {
+                    publicId: cloudinaryResult.publicId,
+                    format: cloudinaryResult.format,
+                    size: cloudinaryResult.bytes,
+                }
+            }
+        }, 201);
+    }
+    catch (error) {
+        console.error('Error creating media with upload:', error.message);
+        if (error.message.includes('not found') || error.message.includes('Invalid')) {
+            return c.json({
+                success: false,
+                error: error.message
+            }, 400);
+        }
+        return c.json({
+            success: false,
+            error: 'Failed to upload and add media'
+        }, 500);
+    }
+};
+// Bulk create media with upload
+export const createBulkMediaWithUpload = async (c) => {
+    try {
+        const body = await c.req.parseBody();
+        const files = body.files;
+        // Fix: Type checking for files array
+        if (!files || !Array.isArray(files) || files.length === 0) {
+            return c.json({
+                success: false,
+                error: 'Files array is required and must not be empty'
+            }, 400);
+        }
+        const propertyId = body.propertyId;
+        const isPrimaryIndex = parseInt(body.primaryIndex) || 0;
+        if (!ValidationUtils.isValidUUID(propertyId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid property ID format'
+            }, 400);
+        }
+        // Filter out non-File objects
+        const validFiles = files.filter((file) => file instanceof File);
+        if (validFiles.length === 0) {
+            return c.json({
+                success: false,
+                error: 'No valid files found'
+            }, 400);
+        }
+        // Convert Files to buffers
+        const fileBuffers = await Promise.all(validFiles.map(async (file) => {
+            const arrayBuffer = await file.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            return {
+                buffer,
+                originalname: file.name,
+                mimetype: file.type,
+            };
+        }));
+        // Upload to Cloudinary
+        const cloudinaryResults = await CloudinaryService.uploadMultipleFiles(fileBuffers, {
+            folder: `Csrrentalsystem/properties/${propertyId}`,
+            tags: ['Csrrentalsystem', 'property', `property_${propertyId}`],
+        });
+        // Create media records in database
+        const mediaRecords = cloudinaryResults.map((result, index) => ({
+            propertyId,
+            mediaType: result.type,
+            mediaUrl: result.url,
+            thumbnailUrl: result.thumbnailUrl,
+            isPrimary: index === isPrimaryIndex,
+            cloudinaryPublicId: result.publicId,
+            fileSize: result.bytes,
+            format: result.format,
+            dimensions: result.width && result.height
+                ? `${result.width}x${result.height}`
+                : null,
+        }));
+        const createdMedia = await propertyMediaService.createBulkMedia(mediaRecords);
+        return c.json({
+            success: true,
+            message: `Successfully uploaded ${createdMedia.length} media files`,
+            data: createdMedia.map((media, index) => ({
+                ...media,
+                cloudinaryInfo: {
+                    publicId: cloudinaryResults[index].publicId,
+                    format: cloudinaryResults[index].format,
+                    size: cloudinaryResults[index].bytes,
+                }
+            }))
+        }, 201);
+    }
+    catch (error) {
+        console.error('Error creating bulk media with upload:', error.message);
+        return c.json({
+            success: false,
+            error: 'Failed to upload and create media'
+        }, 500);
+    }
+};
+// Get upload signature for client-side uploads
+export const getUploadSignature = async (c) => {
+    try {
+        const { propertyId } = c.req.query();
+        if (propertyId && !ValidationUtils.isValidUUID(propertyId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid property ID format'
+            }, 400);
+        }
+        const folder = propertyId
+            ? `Csrrentalsystem/properties/${propertyId}`
+            : undefined;
+        const uploadData = CloudinaryService.generateSignedUploadUrl(folder);
+        return c.json({
+            success: true,
+            data: uploadData
+        });
+    }
+    catch (error) {
+        console.error('Error generating upload signature:', error.message);
+        return c.json({
+            success: false,
+            error: 'Failed to generate upload signature'
+        }, 500);
+    }
+};
+// Delete media and remove from Cloudinary
+export const deleteMediaWithCloudinary = async (c) => {
+    try {
+        const mediaId = c.req.param('mediaId');
+        if (!ValidationUtils.isValidUUID(mediaId)) {
+            return c.json({
+                success: false,
+                error: 'Invalid media ID format'
+            }, 400);
+        }
+        // Get media to get Cloudinary public ID
+        const media = await propertyMediaService.getMediaById(mediaId);
+        if (!media) {
+            return c.json({
+                success: false,
+                error: 'Media not found'
+            }, 404);
+        }
+        // Fix: Check if cloudinary_public_id exists (note the snake_case)
+        if (media.cloudinary_public_id) {
+            // Fix: Access media_type (snake_case) and convert to resourceType
+            const resourceType = (media.media_type || '').toLowerCase();
+            await CloudinaryService.deleteFile(media.cloudinary_public_id, resourceType);
+        }
+        // Delete from database
+        const success = await propertyMediaService.deleteMedia(mediaId);
+        if (!success) {
+            return c.json({
+                success: false,
+                error: 'Failed to delete media from database'
+            }, 404);
+        }
+        return c.json({
+            success: true,
+            message: 'Media deleted successfully from Cloudinary and database'
+        });
+    }
+    catch (error) {
+        console.error('Error deleting media:', error.message);
+        if (error.message.includes('Invalid') || error.message.includes('not found')) {
+            return c.json({
+                success: false,
+                error: error.message
+            }, 400);
+        }
+        return c.json({
+            success: false,
+            error: 'Failed to delete media'
+        }, 500);
+    }
+};
+// ==================== EXISTING ENDPOINTS (UPDATED) ====================
+// Create new property media (for existing Cloudinary URLs)
 export const createMedia = async (c) => {
     try {
         const body = await c.req.json();
@@ -34,7 +293,11 @@ export const createMedia = async (c) => {
             mediaType: mediaType,
             mediaUrl: body.mediaUrl,
             thumbnailUrl: body.thumbnailUrl,
-            isPrimary: body.isPrimary || false
+            isPrimary: body.isPrimary || false,
+            cloudinaryPublicId: body.cloudinaryPublicId || null,
+            fileSize: body.fileSize || null,
+            format: body.format || null,
+            dimensions: body.dimensions || null,
         };
         const media = await propertyMediaService.createMedia(mediaData);
         return c.json({
@@ -45,8 +308,7 @@ export const createMedia = async (c) => {
     }
     catch (error) {
         console.error('Error creating media:', error.message);
-        if (error.message.includes('not found') ||
-            error.message.includes('Invalid')) {
+        if (error.message.includes('not found') || error.message.includes('Invalid')) {
             return c.json({
                 success: false,
                 error: error.message
@@ -139,7 +401,11 @@ export const updateMedia = async (c) => {
             mediaType: body.mediaType,
             mediaUrl: body.mediaUrl,
             thumbnailUrl: body.thumbnailUrl,
-            isPrimary: body.isPrimary
+            isPrimary: body.isPrimary,
+            cloudinaryPublicId: body.cloudinaryPublicId,
+            fileSize: body.fileSize,
+            format: body.format,
+            dimensions: body.dimensions,
         };
         const updatedMedia = await propertyMediaService.updateMedia(mediaId, updateData);
         return c.json({
@@ -162,7 +428,7 @@ export const updateMedia = async (c) => {
         }, 500);
     }
 };
-// Delete media
+// Delete media (legacy - use deleteMediaWithCloudinary instead)
 export const deleteMedia = async (c) => {
     try {
         const mediaId = c.req.param('mediaId');
@@ -198,7 +464,7 @@ export const deleteMedia = async (c) => {
         }, 500);
     }
 };
-// Set media as primary - FIXED
+// Set media as primary
 export const setPrimaryMedia = async (c) => {
     try {
         const mediaId = c.req.param('mediaId');
@@ -265,7 +531,7 @@ export const getPrimaryMedia = async (c) => {
         }, 500);
     }
 };
-// Bulk create media
+// Bulk create media (for existing Cloudinary URLs)
 export const createBulkMedia = async (c) => {
     try {
         const body = await c.req.json();
@@ -277,6 +543,7 @@ export const createBulkMedia = async (c) => {
         }
         // Validate each media item
         const validMediaTypes = ['IMAGE', 'VIDEO', 'DOCUMENT'];
+        const mediaRecords = [];
         for (const media of body.media) {
             if (!media.propertyId || !media.mediaType || !media.mediaUrl) {
                 return c.json({
@@ -297,9 +564,19 @@ export const createBulkMedia = async (c) => {
                     error: 'Invalid media type'
                 }, 400);
             }
-            media.mediaType = mediaType;
+            mediaRecords.push({
+                propertyId: media.propertyId,
+                mediaType: mediaType,
+                mediaUrl: media.mediaUrl,
+                thumbnailUrl: media.thumbnailUrl,
+                isPrimary: media.isPrimary || false,
+                cloudinaryPublicId: media.cloudinaryPublicId || null,
+                fileSize: media.fileSize || null,
+                format: media.format || null,
+                dimensions: media.dimensions || null,
+            });
         }
-        const createdMedia = await propertyMediaService.createBulkMedia(body.media);
+        const createdMedia = await propertyMediaService.createBulkMedia(mediaRecords);
         return c.json({
             success: true,
             message: `Successfully created ${createdMedia.length} media items`,

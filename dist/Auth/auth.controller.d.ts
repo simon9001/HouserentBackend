@@ -77,6 +77,10 @@ export declare const login: (c: Context) => Promise<(Response & import("hono").T
     error: any;
 }, 401, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
+    error: any;
+    needsVerification: true;
+}, 403, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
     error: string;
 }, 500, "json">)>;
 export declare const refreshToken: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
@@ -95,6 +99,10 @@ export declare const refreshToken: (c: Context) => Promise<(Response & import("h
     error: any;
 }, 401, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
+    error: any;
+    needsVerification: true;
+}, 403, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
     error: string;
 }, 500, "json">)>;
 export declare const logout: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
@@ -110,6 +118,7 @@ export declare const logout: (c: Context) => Promise<(Response & import("hono").
 export declare const verifyEmail: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     message: string;
+    email: string | undefined;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
@@ -127,6 +136,7 @@ export declare const requestPasswordReset: (c: Context) => Promise<(Response & i
 export declare const resetPassword: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     message: string;
+    email: string | undefined;
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     error: any;
@@ -209,12 +219,12 @@ export declare const getAuthProfile: (c: Context) => Promise<(Response & import(
     error: string;
 }, 500, "json">)>;
 export declare const resendVerificationEmail: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 400, "json">) | (Response & import("hono").TypedResponse<{
     success: true;
     message: string;
-}, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
-    success: false;
-    error: any;
-}, 400, "json">)>;
+}, import("hono/utils/http-status").ContentfulStatusCode, "json">)>;
 export declare const checkEmailHealth: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
     success: true;
     data: {
@@ -301,6 +311,24 @@ export declare const checkAuth: (c: Context) => Promise<(Response & import("hono
 }, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
     success: false;
     authenticated: false;
+    error: string;
+}, 500, "json">)>;
+export declare const getUserByEmail: (c: Context) => Promise<(Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 400, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
+    error: string;
+}, 404, "json">) | (Response & import("hono").TypedResponse<{
+    success: true;
+    data: {
+        UserId: string;
+        Email: string;
+        Username: string;
+        IsEmailVerified: boolean;
+    };
+}, import("hono/utils/http-status").ContentfulStatusCode, "json">) | (Response & import("hono").TypedResponse<{
+    success: false;
     error: string;
 }, 500, "json">)>;
 //# sourceMappingURL=auth.controller.d.ts.map

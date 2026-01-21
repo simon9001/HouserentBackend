@@ -16,6 +16,13 @@ export const register = async (c) => {
                 error: `Missing required fields: ${missingFields.join(', ')}`
             }, 400);
         }
+        // Add password length validation to prevent backend crashes
+        if (body.password.length > 100) {
+            return c.json({
+                success: false,
+                error: 'Password must be 100 characters or less'
+            }, 400);
+        }
         const registerData = {
             username: body.username,
             email: body.email,
@@ -58,7 +65,7 @@ export const register = async (c) => {
         }, 500);
     }
 };
-// Login user
+// Login user - UPDATED to check email verification
 export const login = async (c) => {
     try {
         console.log('🔐 Login attempt');
@@ -70,11 +77,40 @@ export const login = async (c) => {
                 error: 'Identifier (username/email/phone) and password are required'
             }, 400);
         }
+        // Add password length validation to prevent backend crashes
+        if (body.password.length > 100) {
+            return c.json({
+                success: false,
+                error: 'Invalid password format',
+                needsVerification: false
+            }, 400);
+        }
         const loginData = {
             identifier: body.identifier,
             password: body.password
         };
         const result = await authService.login(loginData);
+        // Check if email is verified - ADD THIS CHECK
+        if (!result.user.IsEmailVerified) {
+            console.log('❌ Login attempt with unverified email:', result.user.Email);
+            // Still return some user info for frontend to display
+            return c.json({
+                success: false,
+                error: 'Please verify your email before logging in. Check your email inbox or click the resend verification link.',
+                needsVerification: true,
+                email: result.user.Email,
+                data: {
+                    user: {
+                        UserId: result.user.UserId,
+                        Email: result.user.Email,
+                        Username: result.user.Username,
+                        IsEmailVerified: result.user.IsEmailVerified
+                    },
+                    // Don't return tokens if email not verified
+                    tokens: null
+                }
+            }, 403); // 403 Forbidden - specifically for unverified emails
+        }
         // Debug: Check the token structure
         console.log('🔍 Login successful, token details:', {
             accessTokenLength: result.tokens.accessToken?.length,
@@ -97,13 +133,20 @@ export const login = async (c) => {
                 error: error.message
             }, 401);
         }
+        if (error.message.includes('Please verify your email')) {
+            return c.json({
+                success: false,
+                error: error.message,
+                needsVerification: true
+            }, 403);
+        }
         return c.json({
             success: false,
             error: 'Login failed'
         }, 500);
     }
 };
-// Refresh token
+// Refresh token - UPDATED to check email verification
 export const refreshToken = async (c) => {
     try {
         console.log('🔄 Refresh token request');
@@ -115,6 +158,21 @@ export const refreshToken = async (c) => {
             }, 400);
         }
         const tokens = await authService.refreshToken(body.refreshToken);
+        // Check if user email is verified when refreshing token
+        // This prevents bypassing email verification through token refresh
+        const payload = JWTUtils.verifyAccessToken(tokens.accessToken);
+        if (payload) {
+            const userProfile = await authService.getAuthProfile(payload.userId);
+            if (userProfile && !userProfile.IsEmailVerified) {
+                console.log('❌ Token refresh attempt for unverified user:', userProfile.Email);
+                return c.json({
+                    success: false,
+                    error: 'Please verify your email to access your account',
+                    needsVerification: true,
+                    email: userProfile.Email
+                }, 403);
+            }
+        }
         console.log('✅ Token refreshed:', {
             newAccessTokenLength: tokens.accessToken?.length,
             sessionId: tokens.sessionId
@@ -132,6 +190,13 @@ export const refreshToken = async (c) => {
                 success: false,
                 error: error.message
             }, 401);
+        }
+        if (error.message.includes('Please verify your email')) {
+            return c.json({
+                success: false,
+                error: error.message,
+                needsVerification: true
+            }, 403);
         }
         return c.json({
             success: false,
@@ -179,7 +244,7 @@ export const logout = async (c) => {
         }, 500);
     }
 };
-// Verify email
+// Verify email - UPDATED to return email for frontend redirection
 export const verifyEmail = async (c) => {
     try {
         console.log('📧 Email verification request');
@@ -190,17 +255,18 @@ export const verifyEmail = async (c) => {
                 error: 'Verification token is required'
             }, 400);
         }
-        const success = await authService.verifyEmail(body.token);
-        if (!success) {
+        const result = await authService.verifyEmail(body.token);
+        if (!result.success) {
             return c.json({
                 success: false,
-                error: 'Email verification failed'
+                error: result.message || 'Email verification failed'
             }, 400);
         }
-        console.log('✅ Email verified successfully');
+        console.log('✅ Email verified successfully for:', result.email);
         return c.json({
             success: true,
-            message: 'Email verified successfully'
+            message: 'Email verified successfully',
+            email: result.email
         });
     }
     catch (error) {
@@ -245,7 +311,7 @@ export const requestPasswordReset = async (c) => {
         });
     }
 };
-// Reset password
+// Reset password - ADD email verification check
 export const resetPassword = async (c) => {
     try {
         console.log('🔄 Password reset attempt');
@@ -256,17 +322,25 @@ export const resetPassword = async (c) => {
                 error: 'Token and new password are required'
             }, 400);
         }
-        const success = await authService.resetPassword(body.token, body.newPassword);
-        if (!success) {
+        // Add password length validation
+        if (body.newPassword.length > 100) {
             return c.json({
                 success: false,
-                error: 'Password reset failed'
+                error: 'Password must be 100 characters or less'
             }, 400);
         }
-        console.log('✅ Password reset successfully');
+        const result = await authService.resetPassword(body.token, body.newPassword);
+        if (!result.success) {
+            return c.json({
+                success: false,
+                error: result.message || 'Password reset failed'
+            }, 400);
+        }
+        console.log('✅ Password reset successfully for:', result.email);
         return c.json({
             success: true,
-            message: 'Password reset successfully'
+            message: 'Password reset successfully',
+            email: result.email
         });
     }
     catch (error) {
@@ -289,7 +363,7 @@ export const resetPassword = async (c) => {
         }, 500);
     }
 };
-// Change password (authenticated)
+// Change password (authenticated) - ADD password length validation
 export const changePassword = async (c) => {
     try {
         console.log('🔒 Change password request');
@@ -314,6 +388,13 @@ export const changePassword = async (c) => {
             return c.json({
                 success: false,
                 error: 'Current password and new password are required'
+            }, 400);
+        }
+        // Add password length validation
+        if (body.newPassword.length > 100) {
+            return c.json({
+                success: false,
+                error: 'New password must be 100 characters or less'
             }, 400);
         }
         console.log('🔄 Changing password for user:', payload.userId);
@@ -460,6 +541,17 @@ export const getAuthProfile = async (c) => {
                 error: 'User not found'
             }, 404);
         }
+        // Check email verification status
+        if (!profile.IsEmailVerified) {
+            console.log('⚠️ Profile request for unverified user:', profile.Email);
+            // Still return profile but include warning
+            return c.json({
+                success: true,
+                message: 'Please verify your email to access all features',
+                needsVerification: true,
+                data: profile
+            });
+        }
         console.log('✅ Profile retrieved successfully');
         return c.json({
             success: true,
@@ -486,21 +578,21 @@ export const resendVerificationEmail = async (c) => {
             }, 400);
         }
         console.log('📧 Resending verification for:', body.email);
-        await authService.resendVerificationEmail(body.email);
-        // Always return success to prevent email enumeration
+        const result = await authService.resendVerificationEmail(body.email);
+        if (!result.success) {
+            return c.json({
+                success: false,
+                error: result.message || 'Failed to resend verification email'
+            }, 400);
+        }
+        // Return success message
         return c.json({
             success: true,
-            message: 'If an account exists with this email and is not verified, a new verification email has been sent'
+            message: result.message || 'Verification email sent successfully'
         });
     }
     catch (error) {
         console.error('🔥 Error resending verification email:', error.message);
-        if (error.message.includes('Email is already verified')) {
-            return c.json({
-                success: false,
-                error: error.message
-            }, 400);
-        }
         // Still return success to prevent email enumeration
         return c.json({
             success: true,
@@ -715,6 +807,43 @@ export const checkAuth = async (c) => {
             success: false,
             authenticated: false,
             error: 'Authentication check failed'
+        }, 500);
+    }
+};
+// NEW: Get user by email (for verification redirect)
+export const getUserByEmail = async (c) => {
+    try {
+        console.log('👤 Get user by email request');
+        const body = await c.req.json();
+        if (!body.email) {
+            return c.json({
+                success: false,
+                error: 'Email is required'
+            }, 400);
+        }
+        const user = await authService.getUserByEmail(body.email);
+        if (!user) {
+            return c.json({
+                success: false,
+                error: 'User not found'
+            }, 404);
+        }
+        // Return limited user info for verification purposes
+        return c.json({
+            success: true,
+            data: {
+                UserId: user.UserId,
+                Email: user.Email,
+                Username: user.Username,
+                IsEmailVerified: user.IsEmailVerified
+            }
+        });
+    }
+    catch (error) {
+        console.error('🔥 Error getting user by email:', error.message);
+        return c.json({
+            success: false,
+            error: 'Failed to get user'
         }, 500);
     }
 };
