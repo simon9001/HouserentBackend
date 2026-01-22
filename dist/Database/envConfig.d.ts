@@ -1,6 +1,22 @@
 export declare const validateEnv: () => boolean;
 export declare const env: {
+    CLOUDINARY_CLOUD_NAME: string;
+    CLOUDINARY_API_KEY: string;
+    CLOUDINARY_API_SECRET: string;
+    CLOUDINARY_UPLOAD_PRESET: string;
+    CLOUDINARY_FOLDER: string;
+    BREVO_API_KEY: string;
+    SMTP_FROM_EMAIL: string;
+    SMTP_FROM_NAME: string;
+    EMAIL_LOGO_URL: string;
+    EMAIL_LOGO_ALT: string;
+    EMAIL_LOGO_HEIGHT: string;
+    EMAIL_PRIMARY_COLOR: string;
+    EMAIL_SUCCESS_COLOR: string;
+    EMAIL_WARNING_COLOR: string;
+    EMAIL_ERROR_COLOR: string;
     SUPABASE_URL: string;
+    DATABASE_URL: string;
     SUPABASE_SERVICE_KEY: string;
     JWT_SECRET: string;
     JWT_REFRESH_SECRET: string;
@@ -10,12 +26,6 @@ export declare const env: {
     MAX_LOGIN_ATTEMPTS: number;
     ACCOUNT_LOCKOUT_MINUTES: number;
     PASSWORD_RESET_TOKEN_EXPIRY: number;
-    SMTP_HOST: string;
-    SMTP_PORT: number;
-    SMTP_USER: string;
-    SMTP_PASS: string;
-    SMTP_FROM_EMAIL: string;
-    SMTP_FROM_NAME: string;
     NODE_ENV: string;
     PORT: number;
     FRONTEND_URL: string;

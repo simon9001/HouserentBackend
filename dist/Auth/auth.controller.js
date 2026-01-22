@@ -1,6 +1,11 @@
+// // src/controllers/auth.controller.ts
+// import { Context } from 'hono';
+// import { authService, LoginInput, RegisterInput } from './auth.service.js';
+// import { JWTUtils } from '../utils/jwt.js';
+// import { EmailUtils } from '../utils/EmailService.js';
 import { authService } from './auth.service.js';
 import { JWTUtils } from '../utils/jwt.js';
-import { EmailUtils } from '../utils/email.js';
+import { EmailService } from '../utils/EmailService.js';
 // Register new user
 export const register = async (c) => {
     try {
@@ -604,7 +609,7 @@ export const resendVerificationEmail = async (c) => {
 export const checkEmailHealth = async (c) => {
     try {
         console.log('🏥 Email health check');
-        const isHealthy = await EmailUtils.testConnection();
+        const isHealthy = await EmailService.testConnection();
         console.log('✅ Email service status:', isHealthy ? 'healthy' : 'unhealthy');
         return c.json({
             success: true,

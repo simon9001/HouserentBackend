@@ -11,6 +11,7 @@
     "format": "prettier --write src/**/*.ts"
   },
   "dependencies": {
+    "@getbrevo/brevo": "^3.0.1",
     "@hono/node-server": "^1.19.7",
     "@hono/prometheus": "^1.0.2",
     "@supabase/supabase-js": "^2.90.1",
